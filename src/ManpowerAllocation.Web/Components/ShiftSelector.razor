@@ -7,12 +7,11 @@
     <span class="shift-label">Shift:</span>
     @foreach (var option in Options)
     {
-        <button type="button"
-                class="shift-button @(option == Value ? "active" : string.Empty)"
-                aria-pressed="@(option == Value)"
-                @onclick="() => Select(option)">
+        <FluentButton Appearance="@(option == Value ? Appearance.Accent : Appearance.Neutral)"
+                      aria-pressed="@(option == Value)"
+                      @onclick="() => Select(option)">
             @option
-        </button>
+        </FluentButton>
     }
 </div>
 

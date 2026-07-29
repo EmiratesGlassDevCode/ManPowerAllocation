@@ -2,6 +2,10 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 
+@* Fluent 2 design system: applies the Fluent token set (typography, neutral palette, elevation,
+   corner radius) with the Emirates Glass navy as the accent, in light mode. *@
+<FluentDesignTheme Mode="DesignThemeModes.Light" CustomColor="#12446B" StorageName="mpa-theme" />
+
 @*
     Application shell: a responsive top bar showing the signed-in user and a prominent banner
     whenever the session is an emergency break-glass session, plus the primary navigation. On
@@ -39,6 +43,13 @@
         </main>
     </div>
 </div>
+
+@* Fluent UI infrastructure providers (dialogs, tooltips, toasts, menus, message bars). *@
+<FluentToastProvider />
+<FluentDialogProvider />
+<FluentTooltipProvider />
+<FluentMessageBarProvider />
+<FluentMenuProvider />
 
 @code {
     private bool _navOpen;

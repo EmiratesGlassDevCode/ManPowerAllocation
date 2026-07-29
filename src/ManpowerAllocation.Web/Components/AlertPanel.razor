@@ -2,10 +2,10 @@
     Reusable coloured list panel used for Absent / Vacation / Outsource / Excess / Shortage
     summaries. Shows a count badge and the items, or a muted "None" when empty.
 *@
-<div class="alert-panel accent-@Accent">
+<FluentCard Class="alert-panel accent-@Accent">
     <div class="alert-head">
         <span>@Title</span>
-        <span class="count">@(Items?.Count ?? 0)</span>
+        <FluentBadge Appearance="Appearance.Neutral">@(Items?.Count ?? 0)</FluentBadge>
     </div>
     @if (Items is null || Items.Count == 0)
     {
@@ -20,7 +20,7 @@
             }
         </ul>
     }
-</div>
+</FluentCard>
 
 @code {
     /// <summary>Panel heading.</summary>

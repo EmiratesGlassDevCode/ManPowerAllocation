@@ -16,9 +16,9 @@
 
 <div class="toolbar">
     <span class="hint">Export:</span>
-    <a class="btn-link" href="api/exports/report" target="_blank">Staffing report</a>
-    <a class="btn-link" href="api/exports/attendance" target="_blank">Attendance</a>
-    <a class="btn-link" href="api/exports/requirements-template" target="_blank">Requirements template</a>
+    <FluentAnchor Href="api/exports/report" Target="_blank" Appearance="Appearance.Neutral">Staffing report</FluentAnchor>
+    <FluentAnchor Href="api/exports/attendance" Target="_blank" Appearance="Appearance.Neutral">Attendance</FluentAnchor>
+    <FluentAnchor Href="api/exports/requirements-template" Target="_blank" Appearance="Appearance.Neutral">Requirements template</FluentAnchor>
 </div>
 
 @if (!_loaded)
@@ -30,7 +30,7 @@ else
     <div class="card-row">
         @foreach (var d in _divisions)
         {
-            <div class="stat-card" role="button" tabindex="0"
+            <FluentCard Class="stat-card" role="button" tabindex="0"
                  @onclick="() => Go(d.Division)"
                  @onkeydown="e => OnCardKey(e, d.Division)"
                  aria-label="@($"Open {DivisionLabel(d.Division)} division")">
@@ -42,15 +42,15 @@ else
                 <div class="stat-card-line @(d.Variance < 0 ? "negative" : "positive")">
                     Variance: @d.Variance &nbsp; Shortage depts: @d.ShortageDepartmentCount
                 </div>
-            </div>
+            </FluentCard>
         }
     </div>
 
-    <div class="factory-total @(FactoryVariance < 0 ? "negative" : "positive")">
+    <FluentCard Class="factory-total @(FactoryVariance < 0 ? "negative" : "positive")">
         <strong>Factory total present:</strong> @FactoryPresent / required @FactoryRequired (net variance @FactoryVariance)
-    </div>
+    </FluentCard>
 
-    <div class="sum-panel">
+    <FluentCard Class="sum-panel">
         <div class="sum-panel-title">◆ Division breakdown</div>
         <table class="grid">
             <thead>
@@ -72,7 +72,7 @@ else
                 }
             </tbody>
         </table>
-    </div>
+    </FluentCard>
 
     <div class="alert-row">
         <AlertPanel Title="⚠ Absent today" Accent="red" Items="_absent" />
