@@ -48,6 +48,13 @@ public sealed class MasterDataImportService : IMasterDataImportService
 
         await _dbContext.ExecuteInTransactionAsync(async ct =>
         {
+            // Reset accumulators so a transient-failure retry (the execution strategy re-invokes
+            // this delegate) does not double-count.
+            departmentsCreated = 0;
+            employeesImported = 0;
+            employeesRemoved = 0;
+            warnings.Clear();
+
             foreach (var divisionGroup in rows.GroupBy(r => r.Division))
             {
                 var division = divisionGroup.Key;
@@ -127,19 +134,31 @@ public sealed class MasterDataImportService : IMasterDataImportService
 
         var rows = await _parser.ParseRequirementsAsync(workbook, cancellationToken);
 
+        // Collapse duplicate rows for the same department (common in hand-maintained sheets)
+        // to a single last-wins entry. Without this, two rows for the same (Division, Name)
+        // would both miss the DB lookup and both insert, violating the unique index and
+        // aborting the entire import.
+        var deduped = rows
+            .Where(r => DepartmentName.Normalize(r.DepartmentName).Length > 0)
+            .GroupBy(r => (r.Division, Name: DepartmentName.Normalize(r.DepartmentName)))
+            .Select(g => g.Last())
+            .ToList();
+
         var warnings = new List<string>();
         var created = 0;
         var updated = 0;
 
         await _dbContext.ExecuteInTransactionAsync(async ct =>
         {
-            foreach (var row in rows)
+            // Reset accumulators so a transient-failure retry (the execution strategy re-invokes
+            // this delegate) does not double-count.
+            created = 0;
+            updated = 0;
+            warnings.Clear();
+
+            foreach (var row in deduped)
             {
                 var name = DepartmentName.Normalize(row.DepartmentName);
-                if (name.Length == 0)
-                {
-                    continue;
-                }
 
                 var department = await _dbContext.Departments
                     .FirstOrDefaultAsync(d => d.Division == row.Division && d.Name == name, ct);

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using ManpowerAllocation.Application;
 using ManpowerAllocation.Application.Abstractions;
+using ManpowerAllocation.Application.BreakGlass;
 using ManpowerAllocation.Infrastructure;
 using ManpowerAllocation.Infrastructure.Persistence;
 using ManpowerAllocation.Web.Api;
@@ -83,9 +84,42 @@ builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefa
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Strict;
+    // The __Host- prefix requires Path=/ and no Domain; pin it so the cookie is valid and the
+    // prefix rule is satisfied (the app is hosted at the site root).
+    options.Cookie.Path = "/";
     options.ExpireTimeSpan = TimeSpan.FromHours(8);
     options.SlidingExpiration = true;
     options.AccessDeniedPath = "/access-denied";
+
+    // Enforce the emergency window on LIVE sessions, not just new logins. An already-issued
+    // break-glass cookie must stop working the moment the account is auto-disabled (or its
+    // four-hour window elapses); otherwise the cookie would remain valid for its full lifetime.
+    // Only break-glass principals trigger the database check, so normal Entra sessions are
+    // unaffected.
+    options.Events ??= new CookieAuthenticationEvents();
+    var previousValidate = options.Events.OnValidatePrincipal;
+    options.Events.OnValidatePrincipal = async context =>
+    {
+        if (previousValidate is not null)
+        {
+            await previousValidate(context);
+        }
+
+        if (context.Principal?.HasClaim(AppClaimTypes.BreakGlass, "true") != true)
+        {
+            return;
+        }
+
+        var breakGlass = context.HttpContext.RequestServices.GetRequiredService<IBreakGlassService>();
+        var status = await breakGlass.GetStatusAsync(context.HttpContext.RequestAborted);
+        var windowElapsed = status.AutoDisableAtUtc is { } disableAt && DateTime.UtcNow >= disableAt;
+
+        if (!status.IsEnabled || windowElapsed)
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
+    };
 });
 
 builder.Services.AddHttpContextAccessor();

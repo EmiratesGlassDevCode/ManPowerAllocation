@@ -118,6 +118,15 @@ public static class StaffingCalculator
     {
         ArgumentNullException.ThrowIfNull(departmentStats);
 
+        // An OFF department contributes its present staff to the division's available pool but
+        // NOT a requirement — otherwise switching a department off would create a phantom
+        // deficit. Requirement and variance therefore only count active (non-Off) departments,
+        // while present/on-roll counts include everyone.
+        var required = departmentStats
+            .Where(d => d.Status != DepartmentStaffingStatus.Off)
+            .Sum(d => d.Required);
+        var totalPresent = departmentStats.Sum(d => d.TotalPresent);
+
         return new DivisionTotals(
             division,
             departmentStats.Sum(d => d.OnRoll),
@@ -125,9 +134,9 @@ public static class StaffingCalculator
             departmentStats.Sum(d => d.Absent),
             departmentStats.Sum(d => d.OnVacation),
             departmentStats.Sum(d => d.SupplyPresent),
-            departmentStats.Sum(d => d.TotalPresent),
-            departmentStats.Sum(d => d.Required),
-            departmentStats.Sum(d => d.TotalPresent) - departmentStats.Sum(d => d.Required),
+            totalPresent,
+            required,
+            totalPresent - required,
             departmentStats.Count(d => d.Status == DepartmentStaffingStatus.Short));
     }
 }

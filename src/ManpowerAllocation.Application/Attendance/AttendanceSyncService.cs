@@ -76,7 +76,24 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
             foreach (var employee in employees)
             {
                 var badge = employee.BadgeNumber?.Trim();
-                var checkedIn = !string.IsNullOrEmpty(badge) && presentIds.Contains(badge);
+
+                // A blank badge means the employee cannot be matched against the biometric
+                // system yet — it does NOT mean they are absent. Leave their status untouched
+                // (as with supply workers) so a manually-set status is not overwritten every
+                // sync tick until a badge is assigned.
+                if (string.IsNullOrEmpty(badge))
+                {
+                    switch (employee.Status)
+                    {
+                        case AttendanceStatus.Present: present++; break;
+                        case AttendanceStatus.OnVacation: onVacation++; break;
+                        default: absent++; break;
+                    }
+
+                    continue;
+                }
+
+                var checkedIn = presentIds.Contains(badge);
 
                 var target = ResolveStatus(checkedIn, employee.Status);
                 if (target != employee.Status)

@@ -23,6 +23,11 @@ else
         <ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
     </div>
 
+    @if (!string.IsNullOrEmpty(_actionError))
+    {
+        <p class="message error">@_actionError</p>
+    }
+
     @if (_dashboard is null)
     {
         <p><em>Loading…</em></p>
@@ -122,13 +127,13 @@ else
                                                 {
                                                     <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">Unmark vac</button>
                                                 }
-                                                else if (emp.Status != AttendanceStatus.Present)
+                                                else
                                                 {
                                                     <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">Mark vac</button>
                                                 }
                                                 <button type="button" @onclick="() => ChangeShiftAsync(emp.Id, emp.Shift == ShiftType.Day ? ShiftType.Night : ShiftType.Day)">↔ Shift</button>
-                                                <select @onchange="e => MoveAsync(emp.Id, int.Parse((string)e.Value!))">
-                                                    <option value="@emp.DepartmentId">Move to…</option>
+                                                <select @onchange="e => MoveAsync(emp.Id, e.Value?.ToString())">
+                                                    <option value="0">Move to…</option>
                                                     @foreach (var d in _departments.Where(d => d.Id != emp.DepartmentId))
                                                     {
                                                         <option value="@d.Id">@d.Name</option>
@@ -245,6 +250,10 @@ else
     private decimal _fSeq;
     private bool _fActive = true;
     private string? _formError;
+
+    // Inline error for row-level actions (status/shift/move/toggle) so a service failure does
+    // not tear down the circuit.
+    private string? _actionError;
 
     private DepartmentStats? _modalDept;
 
@@ -384,39 +393,60 @@ else
 
     private async Task SetStatusAsync(int employeeId, AttendanceStatus status)
     {
-        await EmployeeService.ChangeStatusAsync(employeeId, new ChangeStatusRequest { Status = status });
-        await LoadAsync();
+        await RunActionAsync(() => EmployeeService.ChangeStatusAsync(employeeId, new ChangeStatusRequest { Status = status }));
     }
 
     private async Task ChangeShiftAsync(int employeeId, ShiftType shift)
     {
-        await EmployeeService.ChangeShiftAsync(employeeId, new ChangeShiftRequest { Shift = shift });
-        await LoadAsync();
+        await RunActionAsync(() => EmployeeService.ChangeShiftAsync(employeeId, new ChangeShiftRequest { Shift = shift }));
     }
 
-    private async Task MoveAsync(int employeeId, int targetDepartmentId)
+    private async Task MoveAsync(int employeeId, string? rawTargetDepartmentId)
     {
-        if (targetDepartmentId != 0)
+        // The placeholder option carries "0"; ignore it and any unparseable value so an
+        // accidental re-selection does not issue a no-op move (and its spurious audit entry).
+        if (!int.TryParse(rawTargetDepartmentId, out var targetDepartmentId) || targetDepartmentId == 0)
         {
-            await EmployeeService.MoveAsync(employeeId, new MoveEmployeeRequest { TargetDepartmentId = targetDepartmentId });
-            await LoadAsync();
+            return;
         }
+
+        await RunActionAsync(() => EmployeeService.MoveAsync(employeeId, new MoveEmployeeRequest { TargetDepartmentId = targetDepartmentId }));
     }
 
     private async Task ToggleDepartmentAsync(int departmentId, bool isActive)
     {
-        await DepartmentService.SetActiveAsync(departmentId, isActive);
-        await LoadAsync();
+        await RunActionAsync(() => DepartmentService.SetActiveAsync(departmentId, isActive));
     }
 
     private async Task ToggleAllAsync(bool active)
     {
-        foreach (var d in _departments)
+        await RunActionAsync(async () =>
         {
-            if (d.IsActive != active)
+            foreach (var d in _departments)
             {
-                await DepartmentService.SetActiveAsync(d.Id, active);
+                if (d.IsActive != active)
+                {
+                    await DepartmentService.SetActiveAsync(d.Id, active);
+                }
             }
+        });
+    }
+
+    /// <summary>
+    /// Runs a data-changing action, reloads the view, and surfaces any service error inline
+    /// instead of letting the exception tear down the Blazor circuit (which would white-screen
+    /// the page and lose all state). The view is always reloaded so the UI reflects true state.
+    /// </summary>
+    private async Task RunActionAsync(Func<Task> action)
+    {
+        _actionError = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            _actionError = ex.Message;
         }
 
         await LoadAsync();

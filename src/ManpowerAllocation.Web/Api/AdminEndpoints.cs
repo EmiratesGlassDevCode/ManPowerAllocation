@@ -51,6 +51,9 @@ public static class AdminEndpoints
             });
     }
 
+    /// <summary>Largest workbook the import endpoints accept (15 MB), guarding against oversized uploads.</summary>
+    private const long MaxWorkbookBytes = 15L * 1024 * 1024;
+
     /// <summary>Maps the master-data import endpoints.</summary>
     private static void MapImportEndpoints(RouteGroupBuilder admin)
     {
@@ -58,18 +61,54 @@ public static class AdminEndpoints
 
         // Antiforgery is disabled on these multipart endpoints; they are protected by the Admin
         // policy, per-endpoint rate limiting and the SameSite=Strict session cookie.
-        import.MapPost("/attendance", async (IFormFile file, bool replaceExisting, IMasterDataImportService service, CancellationToken ct) =>
+        import.MapPost("/attendance", async (IFormFile? file, [Microsoft.AspNetCore.Mvc.FromForm] bool replaceExisting, IMasterDataImportService service, CancellationToken ct) =>
             {
-                await using var stream = file.OpenReadStream();
+                var invalid = ValidateWorkbook(file);
+                if (invalid is not null)
+                {
+                    return invalid;
+                }
+
+                await using var stream = file!.OpenReadStream();
                 return Results.Ok(await service.ImportAttendanceAsync(stream, replaceExisting, ct));
             })
             .DisableAntiforgery();
 
-        import.MapPost("/requirements", async (IFormFile file, IMasterDataImportService service, CancellationToken ct) =>
+        import.MapPost("/requirements", async (IFormFile? file, IMasterDataImportService service, CancellationToken ct) =>
             {
-                await using var stream = file.OpenReadStream();
+                var invalid = ValidateWorkbook(file);
+                if (invalid is not null)
+                {
+                    return invalid;
+                }
+
+                await using var stream = file!.OpenReadStream();
                 return Results.Ok(await service.ImportRequirementsAsync(stream, ct));
             })
             .DisableAntiforgery();
+    }
+
+    /// <summary>
+    /// Validates an uploaded workbook: it must be present, non-empty, within the size cap and an
+    /// .xlsx file. Returns a 400 result describing the problem, or null when the file is valid.
+    /// </summary>
+    private static IResult? ValidateWorkbook(IFormFile? file)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return Results.BadRequest("No file was uploaded.");
+        }
+
+        if (file.Length > MaxWorkbookBytes)
+        {
+            return Results.BadRequest("The uploaded file is too large.");
+        }
+
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.BadRequest("Only .xlsx workbooks are supported.");
+        }
+
+        return null;
     }
 }

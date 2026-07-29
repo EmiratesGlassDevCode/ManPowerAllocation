@@ -135,11 +135,23 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
                 shiftRaw = "DAY";
             }
 
-            // A name carrying "VAC" (and not an outsource row) also indicates vacation.
-            if (!isSupply && name.Contains("VAC", StringComparison.OrdinalIgnoreCase))
+            // A name carrying a standalone "VAC"/"VACATION" token (and not an outsource row)
+            // also indicates vacation. Match whole tokens only — a substring match would
+            // corrupt legitimate names such as "VACANT POST" (→ "ANT POST") or "AVACHIAN".
+            if (!isSupply)
             {
-                status = AttendanceStatus.OnVacation;
-                name = name.Replace("VAC", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+                var tokens = name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                var isVacationToken = tokens.Any(t =>
+                    t.Equals("VAC", StringComparison.OrdinalIgnoreCase)
+                    || t.Equals("VACATION", StringComparison.OrdinalIgnoreCase));
+
+                if (isVacationToken)
+                {
+                    status = AttendanceStatus.OnVacation;
+                    name = string.Join(' ', tokens.Where(t =>
+                        !t.Equals("VAC", StringComparison.OrdinalIgnoreCase)
+                        && !t.Equals("VACATION", StringComparison.OrdinalIgnoreCase))).Trim();
+                }
             }
 
             var shift = NormaliseShift(shiftRaw);
@@ -386,13 +398,28 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
     /// <summary>Returns true for rows that are headers, instructions or totals rather than data.</summary>
     private static bool IsRequirementNoiseRow(string departmentName)
     {
-        string[] markers =
+        var value = departmentName.Trim().ToUpperInvariant();
+        if (value.Length == 0)
         {
-            "DEPARTMENT", "REQUIRED", "MASTER", "TOTAL", "HOW TO", "STEP",
-            "EDIT", "DO NOT", "DAILY", "NAME", "ID", "CATEGORY", "BRG DEPT"
-        };
+            return true;
+        }
 
-        return markers.Any(m => departmentName.Contains(m, StringComparison.Ordinal));
+        // Multi-word instruction/label phrases are unambiguous, so a substring match is safe.
+        string[] phrases = { "HOW TO", "DO NOT", "BRG DEPT", "MASTER REQUIREMENT" };
+        if (phrases.Any(p => value.Contains(p, StringComparison.Ordinal)))
+        {
+            return true;
+        }
+
+        // Short header labels must match a WHOLE word, never a substring, so real department
+        // names such as "LIQUID GLASS" (contains "ID") or "SOLID LINE" are not discarded.
+        string[] wordMarkers =
+        {
+            "DEPARTMENT", "REQUIRED", "MASTER", "TOTAL", "STEP",
+            "EDIT", "DAILY", "NAME", "ID", "CATEGORY"
+        };
+        var tokens = value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return tokens.Any(t => wordMarkers.Contains(t));
     }
 
     /// <summary>Normalises a raw shift string to a <see cref="ShiftType"/>, or null when unknown.</summary>
