@@ -162,7 +162,7 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
                 Shift = shift.Value,
                 Status = status.Value,
                 IsSupply = isSupply,
-                Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim()
+                Notes = NormaliseNote(notes)
             };
         }
     }
@@ -267,9 +267,14 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
             // Night requirement defaults to the day figure when the cell is blank.
             var night = TryGetInt(sheet, r, layout.Value.NightColumn, out var n) ? n : day;
 
+            // Resolve division from the Category column when present; otherwise use the sheet default.
+            var rowDivision = layout.Value.CategoryColumn > 0
+                ? MapCategoryToDivision(GetString(sheet, r, layout.Value.CategoryColumn), division)
+                : division;
+
             yield return new ImportedRequirementRow
             {
-                Division = division,
+                Division = rowDivision,
                 DepartmentName = name,
                 RequiredDay = day,
                 RequiredNight = night
@@ -307,13 +312,75 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
 
                 if (dayCol is not null && nightCol is not null)
                 {
-                    return new RequirementLayout(r, c, dayCol.Value, nightCol.Value);
+                    // The optional Category column (any column in the header row) decides each
+                    // department's division; without it, the sheet's default division is used.
+                    var categoryCol = FindHeaderColumn(sheet, r, lastCol, "CATEGORY");
+                    return new RequirementLayout(r, c, dayCol.Value, nightCol.Value, categoryCol);
                 }
             }
         }
 
-        // Fallback: assume the fixed column order Department / Day / Night with no header.
-        return new RequirementLayout(0, 1, 2, 3);
+        // Fallback: assume the fixed column order Department / Day / Night with no header/category.
+        return new RequirementLayout(0, 1, 2, 3, 0);
+    }
+
+    /// <summary>Normalises a notes cell, treating blanks and the literal placeholders "None"/"N/A" as no note.</summary>
+    private static string? NormaliseNote(string raw)
+    {
+        var value = raw.Trim();
+        if (value.Length == 0 || value.Equals("None", StringComparison.OrdinalIgnoreCase) || value.Equals("N/A", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return value;
+    }
+
+    /// <summary>Finds the column in the header row whose text equals the supplied label, or 0 if absent.</summary>
+    private static int FindHeaderColumn(IXLWorksheet sheet, int headerRow, int lastCol, string label)
+    {
+        for (var c = 1; c <= lastCol; c++)
+        {
+            if (GetString(sheet, headerRow, c).Trim().Equals(label, StringComparison.OrdinalIgnoreCase))
+            {
+                return c;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Maps a requirements "Category" value (e.g. PRODUCTION / FUNCTIONAL SUPPORT / BRG) to a division,
+    /// falling back to the sheet's default division when the value is unrecognised.
+    /// </summary>
+    private static Division MapCategoryToDivision(string category, Division fallback)
+    {
+        var value = category.Trim().ToUpperInvariant();
+        if (value.Length == 0)
+        {
+            return fallback;
+        }
+
+        if (value.Contains("BRG", StringComparison.Ordinal))
+        {
+            return Division.Brg;
+        }
+
+        if (value.Contains("SUPPORT", StringComparison.Ordinal)
+            || value.Contains("FUNCTIONAL", StringComparison.Ordinal)
+            || value.Contains("OPERATION", StringComparison.Ordinal)
+            || value == "OPS")
+        {
+            return Division.FunctionalSupport;
+        }
+
+        if (value.Contains("PRODUCTION", StringComparison.Ordinal) || value.Contains("EGL", StringComparison.Ordinal))
+        {
+            return Division.Egl;
+        }
+
+        return fallback;
     }
 
     /// <summary>Returns true for rows that are headers, instructions or totals rather than data.</summary>
@@ -394,5 +461,5 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
     private readonly record struct AttendanceColumns(int Name, int Id, int Department, int Shift, int Status, int Notes);
 
     /// <summary>The resolved header row and column positions (1-based) for a requirements sheet.</summary>
-    private readonly record struct RequirementLayout(int HeaderRow, int DeptColumn, int DayColumn, int NightColumn);
+    private readonly record struct RequirementLayout(int HeaderRow, int DeptColumn, int DayColumn, int NightColumn, int CategoryColumn);
 }
