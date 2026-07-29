@@ -1,0 +1,28 @@
+name: CI
+
+# Builds the solution on GitHub-hosted runners (which have the .NET SDK and NuGet access),
+# so compilation is verified even though the authoring environment cannot build .NET.
+on:
+  push:
+    branches:
+      - claude/techsource-internal-app-setup-2zm35u
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore ManpowerAllocation.sln
+
+      - name: Build
+        run: dotnet build ManpowerAllocation.sln --configuration Release --no-restore
