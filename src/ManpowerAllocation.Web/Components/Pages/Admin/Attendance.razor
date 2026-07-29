@@ -4,6 +4,7 @@
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
 @inject IAttendanceSyncService AttendanceSyncService
 @inject AttendanceSyncStatus SyncStatus
+@inject DisplayTimeZone Time
 
 <PageTitle>Attendance Sync — Manpower Allocation</PageTitle>
 
@@ -31,7 +32,7 @@ else
 {
     <table class="grid">
         <tbody>
-            <tr><th>Last run (UTC)</th><td>@last.RanAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td></tr>
+            <tr><th>Last run (@Time.Name)</th><td>@Time.Format(last.RanAtUtc, "yyyy-MM-dd HH:mm:ss")</td></tr>
             <tr><th>Result</th><td>@(last.Success ? "Success" : $"Not completed — {last.Error}")</td></tr>
             <tr><th>Present</th><td>@last.Present</td></tr>
             <tr><th>Absent</th><td>@last.Absent</td></tr>

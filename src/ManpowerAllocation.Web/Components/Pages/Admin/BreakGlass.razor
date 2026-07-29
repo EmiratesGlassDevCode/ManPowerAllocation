@@ -3,6 +3,7 @@
 @using ManpowerAllocation.Web.Security
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
 @inject IBreakGlassService BreakGlassService
+@inject DisplayTimeZone Time
 
 <PageTitle>Break-glass Status — Manpower Allocation</PageTitle>
 
@@ -26,9 +27,9 @@ else
     <table class="grid">
         <tbody>
             <tr><th>Currently enabled</th><td>@(_status.IsEnabled ? "YES" : "No")</td></tr>
-            <tr><th>Enabled at (UTC)</th><td>@Format(_status.EnabledAtUtc)</td></tr>
-            <tr><th>Auto-disables at (UTC)</th><td>@Format(_status.AutoDisableAtUtc)</td></tr>
-            <tr><th>Last login (UTC)</th><td>@Format(_status.LastLoginAtUtc)</td></tr>
+            <tr><th>Enabled at (@Time.Name)</th><td>@Time.Format(_status.EnabledAtUtc, "yyyy-MM-dd HH:mm:ss")</td></tr>
+            <tr><th>Auto-disables at (@Time.Name)</th><td>@Time.Format(_status.AutoDisableAtUtc, "yyyy-MM-dd HH:mm:ss")</td></tr>
+            <tr><th>Last login (@Time.Name)</th><td>@Time.Format(_status.LastLoginAtUtc, "yyyy-MM-dd HH:mm:ss")</td></tr>
             <tr><th>Enable reason</th><td>@_status.EnableReason</td></tr>
         </tbody>
     </table>
@@ -42,7 +43,4 @@ else
     {
         _status = await BreakGlassService.GetStatusAsync();
     }
-
-    private static string Format(DateTime? value) =>
-        value?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—";
 }

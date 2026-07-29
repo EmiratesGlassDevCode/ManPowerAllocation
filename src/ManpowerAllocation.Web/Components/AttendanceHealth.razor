@@ -1,6 +1,7 @@
 @using ManpowerAllocation.Application.Attendance
 @implements IDisposable
 @inject AttendanceSyncStatus SyncStatus
+@inject DisplayTimeZone Time
 
 @*
     Live health indicator for the biometric attendance read. "Online" (green) means the most
@@ -37,12 +38,12 @@
         }
         else if (run.Success)
         {
-            _tooltip = $"Attendance read OK at {run.RanAtUtc:yyyy-MM-dd HH:mm} UTC — " +
+            _tooltip = $"Attendance read OK at {Time.Format(run.RanAtUtc, "yyyy-MM-dd HH:mm")} ({Time.Name}) — " +
                        $"{run.Present} present, {run.Absent} absent.";
         }
         else
         {
-            _tooltip = $"Attendance read unavailable (last checked {run.RanAtUtc:yyyy-MM-dd HH:mm} UTC). " +
+            _tooltip = $"Attendance read unavailable (last checked {Time.Format(run.RanAtUtc, "yyyy-MM-dd HH:mm")} {Time.Name}). " +
                        (run.Error ?? "The source could not be read.");
         }
     }

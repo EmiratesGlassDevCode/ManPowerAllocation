@@ -3,6 +3,7 @@
 @using ManpowerAllocation.Web.Security
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
 @inject IShiftSettingsService ShiftSettingsService
+@inject DisplayTimeZone Time
 
 <PageTitle>Shift Settings — Manpower Allocation</PageTitle>
 
@@ -36,7 +37,7 @@ else
             <strong>@_nightStart.ToString("HH\\:mm")</strong>.
             @if (_updatedAtUtc is { } updated)
             {
-                <span> Last changed @updated.ToString("yyyy-MM-dd HH:mm") UTC.</span>
+                <span> Last changed @Time.Format(updated, "yyyy-MM-dd HH:mm") (@Time.Name).</span>
             }
         </p>
     </div>

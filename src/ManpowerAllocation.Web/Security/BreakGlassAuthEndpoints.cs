@@ -1,9 +1,12 @@
 using System.Security.Claims;
+using ManpowerAllocation.Application.Abstractions;
 using ManpowerAllocation.Application.BreakGlass;
+using ManpowerAllocation.Domain.Entities;
 using ManpowerAllocation.Domain.Enums;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Identity.Web;
 
 namespace ManpowerAllocation.Web.Security;
 
@@ -33,12 +36,31 @@ public static class BreakGlassAuthEndpoints
             .DisableAntiforgery()
             .RequireRateLimiting(RateLimitPolicy);
 
-        app.MapPost("/auth/logout", (HttpContext context) =>
+        app.MapPost("/auth/logout", async (HttpContext context, IApplicationDbContext db, IClock clock) =>
             {
+                var user = context.User;
                 var isBreakGlass = string.Equals(
-                    context.User.FindFirstValue(AppClaimTypes.BreakGlass),
+                    user.FindFirstValue(AppClaimTypes.BreakGlass),
                     "true",
                     StringComparison.OrdinalIgnoreCase);
+
+                // Record the sign-out in the audit trail before the session is torn down.
+                if (user.Identity?.IsAuthenticated == true)
+                {
+                    db.AuditLogEntries.Add(new AuditLogEntry
+                    {
+                        UserId = user.GetObjectId() ?? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown",
+                        UserDisplayName = user.FindFirst("name")?.Value ?? user.Identity?.Name,
+                        TimestampUtc = clock.UtcNow,
+                        Action = AuditAction.SignOut,
+                        EntityName = "Authentication",
+                        RecordId = null,
+                        OldValue = null,
+                        NewValue = null,
+                        IsBreakGlassSession = isBreakGlass
+                    });
+                    await db.SaveChangesAsync(context.RequestAborted);
+                }
 
                 var properties = new AuthenticationProperties { RedirectUri = "/" };
 

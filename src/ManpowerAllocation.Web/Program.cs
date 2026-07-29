@@ -4,6 +4,8 @@ using ManpowerAllocation.Application;
 using ManpowerAllocation.Application.Abstractions;
 using ManpowerAllocation.Application.BreakGlass;
 using ManpowerAllocation.Application.Roles;
+using ManpowerAllocation.Domain.Entities;
+using ManpowerAllocation.Domain.Enums;
 using ManpowerAllocation.Infrastructure;
 using ManpowerAllocation.Infrastructure.Persistence;
 using ManpowerAllocation.Web.Api;
@@ -103,8 +105,28 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
         {
             var displayName = context.Principal?.FindFirst("name")?.Value
                 ?? context.Principal?.FindFirst("preferred_username")?.Value;
-            var roleService = context.HttpContext.RequestServices.GetRequiredService<IRoleService>();
+            var services = context.HttpContext.RequestServices;
+
+            var roleService = services.GetRequiredService<IRoleService>();
             await roleService.EnsureDefaultViewerAsync(objectId, displayName, context.HttpContext.RequestAborted);
+
+            // Record the sign-in in the audit trail. Written directly (not via IAuditWriter)
+            // because the principal is not yet established as HttpContext.User at this point.
+            var db = services.GetRequiredService<IApplicationDbContext>();
+            var clock = services.GetRequiredService<IClock>();
+            db.AuditLogEntries.Add(new AuditLogEntry
+            {
+                UserId = objectId,
+                UserDisplayName = displayName,
+                TimestampUtc = clock.UtcNow,
+                Action = AuditAction.SignIn,
+                EntityName = "Authentication",
+                RecordId = null,
+                OldValue = null,
+                NewValue = null,
+                IsBreakGlassSession = false
+            });
+            await db.SaveChangesAsync(context.HttpContext.RequestAborted);
         }
     };
 });
@@ -166,6 +188,7 @@ builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefa
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+builder.Services.AddSingleton<ManpowerAllocation.Web.Common.DisplayTimeZone>();
 
 // Resolve the application role from the Role Assignment table on every authentication.
 builder.Services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation, AppRoleClaimsTransformation>();

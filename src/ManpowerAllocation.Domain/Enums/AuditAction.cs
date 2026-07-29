@@ -13,5 +13,11 @@ public enum AuditAction
     Update = 2,
 
     /// <summary>A record was deleted.</summary>
-    Delete = 3
+    Delete = 3,
+
+    /// <summary>A user signed in via Entra ID (or the emergency account).</summary>
+    SignIn = 4,
+
+    /// <summary>A user signed out.</summary>
+    SignOut = 5
 }

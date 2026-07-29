@@ -3,10 +3,15 @@
 @using ManpowerAllocation.Web.Security
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
 @inject IAuditReadService AuditReadService
+@inject DisplayTimeZone Time
 
 <PageTitle>Audit Trail — Manpower Allocation</PageTitle>
 
 <h1>Audit Trail</h1>
+<p class="hint">
+    Every create, update and delete is recorded here — who did it, when, and the exact
+    before → after values. Select a row to see the detail. Break-glass sessions are highlighted.
+</p>
 
 <FluentCheckbox @bind-Value="_breakGlassOnly" @bind-Value:after="LoadAsync">
     Show only break-glass sessions
@@ -16,23 +21,61 @@
 {
     <p><em>Loading…</em></p>
 }
+else if (_entries.Count == 0)
+{
+    <p class="message">No audit entries.</p>
+}
 else
 {
-    <table class="grid">
+    <table class="grid audit-grid">
         <thead>
-            <tr><th>Time (UTC)</th><th>User</th><th>Action</th><th>Entity</th><th>Record</th><th>Break-glass</th></tr>
+            <tr>
+                <th></th>
+                <th>Time (@Time.Name)</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Entity</th>
+                <th>Record</th>
+                <th>Break-glass</th>
+            </tr>
         </thead>
         <tbody>
             @foreach (var entry in _entries)
             {
-                <tr class="@(entry.IsBreakGlassSession ? "breakglass-row" : string.Empty)">
-                    <td>@entry.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <tr class="@(entry.IsBreakGlassSession ? "breakglass-row" : string.Empty)"
+                    @onclick="() => Toggle(entry.Id)" style="cursor:pointer">
+                    <td>@(HasDetail(entry) ? (IsOpen(entry.Id) ? "▾" : "▸") : string.Empty)</td>
+                    <td>@Time.Format(entry.TimestampUtc, "yyyy-MM-dd HH:mm:ss")</td>
                     <td>@(entry.UserDisplayName ?? entry.UserId)</td>
-                    <td>@entry.Action</td>
+                    <td>@ActionLabel(entry.Action)</td>
                     <td>@entry.EntityName</td>
                     <td>@entry.RecordId</td>
                     <td>@(entry.IsBreakGlassSession ? "YES" : string.Empty)</td>
                 </tr>
+                @if (IsOpen(entry.Id) && HasDetail(entry))
+                {
+                    <tr class="audit-detail-row">
+                        <td></td>
+                        <td colspan="6">
+                            <div class="audit-detail">
+                                @if (!string.IsNullOrWhiteSpace(entry.OldValue))
+                                {
+                                    <div class="audit-col">
+                                        <div class="audit-col-title">Before</div>
+                                        <pre>@Pretty(entry.OldValue)</pre>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.NewValue))
+                                {
+                                    <div class="audit-col">
+                                        <div class="audit-col-title">After</div>
+                                        <pre>@Pretty(entry.NewValue)</pre>
+                                    </div>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
             }
         </tbody>
     </table>
@@ -41,12 +84,57 @@ else
 @code {
     private IReadOnlyList<AuditLogDto>? _entries;
     private bool _breakGlassOnly;
+    private readonly HashSet<long> _open = new();
 
     /// <summary>Loads the most recent audit entries.</summary>
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
+        _open.Clear();
         _entries = await AuditReadService.GetRecentAsync(200, _breakGlassOnly);
+    }
+
+    private bool IsOpen(long id) => _open.Contains(id);
+
+    private void Toggle(long id)
+    {
+        if (!_open.Remove(id))
+        {
+            _open.Add(id);
+        }
+    }
+
+    private static bool HasDetail(AuditLogDto e) =>
+        !string.IsNullOrWhiteSpace(e.OldValue) || !string.IsNullOrWhiteSpace(e.NewValue);
+
+    private static string ActionLabel(Domain.Enums.AuditAction action) => action switch
+    {
+        Domain.Enums.AuditAction.Create => "Create",
+        Domain.Enums.AuditAction.Update => "Update",
+        Domain.Enums.AuditAction.Delete => "Delete",
+        Domain.Enums.AuditAction.SignIn => "Sign in",
+        Domain.Enums.AuditAction.SignOut => "Sign out",
+        _ => action.ToString()
+    };
+
+    /// <summary>Pretty-prints stored JSON detail; falls back to the raw text if it is not JSON.</summary>
+    private static string Pretty(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(value);
+            return System.Text.Json.JsonSerializer.Serialize(doc.RootElement,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return value;
+        }
     }
 }
