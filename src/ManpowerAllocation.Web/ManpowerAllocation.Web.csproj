@@ -12,6 +12,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Required by the EF Core tools (dotnet ef) because Web is the startup project; dev-only, not published. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.11.1" />
     <PackageReference Include="Microsoft.Identity.Web" Version="3.8.2" />
     <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.8.2" />
