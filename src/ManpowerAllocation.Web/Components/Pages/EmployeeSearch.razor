@@ -37,7 +37,7 @@
                         <td>@e.Division</td>
                         <td>@TextCase.Title(e.DepartmentName)</td>
                         <td>@e.Shift</td>
-                        <td class="status-@(e.Status.ToString().ToLowerInvariant())">@e.Status</td>
+                        <td class="status-@(e.Status.ToString().ToLowerInvariant())">@TextCase.Status(e.Status)</td>
                         <td>@e.Notes</td>
                     </tr>
                 }

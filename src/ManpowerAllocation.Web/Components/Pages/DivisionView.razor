@@ -115,7 +115,7 @@ else
                                     <li class="emp-row">
                                         <span class="emp-name">@TextCase.Title(emp.Name) @(emp.IsSupply ? "(OS)" : string.Empty)</span>
                                         <span class="emp-shift">@emp.Shift</span>
-                                        <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@emp.Status</span>
+                                        <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@TextCase.Status(emp.Status)</span>
                                         @if (_canEdit && !emp.IsSupply)
                                         {
                                             <span class="emp-actions">
@@ -203,7 +203,7 @@ else
                                 <td>@TextCase.Title(e.Name) @(e.IsSupply ? "(OS)" : "")</td>
                                 <td>@e.BadgeNumber</td>
                                 <td>@e.Shift</td>
-                                <td class="status-@(e.Status.ToString().ToLowerInvariant())">@e.Status</td>
+                                <td class="status-@(e.Status.ToString().ToLowerInvariant())">@TextCase.Status(e.Status)</td>
                                 <td>@e.Notes</td>
                             </tr>
                         }

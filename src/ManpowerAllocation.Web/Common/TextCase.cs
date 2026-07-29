@@ -41,4 +41,14 @@ public static class TextCase
 
         return string.Join(' ', words);
     }
+
+    /// <summary>Human-readable label for an attendance status (e.g. "On vacation" not "OnVacation").</summary>
+    /// <param name="status">The attendance status.</param>
+    public static string Status(ManpowerAllocation.Domain.Enums.AttendanceStatus status) => status switch
+    {
+        ManpowerAllocation.Domain.Enums.AttendanceStatus.Present => "Present",
+        ManpowerAllocation.Domain.Enums.AttendanceStatus.Absent => "Absent",
+        ManpowerAllocation.Domain.Enums.AttendanceStatus.OnVacation => "On vacation",
+        _ => status.ToString()
+    };
 }
