@@ -1,13 +1,25 @@
 @*
-    Triggers the Entra ID sign-in flow by force-navigating to the Microsoft.Identity.Web
-    challenge endpoint. Used when an unauthenticated user reaches a protected route.
+    Shown when an unauthenticated user reaches a protected route. Deliberately not an instant
+    auto-redirect: an invisible bounce straight to the Entra ID challenge endpoint leaves nobody
+    a way to reach Emergency Access if SSO itself is what's broken. This gives every signed-out
+    visitor a real landing page with both options.
 *@
-@inject NavigationManager Navigation
 
-@code {
-    /// <summary>Redirects the browser to the Entra ID sign-in endpoint on first render.</summary>
-    protected override void OnInitialized()
-    {
-        Navigation.NavigateTo("MicrosoftIdentity/Account/SignIn", forceLoad: true);
-    }
-}
+<div class="login-backdrop">
+    <div class="breakglass-login accent-brand">
+        <div class="notice-logo">
+            <img src="img/emirates-glass-logo.png" alt="Emirates Glass" class="panel-logo" />
+            <span class="notice-brand">Manpower Allocation</span>
+        </div>
+        <h1>Sign in required</h1>
+        <p class="hint">Sign in with your organisation account to continue.</p>
+
+        <FluentAnchor Href="MicrosoftIdentity/Account/SignIn" Appearance="Appearance.Accent" Style="width:100%; justify-content:center">
+            Sign in with your organisation account
+        </FluentAnchor>
+
+        <p class="login-foot">
+            Trouble signing in? <a href="break-glass">Emergency access</a>.
+        </p>
+    </div>
+</div>
