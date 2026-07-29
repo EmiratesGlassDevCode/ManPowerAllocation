@@ -9,41 +9,43 @@
 <PageTitle>Employee Search — Manpower Allocation</PageTitle>
 
 <h1>Employee Search</h1>
-<p class="hint">Search by name or ID across all divisions.</p>
+<p class="hint">Search by name or badge ID across all divisions.</p>
 
 <div class="toolbar">
     <FluentSearch @bind-Value="_term" @bind-Value:after="OnTermChanged" Immediate="true"
-                  Placeholder="Name or ID…" Style="width:280px" />
+                  Placeholder="Name or ID…" Style="width:320px" />
 </div>
 
-@if (_searched)
+@if (!_searched)
 {
-    @if (_results.Count == 0)
-    {
-        <p class="message">No matches.</p>
-    }
-    else
-    {
-        <table class="grid">
-            <thead>
-                <tr><th>Name</th><th>ID</th><th>Division</th><th>Department</th><th>Shift</th><th>Status</th><th>Notes</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var e in _results)
-                {
-                    <tr>
-                        <td>@TextCase.Title(e.Name) @(e.IsSupply ? "(OS)" : "")</td>
-                        <td>@e.BadgeNumber</td>
-                        <td>@e.Division</td>
-                        <td>@TextCase.Title(e.DepartmentName)</td>
-                        <td>@e.Shift</td>
-                        <td class="status-@(e.Status.ToString().ToLowerInvariant())">@TextCase.Status(e.Status)</td>
-                        <td>@e.Notes</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
+    <div class="search-idle">Type at least two characters to search all divisions.</div>
+}
+else if (_results.Count == 0)
+{
+    <p class="message error">No matches for that name or ID.</p>
+}
+else
+{
+    <div class="data-card search-card">
+        <div class="data-grid search-grid head">
+            <div>Name</div><div>ID</div><div>Division</div><div>Department</div><div>Shift</div><div>Status</div><div>Notes</div>
+        </div>
+        @foreach (var e in _results)
+        {
+            <div class="data-grid search-grid row">
+                <div class="data-name">
+                    <span class="emp-av @(e.IsSupply ? "supply" : "status-" + e.Status.ToString().ToLowerInvariant())">@Avatar.Initials(e.Name)</span>
+                    <span>@TextCase.Title(e.Name) @(e.IsSupply ? "(OS)" : string.Empty)</span>
+                </div>
+                <div>@e.BadgeNumber</div>
+                <div>@e.Division</div>
+                <div>@TextCase.Title(e.DepartmentName)</div>
+                <div><span class="badge @(e.Shift == ShiftType.Day ? "b-day" : "b-night")">@e.Shift</span></div>
+                <div><span class="badge @StatusBadgeClass(e)">@TextCase.Status(e.Status)</span></div>
+                <div class="search-notes">@(string.IsNullOrWhiteSpace(e.Notes) ? "—" : e.Notes)</div>
+            </div>
+        }
+    </div>
 }
 
 @code {
@@ -103,4 +105,12 @@
         _cts?.Dispose();
         _gate.Dispose();
     }
+
+    /// <summary>Semantic badge colour for a result row's status (outsource takes priority).</summary>
+    private static string StatusBadgeClass(EmployeeDto e) => e.IsSupply ? "b-supply" : e.Status switch
+    {
+        AttendanceStatus.Absent => "b-short",
+        AttendanceStatus.OnVacation => "b-vac",
+        _ => "b-optimal"
+    };
 }

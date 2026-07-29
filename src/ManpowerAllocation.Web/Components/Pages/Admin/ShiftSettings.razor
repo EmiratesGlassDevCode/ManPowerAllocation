@@ -8,12 +8,7 @@
 <PageTitle>Shift Settings — Manpower Allocation</PageTitle>
 
 <h1>Shift Settings</h1>
-<p class="hint">
-    Define the working shifts. The day shift runs from the day start to the night start; the
-    night shift runs from the night start back to the day start the next morning. The day start
-    also sets the "operational day" boundary — a night-shift worker who clocks in the evening
-    stays counted as present until this time the following day.
-</p>
+<p class="hint">Define the working shifts and the operational-day boundary.</p>
 
 @if (!_loaded)
 {
@@ -21,25 +16,41 @@
 }
 else
 {
-    <div class="import-block">
-        <div class="form-inline">
-            <label>Day shift start
-                <input type="time" @bind="_dayStart" />
-            </label>
-            <label>Night shift start
-                <input type="time" @bind="_nightStart" />
-            </label>
-            <FluentButton Appearance="Appearance.Accent" @onclick="SaveAsync">Save</FluentButton>
+    <div class="shift-layout">
+        <div class="data-card">
+            <div class="sync-card-head warn">
+                <span class="ico"></span>
+                <span class="sync-card-title">Shift boundaries</span>
+            </div>
+            <div class="sync-card-body">
+                <div class="form-inline">
+                    <label>Day shift start
+                        <input type="time" @bind="_dayStart" />
+                    </label>
+                    <label>Night shift start
+                        <input type="time" @bind="_nightStart" />
+                    </label>
+                    <FluentButton Appearance="Appearance.Accent" @onclick="SaveAsync">Save</FluentButton>
+                </div>
+                <div class="shift-band">
+                    <div class="shift-band-day" style="width:@(DayBandPct())%">Day @_dayStart.ToString("HH\\:mm") →</div>
+                    <div class="shift-band-night">Night @_nightStart.ToString("HH\\:mm") →</div>
+                </div>
+                <span class="hint">
+                    The day start also sets the operational-day boundary: a night worker who clocks in
+                    the evening stays counted present until this time next morning.
+                </span>
+            </div>
         </div>
 
-        <p class="hint">
-            Current: day <strong>@_dayStart.ToString("HH\\:mm")</strong> – night
-            <strong>@_nightStart.ToString("HH\\:mm")</strong>.
+        <div class="shift-current">
+            <span class="shift-current-title">Current setting</span>
+            <span class="shift-current-value">Day @_dayStart.ToString("HH\\:mm") – Night @_nightStart.ToString("HH\\:mm")</span>
             @if (_updatedAtUtc is { } updated)
             {
-                <span> Last changed @Time.Format(updated, "yyyy-MM-dd HH:mm") (@Time.Name).</span>
+                <span class="shift-current-sub">Last changed @Time.Format(updated, "yyyy-MM-dd HH:mm") (@Time.Name).</span>
             }
-        </p>
+        </div>
     </div>
 
     @if (!string.IsNullOrEmpty(_message))
@@ -77,6 +88,18 @@ else
         {
             _loaded = true;
         }
+    }
+
+    /// <summary>Width of the day band as a percentage of the 24h bar (minimum 1 hour).</summary>
+    private int DayBandPct()
+    {
+        var dayHours = (_nightStart.ToTimeSpan() - _dayStart.ToTimeSpan()).TotalHours;
+        if (dayHours < 0)
+        {
+            dayHours += 24;
+        }
+
+        return (int)Math.Round(Math.Max(1, dayHours) / 24 * 100);
     }
 
     private async Task SaveAsync()

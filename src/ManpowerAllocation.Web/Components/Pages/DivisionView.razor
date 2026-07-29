@@ -43,13 +43,8 @@ else
             <div class="kpi k-red"><div class="kpi-lbl">Absent</div><div class="kpi-val sv-red">@t.Absent</div><div class="kpi-sub">unplanned</div></div>
             <div class="kpi k-amber"><div class="kpi-lbl">Vacation</div><div class="kpi-val sv-amber">@t.OnVacation</div><div class="kpi-sub">approved leave</div></div>
             <div class="kpi k-purple"><div class="kpi-lbl">Outsource</div><div class="kpi-val sv-purple">@t.SupplyPresent</div><div class="kpi-sub">contract cover</div></div>
-            <div class="kpi @(t.Variance < 0 ? "k-red" : "k-green")"><div class="kpi-lbl">Variance</div><div class="kpi-val @(t.Variance < 0 ? "sv-red" : "sv-green")">@t.Variance</div><div class="kpi-sub">vs. required</div></div>
+            <div class="kpi @(t.Variance < 0 ? "k-red" : "k-green")"><div class="kpi-lbl">Variance</div><div class="kpi-val @(t.Variance < 0 ? "sv-red" : "sv-green")">@Signed(t.Variance)</div><div class="kpi-sub">vs. required</div></div>
             <div class="kpi k-red"><div class="kpi-lbl">Short depts</div><div class="kpi-val sv-red">@t.ShortageDepartmentCount</div><div class="kpi-sub">need cover</div></div>
-        </div>
-
-        <div class="alert-row">
-            <AlertPanel Title="Absent" Accent="red" Items="AbsentList()" />
-            <AlertPanel Title="On vacation" Accent="amber" Items="VacationList()" />
         </div>
 
         <div class="toolbar">
@@ -161,6 +156,8 @@ else
         </div>
 
         <div class="alert-row">
+            <AlertPanel Title="Absent" Accent="red" Items="AbsentList()" />
+            <AlertPanel Title="On vacation" Accent="amber" Items="VacationList()" />
             <AlertPanel Title="Outsource present" Accent="purple" Items="OutsourceList()" />
             <AlertPanel Title="Available / excess" Accent="cyan" Items="ExcessList()" />
         </div>
@@ -392,6 +389,9 @@ else
     /// <summary>Fixed department tile accent, cycling the Fluent token palette by department id.</summary>
     private static readonly string[] DeptPalette = { "#0F6CBD", "#038387", "#5C2E91", "#986F0B", "#C239B3", "#0E700E" };
     private static string DeptAccent(int departmentId) => DeptPalette[Math.Abs(departmentId) % DeptPalette.Length];
+
+    /// <summary>Renders a surplus with an explicit "+" so it isn't ambiguous next to a shortage.</summary>
+    private static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString();
 
     /// <summary>Label for the current shift filter, used in the department subtitle.</summary>
     private string ShiftText() => _shift switch

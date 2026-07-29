@@ -10,36 +10,54 @@
 
 <h1>Attendance Synchronisation</h1>
 <p class="hint">
-    Presence is sourced from the biometric attendance view. A background job refreshes it
-    automatically; use <strong>Sync now</strong> to refresh immediately. A check-in marks an
-    employee Present (and clears a vacation, since punching in means they have resumed);
-    otherwise a supervisor's vacation is preserved, and everyone else is Absent. Outsource
-    workers are not affected.
+    Presence is sourced from the biometric attendance view; a background job refreshes it
+    automatically.
 </p>
-
-<FluentButton Appearance="Appearance.Accent" @onclick="SyncNowAsync" Disabled="@_busy">
-    @(_busy ? "Syncing…" : "Sync now")
-</FluentButton>
 
 @{
     var last = SyncStatus.LastRun;
+    var ok = last is { Success: true } && !_busy;
 }
-@if (last is null)
+<div class="sync-layout">
+    <div class="data-card">
+        <div class="sync-card-head @(ok ? "ok" : "warn")">
+            <span class="ico"></span>
+            <span class="sync-card-title">@(_busy ? "Synchronisation running" : last is null ? "No synchronisation yet" : last.Success ? "Last run succeeded" : "Not completed")</span>
+            @if (last is not null)
+            {
+                <span class="sync-card-time">@Time.Format(last.RanAtUtc, "yyyy-MM-dd HH:mm:ss") (@Time.Name)</span>
+            }
+        </div>
+        <div class="sync-card-body">
+            <div class="sync-now-row">
+                <FluentButton Appearance="Appearance.Accent" @onclick="SyncNowAsync" Disabled="@_busy">
+                    @(_busy ? "Syncing…" : "Sync now")
+                </FluentButton>
+                <span class="hint">Background job runs every 10 minutes.</span>
+            </div>
+            <div class="sync-stats">
+                <div class="sync-stat ok"><b>@(last?.Present ?? 0)</b><span>Present</span></div>
+                <div class="sync-stat danger"><b>@(last?.Absent ?? 0)</b><span>Absent</span></div>
+                <div class="sync-stat warn"><b>@(last?.OnVacation ?? 0)</b><span>On vacation</span></div>
+                <div class="sync-stat brand"><b>@(last?.Changed ?? 0)</b><span>Changed this run</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="data-card">
+        <div class="rules-card-head">Sync rules</div>
+        <div class="rules-list">
+            <div class="rule-row"><span class="rule-dot" style="background:var(--ok)"></span><span>A check-in marks the employee Present and clears an open vacation — punching in means they resumed.</span></div>
+            <div class="rule-row"><span class="rule-dot" style="background:var(--warn)"></span><span>With no check-in, a supervisor-marked vacation is preserved.</span></div>
+            <div class="rule-row"><span class="rule-dot" style="background:var(--danger)"></span><span>Everyone else with no check-in is Absent.</span></div>
+            <div class="rule-row"><span class="rule-dot" style="background:var(--supply)"></span><span>Outsource workers are never changed by the sync.</span></div>
+        </div>
+    </div>
+</div>
+
+@if (last is { Success: false })
 {
-    <p class="message">No synchronisation has run since the application started.</p>
-}
-else
-{
-    <table class="grid">
-        <tbody>
-            <tr><th>Last run (@Time.Name)</th><td>@Time.Format(last.RanAtUtc, "yyyy-MM-dd HH:mm:ss")</td></tr>
-            <tr><th>Result</th><td>@(last.Success ? "Success" : $"Not completed — {last.Error}")</td></tr>
-            <tr><th>Present</th><td>@last.Present</td></tr>
-            <tr><th>Absent</th><td>@last.Absent</td></tr>
-            <tr><th>On vacation</th><td>@last.OnVacation</td></tr>
-            <tr><th>Changed this run</th><td>@last.Changed</td></tr>
-        </tbody>
-    </table>
+    <p class="message error">Not completed — @last.Error</p>
 }
 
 @code {

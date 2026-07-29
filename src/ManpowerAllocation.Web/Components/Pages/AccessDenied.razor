@@ -6,8 +6,11 @@
 <PageTitle>Access Denied — Manpower Allocation</PageTitle>
 
 <div class="notice">
-    <img src="img/emirates-glass-logo.png" alt="Emirates Glass" class="panel-logo" />
-    <h1>Access Denied</h1>
+    <div class="notice-logo">
+        <img src="img/emirates-glass-logo.png" alt="Emirates Glass" class="panel-logo" />
+        <span class="notice-brand">Manpower Allocation</span>
+    </div>
+    <h1>Access denied</h1>
     <p>
         You are signed in, but your account has not been granted a role in this application.
         Please contact IT and quote the details below so they can grant you access.
@@ -28,7 +31,10 @@
         </p>
     }
 
-    <p><a href="MicrosoftIdentity/Account/SignOut">Sign out</a></p>
+    <div class="notice-actions">
+        <FluentAnchor Href="/" Appearance="Appearance.Accent">Back to the app</FluentAnchor>
+        <FluentAnchor Href="MicrosoftIdentity/Account/SignOut" Appearance="Appearance.Neutral">Sign out</FluentAnchor>
+    </div>
 </div>
 
 @code {

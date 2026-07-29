@@ -8,13 +8,13 @@
 
 <h1>Role Assignments</h1>
 <p class="hint">
-    Grants a role to an Entra ID user by their object id. The application stores only this
-    mapping — never a password or any other credential.
+    Grants a role to an Entra ID user by object id. Only this mapping is stored — never a
+    credential.
 </p>
 
-<div class="form-inline">
+<div class="data-card roles-form">
     <FluentTextField @bind-Value="_objectId" Label="Entra object id" Placeholder="00000000-0000-0000-0000-000000000000" Style="width:340px" />
-    <FluentTextField @bind-Value="_displayName" Label="Display name" />
+    <FluentTextField @bind-Value="_displayName" Label="Display name" Placeholder="Firstname Lastname" Style="width:220px" />
     <label class="native-select-label">Role
         <select @bind="_role">
             @foreach (var role in Enum.GetValues<UserRole>())
@@ -31,23 +31,24 @@
     <p class="message">@_message</p>
 }
 
-<table class="grid">
-    <thead>
-        <tr><th>Display name</th><th>Entra object id</th><th>Role</th><th>Created (UTC)</th><th></th></tr>
-    </thead>
-    <tbody>
-        @foreach (var assignment in _assignments)
-        {
-            <tr>
-                <td>@assignment.DisplayName</td>
-                <td class="mono">@assignment.EntraObjectId</td>
-                <td>@assignment.Role</td>
-                <td>@assignment.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
-                <td><FluentButton Appearance="Appearance.Lightweight" @onclick="() => DeleteAsync(assignment.Id)">Remove</FluentButton></td>
-            </tr>
-        }
-    </tbody>
-</table>
+<div class="data-card">
+    <div class="data-grid roles-grid head">
+        <div>Display name</div><div>Entra object id</div><div>Role</div><div>Created (UTC)</div><div></div>
+    </div>
+    @foreach (var assignment in _assignments)
+    {
+        <div class="data-grid roles-grid row">
+            <div class="data-name">
+                <span class="emp-av">@Avatar.Initials(assignment.DisplayName)</span>
+                <span>@assignment.DisplayName</span>
+            </div>
+            <div class="data-mono">@assignment.EntraObjectId</div>
+            <div><span class="badge @RoleBadgeClass(assignment.Role)">@assignment.Role</span></div>
+            <div>@assignment.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</div>
+            <div><span class="data-remove" @onclick="() => DeleteAsync(assignment.Id)">Remove</span></div>
+        </div>
+    }
+</div>
 
 @code {
     private List<RoleAssignmentDto> _assignments = new();
@@ -99,4 +100,12 @@
             _message = ex.Message;
         }
     }
+
+    /// <summary>Semantic badge colour for a role: Admin red, User brand, Viewer neutral.</summary>
+    private static string RoleBadgeClass(UserRole role) => role switch
+    {
+        UserRole.Admin => "b-admin",
+        UserRole.User => "b-user",
+        _ => "b-viewer"
+    };
 }

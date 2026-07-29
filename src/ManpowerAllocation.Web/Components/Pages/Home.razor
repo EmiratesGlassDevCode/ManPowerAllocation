@@ -51,7 +51,7 @@ else
                     @if (d.Absent > 0) { <span class="badge b-short">Absent @d.Absent</span> }
                     @if (d.OnVacation > 0) { <span class="badge b-vac">Vacation @d.OnVacation</span> }
                     @if (d.SupplyPresent > 0) { <span class="badge b-supply">Outsource @d.SupplyPresent</span> }
-                    <span class="badge @(d.Variance < 0 ? "b-short" : "b-optimal")">Variance @d.Variance</span>
+                    <span class="badge @(d.Variance < 0 ? "b-short" : "b-optimal")">Variance @Signed(d.Variance)</span>
                     @if (d.ShortageDepartmentCount > 0) { <span class="badge b-short">Short depts @d.ShortageDepartmentCount</span> }
                 </div>
             </div>
@@ -64,7 +64,7 @@ else
                 <div class="ft-lbl">Factory total present</div>
                 <div class="ft-num @(FactoryVariance < 0 ? "negative" : "positive")">@FactoryPresent <span class="stat-of">/ @FactoryRequired required</span></div>
             </div>
-            <span class="badge @(FactoryVariance < 0 ? "b-short" : "b-optimal")">Variance @FactoryVariance</span>
+            <span class="badge @(FactoryVariance < 0 ? "b-short" : "b-optimal")">Variance @Signed(FactoryVariance)</span>
             <span class="dc-spacer"></span>
             <span class="ft-scope">@ScopeText()</span>
         </div>
@@ -88,7 +88,7 @@ else
                             <td class="num">@d.OnVacation</td>
                             <td class="num">@d.SupplyPresent</td>
                             <td class="num">@d.Required</td>
-                            <td class="num strong @(d.Variance < 0 ? "negative" : "positive")">@d.Variance</td>
+                            <td class="num strong @(d.Variance < 0 ? "negative" : "positive")">@Signed(d.Variance)</td>
                         </tr>
                     }
                 </tbody>
@@ -206,4 +206,7 @@ else
         ShiftFilter.Night => "Night shift",
         _ => "All shifts"
     };
+
+    /// <summary>Renders a surplus with an explicit "+" so it isn't ambiguous next to a shortage.</summary>
+    private static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString();
 }

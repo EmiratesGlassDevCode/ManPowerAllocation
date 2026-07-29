@@ -1,9 +1,10 @@
 @using ManpowerAllocation.Web.Security
 @using ManpowerAllocation.Application.Attendance
 @using ManpowerAllocation.Application.Departments
+@using Microsoft.Extensions.DependencyInjection
 @inject AttendanceSyncStatus SyncStatus
 @inject DisplayTimeZone Time
-@inject IDepartmentService DepartmentService
+@inject IServiceScopeFactory ScopeFactory
 
 @*
     Primary navigation. Admin links are only shown to administrators; this is a usability aid,
@@ -50,16 +51,20 @@
     /// <summary>Loads the department count per division once for the nav count pills.</summary>
     protected override async Task OnInitializedAsync()
     {
-        foreach (var division in new[] { Division.Egl, Division.FunctionalSupport, Division.Brg })
+        try
         {
-            try
+            // Own scope → own DbContext, so this never races the page's queries.
+            using var scope = ScopeFactory.CreateScope();
+            var departments = scope.ServiceProvider.GetRequiredService<IDepartmentService>();
+
+            foreach (var division in new[] { Division.Egl, Division.FunctionalSupport, Division.Brg })
             {
-                _counts[division] = (await DepartmentService.GetByDivisionAsync(division)).Count;
+                _counts[division] = (await departments.GetByDivisionAsync(division)).Count;
             }
-            catch
-            {
-                // A count is a nicety; never let it break the shell.
-            }
+        }
+        catch
+        {
+            // A count is a nicety; never let it break the shell.
         }
     }
 

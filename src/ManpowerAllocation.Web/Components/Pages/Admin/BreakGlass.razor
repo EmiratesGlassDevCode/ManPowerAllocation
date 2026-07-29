@@ -8,14 +8,15 @@
 <PageTitle>Break-glass Status — Manpower Allocation</PageTitle>
 
 <h1>Emergency Break-glass Account</h1>
-<div class="hint">
-    <p>
-        This account exists only for use when Entra ID itself is unreachable. It is
-        <strong>disabled by default</strong> and can be enabled <strong>only</strong> by a manual
-        change in the database — never from this or any other screen. On enable, and on every login,
-        an alert is sent to the IT Head, and it auto-disables four hours after being enabled. Every
-        action taken during a break-glass session is flagged in the audit trail.
-    </p>
+<p class="hint">Read-only status of the emergency account used when Entra ID is unreachable.</p>
+
+<div class="callout-danger">
+    <span class="callout-danger-title">Disabled by default — database change required to enable</span>
+    <span class="callout-danger-body">
+        This account exists only for when Entra ID is unreachable. It cannot be enabled from any
+        screen. On enable and on every login the IT Head is alerted; it auto-disables four hours
+        after enabling, and every action in a break-glass session is flagged in the audit trail.
+    </span>
 </div>
 
 @if (_status is null)
@@ -24,15 +25,17 @@
 }
 else
 {
-    <table class="grid">
-        <tbody>
-            <tr><th>Currently enabled</th><td>@(_status.IsEnabled ? "YES" : "No")</td></tr>
-            <tr><th>Enabled at (@Time.Name)</th><td>@Time.Format(_status.EnabledAtUtc, "yyyy-MM-dd HH:mm:ss")</td></tr>
-            <tr><th>Auto-disables at (@Time.Name)</th><td>@Time.Format(_status.AutoDisableAtUtc, "yyyy-MM-dd HH:mm:ss")</td></tr>
-            <tr><th>Last login (@Time.Name)</th><td>@Time.Format(_status.LastLoginAtUtc, "yyyy-MM-dd HH:mm:ss")</td></tr>
-            <tr><th>Enable reason</th><td>@_status.EnableReason</td></tr>
-        </tbody>
-    </table>
+    <div class="data-card">
+        <div class="kv-card-head">
+            <span class="title">Account status</span>
+            <span class="status-pill @(_status.IsEnabled ? "danger" : "ok")">@(_status.IsEnabled ? "ENABLED" : "Disabled")</span>
+        </div>
+        <div class="kv-row"><div class="k">Currently enabled</div><div class="v">@(_status.IsEnabled ? "Yes" : "No")</div></div>
+        <div class="kv-row"><div class="k">Enabled at (@Time.Name)</div><div class="v">@Time.Format(_status.EnabledAtUtc, "yyyy-MM-dd HH:mm:ss")</div></div>
+        <div class="kv-row"><div class="k">Auto-disables at (@Time.Name)</div><div class="v">@Time.Format(_status.AutoDisableAtUtc, "yyyy-MM-dd HH:mm:ss")</div></div>
+        <div class="kv-row"><div class="k">Last login (@Time.Name)</div><div class="v">@Time.Format(_status.LastLoginAtUtc, "yyyy-MM-dd HH:mm:ss")</div></div>
+        <div class="kv-row"><div class="k">Enable reason</div><div class="v">@_status.EnableReason</div></div>
+    </div>
 }
 
 @code {

@@ -9,13 +9,20 @@
 
 <h1>Audit Trail</h1>
 <p class="hint">
-    Every create, update and delete is recorded here — who did it, when, and the exact
-    before → after values. Select a row to see the detail. Break-glass sessions are highlighted.
+    Every create, update and delete with before → after values. Break-glass sessions are
+    highlighted.
 </p>
 
-<FluentCheckbox @bind-Value="_breakGlassOnly" @bind-Value:after="LoadAsync">
-    Show only break-glass sessions
-</FluentCheckbox>
+<div class="audit-toolbar">
+    <span class="bg-pill @(_breakGlassOnly ? "active" : string.Empty)" @onclick="ToggleBreakGlassOnly">
+        <span class="bg-pill-check"></span>
+        Show only break-glass sessions
+    </span>
+    @if (_entries is not null)
+    {
+        <span class="audit-count">Showing @_entries.Count of @_entries.Count most recent entries</span>
+    }
+</div>
 
 @if (_entries is null)
 {
@@ -27,58 +34,49 @@ else if (_entries.Count == 0)
 }
 else
 {
-    <table class="grid audit-grid">
-        <thead>
-            <tr>
-                <th></th>
-                <th>Time (@Time.Name)</th>
-                <th>User</th>
-                <th>Action</th>
-                <th>Entity</th>
-                <th>Record</th>
-                <th>Break-glass</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var entry in _entries)
+    <div class="data-card">
+        <div class="data-grid audit-cols head">
+            <div></div>
+            <div>Time (@Time.Name)</div>
+            <div>User</div>
+            <div>Action</div>
+            <div>Entity</div>
+            <div>Record</div>
+            <div>Break-glass</div>
+        </div>
+        @foreach (var entry in _entries)
+        {
+            <div class="data-grid audit-cols row @(entry.IsBreakGlassSession ? "breakglass-row" : string.Empty)"
+                 @onclick="() => Toggle(entry.Id)" style="cursor:pointer">
+                <div class="audit-caret">@(HasDetail(entry) ? (IsOpen(entry.Id) ? "▾" : "▸") : string.Empty)</div>
+                <div>@Time.Format(entry.TimestampUtc, "yyyy-MM-dd HH:mm:ss")</div>
+                <div>@(entry.UserDisplayName ?? entry.UserId)</div>
+                <div><span class="badge @ActionBadgeClass(entry.Action)">@ActionLabel(entry.Action)</span></div>
+                <div>@entry.EntityName</div>
+                <div class="data-mono">@entry.RecordId</div>
+                <div>@(entry.IsBreakGlassSession ? "YES" : string.Empty)</div>
+            </div>
+            @if (IsOpen(entry.Id) && HasDetail(entry))
             {
-                <tr class="@(entry.IsBreakGlassSession ? "breakglass-row" : string.Empty)"
-                    @onclick="() => Toggle(entry.Id)" style="cursor:pointer">
-                    <td>@(HasDetail(entry) ? (IsOpen(entry.Id) ? "▾" : "▸") : string.Empty)</td>
-                    <td>@Time.Format(entry.TimestampUtc, "yyyy-MM-dd HH:mm:ss")</td>
-                    <td>@(entry.UserDisplayName ?? entry.UserId)</td>
-                    <td>@ActionLabel(entry.Action)</td>
-                    <td>@entry.EntityName</td>
-                    <td>@entry.RecordId</td>
-                    <td>@(entry.IsBreakGlassSession ? "YES" : string.Empty)</td>
-                </tr>
-                @if (IsOpen(entry.Id) && HasDetail(entry))
-                {
-                    <tr class="audit-detail-row">
-                        <td></td>
-                        <td colspan="6">
-                            <div class="audit-detail">
-                                @if (!string.IsNullOrWhiteSpace(entry.OldValue))
-                                {
-                                    <div class="audit-col">
-                                        <div class="audit-col-title">Before</div>
-                                        <pre>@Pretty(entry.OldValue)</pre>
-                                    </div>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(entry.NewValue))
-                                {
-                                    <div class="audit-col">
-                                        <div class="audit-col-title">After</div>
-                                        <pre>@Pretty(entry.NewValue)</pre>
-                                    </div>
-                                }
-                            </div>
-                        </td>
-                    </tr>
-                }
+                <div class="audit-detail">
+                    @if (!string.IsNullOrWhiteSpace(entry.OldValue))
+                    {
+                        <div class="audit-col before">
+                            <div class="audit-col-title">Before</div>
+                            <pre>@Pretty(entry.OldValue)</pre>
+                        </div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(entry.NewValue))
+                    {
+                        <div class="audit-col after">
+                            <div class="audit-col-title">After</div>
+                            <pre>@Pretty(entry.NewValue)</pre>
+                        </div>
+                    }
+                </div>
             }
-        </tbody>
-    </table>
+        }
+    </div>
 }
 
 @code {
@@ -93,6 +91,12 @@ else
     {
         _open.Clear();
         _entries = await AuditReadService.GetRecentAsync(200, _breakGlassOnly);
+    }
+
+    private async Task ToggleBreakGlassOnly()
+    {
+        _breakGlassOnly = !_breakGlassOnly;
+        await LoadAsync();
     }
 
     private bool IsOpen(long id) => _open.Contains(id);
@@ -116,6 +120,15 @@ else
         Domain.Enums.AuditAction.SignIn => "Sign in",
         Domain.Enums.AuditAction.SignOut => "Sign out",
         _ => action.ToString()
+    };
+
+    /// <summary>Semantic badge colour for an audit action.</summary>
+    private static string ActionBadgeClass(Domain.Enums.AuditAction action) => action switch
+    {
+        Domain.Enums.AuditAction.Create => "b-create",
+        Domain.Enums.AuditAction.Update => "b-update",
+        Domain.Enums.AuditAction.Delete => "b-delete",
+        _ => "b-signevent"
     };
 
     /// <summary>Pretty-prints stored JSON detail; falls back to the raw text if it is not JSON.</summary>
