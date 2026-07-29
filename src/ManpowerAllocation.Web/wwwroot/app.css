@@ -161,6 +161,28 @@ a:hover { text-decoration: underline; }
 .sum-panel { background: var(--n-surface); border-radius: var(--r-md); box-shadow: var(--shadow-2); padding: 14px 16px; }
 .sum-panel-title { font: 600 16px/22px var(--font); color: var(--n-fg-1); margin-bottom: 8px; }
 
+/* Summary stat-card internals + per-division accent strip */
+.stat-card.d-egl::before { background: var(--brand); }
+.stat-card.d-functionalsupport::before { background: var(--info); }
+.stat-card.d-brg::before { background: var(--magenta); }
+.stat-card-head { display: flex; align-items: center; gap: 10px; }
+.stat-tile { width: 32px; height: 32px; border-radius: var(--r-lg); flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: #fff; font: 700 12px/1 var(--font); }
+.stat-open { margin-left: auto; color: var(--brand-hover); font: 600 13px/1 var(--font); }
+.stat-of { font: 400 14px/20px var(--font); color: var(--n-fg-3); }
+.stat-card .bar { margin: 12px 0 10px; }
+
+/* Factory total */
+.ft-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ft-lbl { font: 600 12px/16px var(--font); color: var(--n-fg-3); }
+.ft-num { font: 600 28px/36px var(--font); }
+.ft-num.positive { color: var(--ok); } .ft-num.negative { color: var(--danger); }
+.ft-scope { font: 400 12px/16px var(--font); color: var(--n-fg-3); }
+
+/* Breakdown table numeric alignment + division accent square */
+.grid th.num, .grid td.num { text-align: right; }
+.grid td.strong { font-weight: 600; }
+.cell-accent { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: middle; }
+
 /* ── Alert / list panels ─────────────────────────────────────────────────── */
 .alert-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px,1fr)); gap: 12px; }
 .alert-panel { background: var(--n-surface); border-radius: var(--r-md); box-shadow: var(--shadow-2); overflow: hidden; }

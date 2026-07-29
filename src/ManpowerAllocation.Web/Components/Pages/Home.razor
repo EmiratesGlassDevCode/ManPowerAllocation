@@ -30,48 +30,70 @@ else
     <div class="card-row">
         @foreach (var d in _divisions)
         {
-            <div class="glass stat-card" role="button" tabindex="0"
+            var presentPct = d.Required > 0 ? Math.Min((int)Math.Round(d.Present * 100.0 / d.Required), 100) : (d.Present > 0 ? 100 : 0);
+            var supplyPct = d.Required > 0 ? Math.Min((int)Math.Round(d.SupplyPresent * 100.0 / d.Required), 100 - presentPct) : 0;
+            <div class="stat-card d-@d.Division.ToString().ToLowerInvariant()" role="button" tabindex="0"
                  @onclick="() => Go(d.Division)"
                  @onkeydown="e => OnCardKey(e, d.Division)"
                  aria-label="@($"Open {DivisionLabel(d.Division)} division")">
-                <div class="stat-card-title">@DivisionLabel(d.Division)</div>
-                <div class="stat-card-big">@d.TotalPresent</div>
-                <div class="stat-card-sub">Present of @d.Required required</div>
-                <div class="stat-card-line">On roll: @d.OnRoll &nbsp; Absent: @d.Absent &nbsp; Vacation: @d.OnVacation</div>
-                <div class="stat-card-line">Outsource present: @d.SupplyPresent</div>
-                <div class="stat-card-line @(d.Variance < 0 ? "negative" : "positive")">
-                    Variance: @d.Variance &nbsp; Shortage depts: @d.ShortageDepartmentCount
+                <div class="stat-card-head">
+                    <span class="stat-tile" style="background:@DivAccent(d.Division)">@DivInitials(d.Division)</span>
+                    <div class="stat-card-title">@DivisionLabel(d.Division)</div>
+                    <span class="stat-open">Open →</span>
+                </div>
+                <div class="stat-card-big @(d.Variance < 0 ? "negative" : "positive")">@d.TotalPresent <span class="stat-of">present of @d.Required required</span></div>
+                <div class="bar">
+                    <div class="bar-fill @(d.Variance < 0 ? "fill-short" : "fill-optimal")" style="width:@(presentPct)%"></div>
+                    @if (d.SupplyPresent > 0) { <div class="bar-supply" style="width:@(supplyPct)%"></div> }
+                </div>
+                <div class="badges">
+                    <span class="badge b-off">On roll @d.OnRoll</span>
+                    @if (d.Absent > 0) { <span class="badge b-short">Absent @d.Absent</span> }
+                    @if (d.OnVacation > 0) { <span class="badge b-vac">Vacation @d.OnVacation</span> }
+                    @if (d.SupplyPresent > 0) { <span class="badge b-supply">Outsource @d.SupplyPresent</span> }
+                    <span class="badge @(d.Variance < 0 ? "b-short" : "b-optimal")">Variance @d.Variance</span>
+                    @if (d.ShortageDepartmentCount > 0) { <span class="badge b-short">Short depts @d.ShortageDepartmentCount</span> }
                 </div>
             </div>
         }
     </div>
 
-    <div class="@($"glass factory-total {(FactoryVariance < 0 ? "negative" : "positive")}")">
-        <strong>Factory total present:</strong> @FactoryPresent / required @FactoryRequired (net variance @FactoryVariance)
+    <div class="@($"factory-total {(FactoryVariance < 0 ? "negative" : "positive")}")">
+        <div class="ft-row">
+            <div>
+                <div class="ft-lbl">Factory total present</div>
+                <div class="ft-num @(FactoryVariance < 0 ? "negative" : "positive")">@FactoryPresent <span class="stat-of">/ @FactoryRequired required</span></div>
+            </div>
+            <span class="badge @(FactoryVariance < 0 ? "b-short" : "b-optimal")">Variance @FactoryVariance</span>
+            <span class="dc-spacer"></span>
+            <span class="ft-scope">@ScopeText()</span>
+        </div>
     </div>
 
-    <div class="glass sum-panel">
-        <div class="sum-panel-title">◆ Division breakdown</div>
-        <table class="grid">
-            <thead>
-                <tr><th>Division</th><th>On roll</th><th>Present</th><th>Absent</th><th>Vacation</th><th>Outsource</th><th>Required</th><th>Variance</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var d in _divisions)
-                {
-                    <tr>
-                        <td>@DivisionLabel(d.Division)</td>
-                        <td>@d.OnRoll</td>
-                        <td>@d.TotalPresent</td>
-                        <td>@d.Absent</td>
-                        <td>@d.OnVacation</td>
-                        <td>@d.SupplyPresent</td>
-                        <td>@d.Required</td>
-                        <td class="@(d.Variance < 0 ? "negative" : "positive")">@d.Variance</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+    <div class="sum-panel">
+        <div class="sum-panel-title">Division breakdown</div>
+        <div class="grid-scroll">
+            <table class="grid">
+                <thead>
+                    <tr><th>Division</th><th class="num">On roll</th><th class="num">Present</th><th class="num">Absent</th><th class="num">Vacation</th><th class="num">Outsource</th><th class="num">Required</th><th class="num">Variance</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in _divisions)
+                    {
+                        <tr>
+                            <td><span class="cell-accent" style="background:@DivAccent(d.Division)"></span>@DivisionLabel(d.Division)</td>
+                            <td class="num">@d.OnRoll</td>
+                            <td class="num">@d.TotalPresent</td>
+                            <td class="num">@d.Absent</td>
+                            <td class="num">@d.OnVacation</td>
+                            <td class="num">@d.SupplyPresent</td>
+                            <td class="num">@d.Required</td>
+                            <td class="num strong @(d.Variance < 0 ? "negative" : "positive")">@d.Variance</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div class="alert-row">
@@ -157,5 +179,31 @@ else
         Division.FunctionalSupport => "Functional Support",
         Division.Brg => "BRG",
         _ => division.ToString()
+    };
+
+    /// <summary>Division identity accent (matches the nav tile and the division page).</summary>
+    private static string DivAccent(Division division) => division switch
+    {
+        Division.Egl => "var(--brand)",
+        Division.FunctionalSupport => "var(--info)",
+        Division.Brg => "var(--magenta)",
+        _ => "var(--brand)"
+    };
+
+    /// <summary>Short initials for the division tile.</summary>
+    private static string DivInitials(Division division) => division switch
+    {
+        Division.Egl => "EG",
+        Division.FunctionalSupport => "FS",
+        Division.Brg => "BRG",
+        _ => "•"
+    };
+
+    /// <summary>Human label for the current shift scope, shown on the factory-total caption.</summary>
+    private string ScopeText() => _shift switch
+    {
+        ShiftFilter.Day => "Day shift",
+        ShiftFilter.Night => "Night shift",
+        _ => "All shifts"
     };
 }
