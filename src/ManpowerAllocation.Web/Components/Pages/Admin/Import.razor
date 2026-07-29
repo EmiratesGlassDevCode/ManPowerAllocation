@@ -16,11 +16,10 @@
 <section class="import-block">
     <h2>Attendance workbook</h2>
     <p>Sheets recognised: EGL / Functional Support / BRG.</p>
-    <label>
-        <input type="checkbox" @bind="_replaceExisting" />
+    <FluentCheckbox @bind-Value="_replaceExisting">
         Replace employees for divisions that already contain data
-    </label>
-    <InputFile OnChange="OnAttendanceSelected" accept=".xlsx" />
+    </FluentCheckbox>
+    <div class="upload-row"><InputFile OnChange="OnAttendanceSelected" accept=".xlsx" /></div>
 </section>
 
 <section class="import-block">

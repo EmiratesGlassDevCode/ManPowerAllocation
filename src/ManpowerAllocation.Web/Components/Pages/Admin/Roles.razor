@@ -13,13 +13,9 @@
 </p>
 
 <div class="form-inline">
-    <label>Entra object id
-        <input type="text" @bind="_objectId" placeholder="00000000-0000-0000-0000-000000000000" />
-    </label>
-    <label>Display name
-        <input type="text" @bind="_displayName" />
-    </label>
-    <label>Role
+    <FluentTextField @bind-Value="_objectId" Label="Entra object id" Placeholder="00000000-0000-0000-0000-000000000000" Style="width:340px" />
+    <FluentTextField @bind-Value="_displayName" Label="Display name" />
+    <label class="native-select-label">Role
         <select @bind="_role">
             @foreach (var role in Enum.GetValues<UserRole>())
             {
@@ -27,7 +23,7 @@
             }
         </select>
     </label>
-    <button type="button" @onclick="SaveAsync">Save</button>
+    <FluentButton Appearance="Appearance.Accent" @onclick="SaveAsync">Save</FluentButton>
 </div>
 
 @if (!string.IsNullOrEmpty(_message))
@@ -47,7 +43,7 @@
                 <td class="mono">@assignment.EntraObjectId</td>
                 <td>@assignment.Role</td>
                 <td>@assignment.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
-                <td><button type="button" @onclick="() => DeleteAsync(assignment.Id)">Remove</button></td>
+                <td><FluentButton Appearance="Appearance.Lightweight" @onclick="() => DeleteAsync(assignment.Id)">Remove</FluentButton></td>
             </tr>
         }
     </tbody>

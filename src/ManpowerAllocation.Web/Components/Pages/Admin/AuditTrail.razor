@@ -8,10 +8,9 @@
 
 <h1>Audit Trail</h1>
 
-<label>
-    <input type="checkbox" @bind="_breakGlassOnly" @bind:after="LoadAsync" />
+<FluentCheckbox @bind-Value="_breakGlassOnly" @bind-Value:after="LoadAsync">
     Show only break-glass sessions
-</label>
+</FluentCheckbox>
 
 @if (_entries is null)
 {

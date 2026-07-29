@@ -16,9 +16,9 @@
     workers are not affected.
 </p>
 
-<button type="button" @onclick="SyncNowAsync" disabled="@_busy">
+<FluentButton Appearance="Appearance.Accent" @onclick="SyncNowAsync" Disabled="@_busy">
     @(_busy ? "Syncing…" : "Sync now")
-</button>
+</FluentButton>
 
 @{
     var last = SyncStatus.LastRun;

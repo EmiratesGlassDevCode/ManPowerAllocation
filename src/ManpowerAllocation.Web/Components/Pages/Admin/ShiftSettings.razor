@@ -28,7 +28,7 @@ else
             <label>Night shift start
                 <input type="time" @bind="_nightStart" />
             </label>
-            <button type="button" @onclick="SaveAsync">Save</button>
+            <FluentButton Appearance="Appearance.Accent" @onclick="SaveAsync">Save</FluentButton>
         </div>
 
         <p class="hint">
