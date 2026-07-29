@@ -1,0 +1,52 @@
+@using ManpowerAllocation.Application.Attendance
+@implements IDisposable
+@inject AttendanceSyncStatus SyncStatus
+
+@*
+    Live health indicator for the biometric attendance read. "Online" (green) means the most
+    recent sync successfully read the external attendance source; "Offline" (red) means the
+    source was unreachable, not configured, or has not been read yet. It refreshes on a timer so
+    the status stays current without a page reload.
+*@
+<span class="health @(_online ? "health-online" : "health-offline")" title="@_tooltip">
+    <span class="health-dot"></span>
+    <span class="health-text">@(_online ? "Online" : "Offline")</span>
+</span>
+
+@code {
+    private System.Threading.Timer? _timer;
+    private bool _online;
+    private string _tooltip = "Attendance read status";
+
+    /// <summary>Reads the current status immediately and starts a 30-second refresh timer.</summary>
+    protected override void OnInitialized()
+    {
+        Refresh();
+        _timer = new System.Threading.Timer(_ => InvokeAsync(() => { Refresh(); StateHasChanged(); }), null,
+            TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private void Refresh()
+    {
+        var run = SyncStatus.LastRun;
+        _online = run?.Success == true;
+
+        if (run is null)
+        {
+            _tooltip = "Attendance read: waiting for the first sync since startup.";
+        }
+        else if (run.Success)
+        {
+            _tooltip = $"Attendance read OK at {run.RanAtUtc:yyyy-MM-dd HH:mm} UTC — " +
+                       $"{run.Present} present, {run.Absent} absent.";
+        }
+        else
+        {
+            _tooltip = $"Attendance read unavailable (last checked {run.RanAtUtc:yyyy-MM-dd HH:mm} UTC). " +
+                       (run.Error ?? "The source could not be read.");
+        }
+    }
+
+    /// <summary>Disposes the refresh timer with the component.</summary>
+    public void Dispose() => _timer?.Dispose();
+}

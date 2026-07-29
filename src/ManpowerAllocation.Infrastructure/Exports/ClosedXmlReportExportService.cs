@@ -32,9 +32,9 @@ public sealed class ClosedXmlReportExportService : IReportExportService
 
         using var wb = new XLWorkbook();
         var ws = wb.AddWorksheet("Master Requirements");
-        WriteHeader(ws, "Category", "Department", "Day Shift Required", "Night Shift Required", "Total", "Sequence");
+        var row = WriteBrandedHeader(ws, "Master Requirements Template",
+            "Category", "Department", "Day Shift Required", "Night Shift Required", "Total", "Sequence");
 
-        var row = 2;
         foreach (var d in departments)
         {
             ws.Cell(row, 1).Value = CategoryLabel(d.Division);
@@ -58,10 +58,10 @@ public sealed class ClosedXmlReportExportService : IReportExportService
 
         using var wb = new XLWorkbook();
         var ws = wb.AddWorksheet("Report");
-        WriteHeader(ws, "Division", "Department", "Day Req", "Night Req", "Total Req",
+        var row = WriteBrandedHeader(ws, "Staffing Report",
+            "Division", "Department", "Day Req", "Night Req", "Total Req",
             "Present", "Outsource", "Total Present", "Absent", "Vacation", "Status");
 
-        var row = 2;
         foreach (var d in departments)
         {
             var members = employeesByDepartment.TryGetValue(d.Id, out var list) ? list : new List<Employee>();
@@ -98,9 +98,9 @@ public sealed class ClosedXmlReportExportService : IReportExportService
 
         using var wb = new XLWorkbook();
         var ws = wb.AddWorksheet("Attendance");
-        WriteHeader(ws, "Name", "ID", "Division", "Department", "Shift", "Available", "Outsource", "Notes");
+        var row = WriteBrandedHeader(ws, "Attendance",
+            "Name", "ID", "Division", "Department", "Shift", "Available", "Outsource", "Notes");
 
-        var row = 2;
         foreach (var e in employees)
         {
             ws.Cell(row, 1).Value = e.Name;
@@ -132,14 +132,38 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         return employees.GroupBy(e => e.DepartmentId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
-    private static void WriteHeader(IXLWorksheet ws, params string[] headers)
+    /// <summary>
+    /// Writes an Emirates Glass branded band (company name + report title + generation stamp)
+    /// followed by the bold, navy column-header row, and returns the first data row index.
+    /// </summary>
+    private int WriteBrandedHeader(IXLWorksheet ws, string reportTitle, params string[] headers)
     {
+        var span = Math.Max(headers.Length, 1);
+
+        var titleCell = ws.Cell(1, 1);
+        titleCell.Value = "EMIRATES GLASS";
+        titleCell.Style.Font.Bold = true;
+        titleCell.Style.Font.FontSize = 16;
+        titleCell.Style.Font.FontColor = XLColor.FromHtml("#B8935A");
+        ws.Range(1, 1, 1, span).Merge();
+
+        var subtitle = ws.Cell(2, 1);
+        subtitle.Value = $"Manpower Allocation · {reportTitle} — generated {_clock.UtcNow:yyyy-MM-dd HH:mm} UTC";
+        subtitle.Style.Font.Bold = true;
+        subtitle.Style.Font.FontColor = XLColor.FromHtml("#12446B");
+        ws.Range(2, 1, 2, span).Merge();
+
+        const int headerRow = 4;
         for (var i = 0; i < headers.Length; i++)
         {
-            var cell = ws.Cell(1, i + 1);
+            var cell = ws.Cell(headerRow, i + 1);
             cell.Value = headers[i];
             cell.Style.Font.Bold = true;
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#12446B");
         }
+
+        return headerRow + 1;
     }
 
     private ExportFile ToFile(XLWorkbook wb, string prefix)

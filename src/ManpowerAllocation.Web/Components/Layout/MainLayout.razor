@@ -7,10 +7,11 @@
 <div class="page">
     <header class="topbar">
         <div class="topbar-brand">
-            <span class="topbar-logo">M</span>
-            <span>Manpower Allocation Dashboard</span>
+            <img src="img/emirates-glass-logo.svg" alt="Emirates Glass" class="topbar-logo-img" />
+            <span class="topbar-title">Manpower Allocation</span>
         </div>
         <div class="topbar-user">
+            <AttendanceHealth />
             <AuthorizeView>
                 <Authorized>
                     <span class="topbar-name">@context.User.Identity?.Name</span>

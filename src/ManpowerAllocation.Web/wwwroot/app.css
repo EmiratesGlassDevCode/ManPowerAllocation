@@ -77,14 +77,20 @@ a:hover { text-decoration: underline; }
     box-shadow: var(--shadow-sm);
     position: sticky; top: 0; z-index: 50;
 }
-.topbar-brand { display: flex; align-items: center; gap: 11px; font-weight: 700; font-size: 15px; }
-.topbar-logo {
-    width: 32px; height: 32px; border-radius: 9px; color: #fff; font-weight: 900;
-    display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(135deg, #2563eb, #7c3aed);
-    box-shadow: 0 2px 6px rgba(37,99,235,.35);
-}
+.topbar-brand { display: flex; align-items: center; gap: 14px; font-weight: 700; font-size: 15px; }
+.topbar-logo-img { height: 34px; width: auto; display: block; }
+.topbar-title { padding-left: 14px; border-left: 1px solid var(--border); color: var(--muted); font-weight: 600; }
 .topbar-user { display: flex; align-items: center; gap: 14px; color: var(--muted); }
+
+/* Attendance read health indicator */
+.health { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; border: 1px solid transparent; cursor: default; }
+.health-dot { width: 9px; height: 9px; border-radius: 50%; }
+.health-online { background: var(--green-lt); color: #166534; border-color: #a7e0bd; }
+.health-online .health-dot { background: var(--green); box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
+.health-offline { background: var(--red-lt); color: #991b1b; border-color: #f2b8b8; }
+.health-offline .health-dot { background: var(--red); box-shadow: 0 0 0 3px rgba(220,38,38,.18); animation: health-pulse 1.6s ease-in-out infinite; }
+@keyframes health-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+@media (max-width: 640px) { .health-text { display: none; } .topbar-title { display: none; } }
 .topbar-name { font-weight: 600; color: var(--text); }
 .link-button { background: none; border: none; color: var(--blue); cursor: pointer; font: inherit; padding: 6px 10px; border-radius: 6px; }
 .link-button:hover { background: var(--blue-lt); text-decoration: none; }
@@ -242,6 +248,7 @@ button.secondary:hover { background: var(--panel-2); filter: none; }
     max-width: 480px; margin: 48px auto; background: var(--panel);
     border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow-lg);
 }
+.panel-logo { height: 40px; width: auto; display: block; margin-bottom: 18px; }
 
 /* ── Export / toolbar links ──────────────────────────────────────────────── */
 .btn-link { display: inline-block; padding: 6px 13px; border: 1px solid var(--border2); border-radius: 7px; background: var(--panel); color: var(--text); text-decoration: none; font-size: 12px; font-weight: 600; transition: all .12s; }
