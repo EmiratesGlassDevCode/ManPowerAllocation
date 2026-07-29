@@ -64,12 +64,18 @@ else
                                         <span class="emp-name">@emp.Name @(emp.IsSupply ? "(outsource)" : string.Empty)</span>
                                         <span class="emp-shift">@emp.Shift</span>
                                         <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@emp.Status</span>
-                                        @if (_canEdit)
+                                        @* Present/Absent is owned by the attendance system; supervisors only set the vacation override. *@
+                                        @if (_canEdit && !emp.IsSupply && emp.Status != AttendanceStatus.Present)
                                         {
                                             <span class="emp-actions">
-                                                <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Present)">P</button>
-                                                <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">A</button>
-                                                <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">V</button>
+                                                @if (emp.Status == AttendanceStatus.OnVacation)
+                                                {
+                                                    <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">Unmark vacation</button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">Mark vacation</button>
+                                                }
                                             </span>
                                         }
                                     </li>

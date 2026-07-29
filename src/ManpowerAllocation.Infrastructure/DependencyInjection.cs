@@ -1,6 +1,7 @@
 using ManpowerAllocation.Application.Abstractions;
 using ManpowerAllocation.Application.BreakGlass;
 using ManpowerAllocation.Infrastructure.Alerts;
+using ManpowerAllocation.Infrastructure.Attendance;
 using ManpowerAllocation.Infrastructure.Auditing;
 using ManpowerAllocation.Infrastructure.BreakGlass;
 using ManpowerAllocation.Infrastructure.Import;
@@ -56,6 +57,34 @@ public static class DependencyInjection
         // Enforces the four-hour auto-disable window and detects manual enables out of band.
         services.AddHostedService<BreakGlassLifecycleWorker>();
 
+        AddAttendanceIntegration(services, configuration);
+
         return services;
+    }
+
+    /// <summary>
+    /// Wires the external attendance integration. When a connection string is configured a
+    /// read-only context and real presence provider are registered; otherwise a no-op provider is
+    /// used so the sync stays safe. The scheduled worker is always registered and no-ops when
+    /// disabled or unconfigured.
+    /// </summary>
+    private static void AddAttendanceIntegration(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<AttendanceOptions>()
+            .Bind(configuration.GetSection(AttendanceOptions.SectionName));
+
+        var attendanceConnectionString = configuration.GetConnectionString("AttendanceDatabase");
+        if (!string.IsNullOrWhiteSpace(attendanceConnectionString))
+        {
+            services.AddDbContext<AttendanceReadDbContext>(options =>
+                options.UseSqlServer(attendanceConnectionString, sql => sql.EnableRetryOnFailure()));
+            services.AddScoped<IPresenceProvider, AttendancePresenceProvider>();
+        }
+        else
+        {
+            services.AddScoped<IPresenceProvider, NullPresenceProvider>();
+        }
+
+        services.AddHostedService<AttendanceSyncWorker>();
     }
 }

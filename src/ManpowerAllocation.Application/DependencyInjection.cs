@@ -1,4 +1,5 @@
 using FluentValidation;
+using ManpowerAllocation.Application.Attendance;
 using ManpowerAllocation.Application.Auditing;
 using ManpowerAllocation.Application.Dashboard;
 using ManpowerAllocation.Application.Departments;
@@ -27,6 +28,10 @@ public static class DependencyInjection
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IMasterDataImportService, MasterDataImportService>();
         services.AddScoped<IAuditReadService, AuditReadService>();
+        services.AddScoped<IAttendanceSyncService, AttendanceSyncService>();
+
+        // Shared holder for the last attendance-sync result shown on the admin screen.
+        services.AddSingleton<AttendanceSyncStatus>();
 
         // Registers every AbstractValidator in this assembly (Create/Update department,
         // employee status/shift/move, role upsert, and so on).

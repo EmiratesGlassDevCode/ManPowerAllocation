@@ -1,3 +1,4 @@
+using ManpowerAllocation.Application.Attendance;
 using ManpowerAllocation.Application.Auditing;
 using ManpowerAllocation.Application.BreakGlass;
 using ManpowerAllocation.Application.Import;
@@ -23,6 +24,12 @@ public static class AdminEndpoints
 
         admin.MapGet("/audit", async (int? take, bool? breakGlassOnly, IAuditReadService service, CancellationToken ct) =>
             Results.Ok(await service.GetRecentAsync(take ?? 100, breakGlassOnly ?? false, ct)));
+
+        admin.MapPost("/attendance/sync", async (IAttendanceSyncService service, CancellationToken ct) =>
+            Results.Ok(await service.SyncAsync("manual-api", ct)));
+
+        admin.MapGet("/attendance/status", (AttendanceSyncStatus status) =>
+            Results.Ok(status.LastRun));
     }
 
     /// <summary>Maps the role-assignment endpoints.</summary>

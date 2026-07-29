@@ -89,6 +89,34 @@ recommended source; ASP.NET Core maps `__` to configuration nesting (for example
   stores the secret.
 - `Alerts:*` — SMTP and/or a Teams incoming-webhook URL, plus the IT Head email. If neither channel
   is configured, break-glass alerts are logged at warning level so they are never silent.
+- `ConnectionStrings:AttendanceDatabase` — read-only connection to the attendance database (see
+  "Attendance integration" below). Leave blank to disable the integration.
+- `Attendance:*` — `Enabled`, `SyncIntervalMinutes` (default 10) and `TimeZoneId` (default
+  "Arabian Standard Time") for the presence sync.
+
+## Attendance integration
+
+Employee presence is sourced from the external biometric view
+`[attendance].[dbo].[xxeg_attendance_v]` (same SQL Server, separate database), keyed by
+`Employee ID` → `Employee.BadgeNumber`. A dedicated **read-only** `AttendanceReadDbContext` maps
+the view; the app never writes to it and it is never part of a migration.
+
+A background worker (and the **Admin → Attendance Sync → "Sync now"** button) applies this rule
+every few minutes and records one summary entry in the audit trail per run:
+
+- a check-in today (`InTime` for today's date, in the configured time zone) → **Present** — this
+  also clears a vacation, because punching in means the person has resumed;
+- otherwise, a supervisor-set **On Vacation** is preserved;
+- otherwise → **Absent**.
+
+Because the biometric view owns present/absent, supervisors no longer toggle those by hand — the
+dashboards expose only a **vacation** override (for people who have not checked in). Outsource /
+supply workers are not in the biometric system, so their status remains manually managed.
+
+If `AttendanceDatabase` is not configured the sync is a safe no-op (it never marks everyone
+absent). Grant the app a least-privilege, read-only login to the attendance database. Note the
+view's `Employee ID` column is expected to be text-comparable to the badge number; if it is a
+numeric column, expose it as text in the view (or tell us and we will adjust the mapping).
 
 ### Generating the break-glass secret values
 

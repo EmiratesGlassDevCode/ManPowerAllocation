@@ -1,0 +1,59 @@
+@page "/admin/attendance"
+@using ManpowerAllocation.Application.Attendance
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IAttendanceSyncService AttendanceSyncService
+@inject AttendanceSyncStatus SyncStatus
+
+<PageTitle>Attendance Sync — Manpower Allocation</PageTitle>
+
+<h1>Attendance Synchronisation</h1>
+<p class="hint">
+    Presence is sourced from the biometric attendance view. A background job refreshes it
+    automatically; use <strong>Sync now</strong> to refresh immediately. A check-in marks an
+    employee Present (and clears a vacation, since punching in means they have resumed);
+    otherwise a supervisor's vacation is preserved, and everyone else is Absent. Outsource
+    workers are not affected.
+</p>
+
+<button type="button" @onclick="SyncNowAsync" disabled="@_busy">
+    @(_busy ? "Syncing…" : "Sync now")
+</button>
+
+@{
+    var last = SyncStatus.LastRun;
+}
+@if (last is null)
+{
+    <p class="message">No synchronisation has run since the application started.</p>
+}
+else
+{
+    <table class="grid">
+        <tbody>
+            <tr><th>Last run (UTC)</th><td>@last.RanAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</td></tr>
+            <tr><th>Result</th><td>@(last.Success ? "Success" : $"Not completed — {last.Error}")</td></tr>
+            <tr><th>Present</th><td>@last.Present</td></tr>
+            <tr><th>Absent</th><td>@last.Absent</td></tr>
+            <tr><th>On vacation</th><td>@last.OnVacation</td></tr>
+            <tr><th>Changed this run</th><td>@last.Changed</td></tr>
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool _busy;
+
+    private async Task SyncNowAsync()
+    {
+        _busy = true;
+        try
+        {
+            await AttendanceSyncService.SyncAsync("manual");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
