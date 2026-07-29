@@ -16,7 +16,14 @@
         <ul class="alert-items">
             @foreach (var item in Items)
             {
-                <li>@item</li>
+                var sep = item.IndexOf(" · ", StringComparison.Ordinal);
+                var name = sep >= 0 ? item[..sep] : item;
+                var detail = sep >= 0 ? item[(sep + 3)..] : string.Empty;
+                <li>
+                    <span class="av" style="background:@ManpowerAllocation.Web.Common.Avatar.Color(name)">@ManpowerAllocation.Web.Common.Avatar.Initials(name)</span>
+                    <span class="av-name">@name</span>
+                    <span class="av-dept">@detail</span>
+                </li>
             }
         </ul>
     }

@@ -1,25 +1,63 @@
 @using ManpowerAllocation.Web.Security
+@using ManpowerAllocation.Application.Attendance
+@inject AttendanceSyncStatus SyncStatus
+@inject DisplayTimeZone Time
 
 @*
     Primary navigation. Admin links are only shown to administrators; this is a usability aid,
     not a security control — the Admin pages and their endpoints enforce the role server-side.
+    Each item carries a small coloured tile (Fluent app-list style). The footer summarises the
+    biometric attendance-sync health.
 *@
 <nav class="nav">
-    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Summary</NavLink>
-    <NavLink class="nav-link" href="division/Egl">EGL</NavLink>
-    <NavLink class="nav-link" href="division/FunctionalSupport">Functional Support</NavLink>
-    <NavLink class="nav-link" href="division/Brg">BRG</NavLink>
-    <NavLink class="nav-link" href="search">Employee Search</NavLink>
+    <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><span class="nav-ico" style="background:#0f6cbd"></span>Summary</NavLink>
+    <NavLink class="nav-link" href="division/Egl"><span class="nav-ico" style="background:#038387"></span>EGL</NavLink>
+    <NavLink class="nav-link" href="division/FunctionalSupport"><span class="nav-ico" style="background:#5c2e91"></span>Functional Support</NavLink>
+    <NavLink class="nav-link" href="division/Brg"><span class="nav-ico" style="background:#c19c00"></span>BRG</NavLink>
+    <NavLink class="nav-link" href="search"><span class="nav-ico" style="background:#0e700e"></span>Employee Search</NavLink>
 
     <AuthorizeView Policy="@AuthorizationPolicies.RequireAdmin">
         <Authorized>
             <div class="nav-section">Administration</div>
-            <NavLink class="nav-link" href="admin/roles">Role Assignments</NavLink>
-            <NavLink class="nav-link" href="admin/import">Master Data Import</NavLink>
-            <NavLink class="nav-link" href="admin/attendance">Attendance Sync</NavLink>
-            <NavLink class="nav-link" href="admin/shift-settings">Shift Settings</NavLink>
-            <NavLink class="nav-link" href="admin/break-glass">Break-glass Status</NavLink>
-            <NavLink class="nav-link" href="admin/audit">Audit Trail</NavLink>
+            <NavLink class="nav-link" href="admin/roles"><span class="nav-ico" style="background:#0f6cbd"></span>Role Assignments</NavLink>
+            <NavLink class="nav-link" href="admin/import"><span class="nav-ico" style="background:#038387"></span>Master Data Import</NavLink>
+            <NavLink class="nav-link" href="admin/attendance"><span class="nav-ico" style="background:#5c2e91"></span>Attendance Sync</NavLink>
+            <NavLink class="nav-link" href="admin/shift-settings"><span class="nav-ico" style="background:#c19c00"></span>Shift Settings</NavLink>
+            <NavLink class="nav-link" href="admin/break-glass"><span class="nav-ico" style="background:#b10e1c"></span>Break-glass Status</NavLink>
+            <NavLink class="nav-link" href="admin/audit"><span class="nav-ico" style="background:#0e700e"></span>Audit Trail</NavLink>
         </Authorized>
     </AuthorizeView>
+
+    <div class="nav-foot">
+        <div class="sync-foot @(_healthy ? string.Empty : "bad")">
+            <div class="sync-title">Attendance sync</div>
+            <div class="sync-line">@_footLine</div>
+        </div>
+    </div>
 </nav>
+
+@code {
+    private bool _healthy;
+    private string _footLine = "Waiting for first sync";
+
+    /// <summary>Summarises the latest attendance-sync result for the sidebar footer.</summary>
+    protected override void OnParametersSet()
+    {
+        var run = SyncStatus.LastRun;
+        if (run is null)
+        {
+            _healthy = false;
+            _footLine = "Waiting for first sync";
+        }
+        else if (run.Success)
+        {
+            _healthy = true;
+            _footLine = $"Last run {Time.Format(run.RanAtUtc, "HH:mm")} · biometric feed healthy";
+        }
+        else
+        {
+            _healthy = false;
+            _footLine = $"Last run {Time.Format(run.RanAtUtc, "HH:mm")} · feed unavailable";
+        }
+    }
+}

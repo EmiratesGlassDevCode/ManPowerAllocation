@@ -18,8 +18,9 @@
 }
 else
 {
+    <div class="breadcrumb">Home / Departments</div>
     <div class="screen-head">
-        <h1>@_label</h1>
+        <h1>@_label Departments</h1>
         <ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
     </div>
 
@@ -36,14 +37,14 @@ else
     {
         var t = _dashboard.Totals;
         <div class="kpi-row">
-            <div class="kpi"><div class="kpi-val sv-blue">@t.TotalPresent</div><div class="kpi-lbl">Present</div></div>
-            <div class="kpi"><div class="kpi-val">@t.Required</div><div class="kpi-lbl">Required</div></div>
-            <div class="kpi"><div class="kpi-val">@t.OnRoll</div><div class="kpi-lbl">On roll</div></div>
-            <div class="kpi"><div class="kpi-val sv-red">@t.Absent</div><div class="kpi-lbl">Absent</div></div>
-            <div class="kpi"><div class="kpi-val sv-amber">@t.OnVacation</div><div class="kpi-lbl">Vacation</div></div>
-            <div class="kpi"><div class="kpi-val sv-purple">@t.SupplyPresent</div><div class="kpi-lbl">Outsource</div></div>
-            <div class="kpi"><div class="kpi-val @(t.Variance < 0 ? "sv-red" : "sv-green")">@t.Variance</div><div class="kpi-lbl">Variance</div></div>
-            <div class="kpi"><div class="kpi-val sv-red">@t.ShortageDepartmentCount</div><div class="kpi-lbl">Short depts</div></div>
+            <div class="kpi k-blue"><div class="kpi-lbl">Present</div><div class="kpi-val sv-blue">@t.TotalPresent</div><div class="kpi-sub">on floor now</div></div>
+            <div class="kpi k-neutral"><div class="kpi-lbl">Required</div><div class="kpi-val">@t.Required</div><div class="kpi-sub">planned</div></div>
+            <div class="kpi k-teal"><div class="kpi-lbl">On roll</div><div class="kpi-val sv-cyan">@t.OnRoll</div><div class="kpi-sub">assigned</div></div>
+            <div class="kpi k-red"><div class="kpi-lbl">Absent</div><div class="kpi-val sv-red">@t.Absent</div><div class="kpi-sub">unplanned</div></div>
+            <div class="kpi k-amber"><div class="kpi-lbl">Vacation</div><div class="kpi-val sv-amber">@t.OnVacation</div><div class="kpi-sub">approved leave</div></div>
+            <div class="kpi k-purple"><div class="kpi-lbl">Outsource</div><div class="kpi-val sv-purple">@t.SupplyPresent</div><div class="kpi-sub">contract cover</div></div>
+            <div class="kpi @(t.Variance < 0 ? "k-red" : "k-green")"><div class="kpi-lbl">Variance</div><div class="kpi-val @(t.Variance < 0 ? "sv-red" : "sv-green")">@t.Variance</div><div class="kpi-sub">vs. required</div></div>
+            <div class="kpi k-red"><div class="kpi-lbl">Short depts</div><div class="kpi-val sv-red">@t.ShortageDepartmentCount</div><div class="kpi-sub">need cover</div></div>
         </div>
 
         <div class="alert-row">
@@ -77,7 +78,11 @@ else
                 var util = dept.Required > 0 ? Math.Min((int)Math.Round(dept.TotalPresent * 100.0 / dept.Required), 130) : (dept.TotalPresent > 0 ? 100 : 0);
                 <div class="dept-card status-@(dept.Status.ToString().ToLowerInvariant())">
                     <div class="dept-card-head">
-                        <span class="dept-name" @onclick="() => OpenDeptModal(dept)">@TextCase.Title(dept.Name)</span>
+                        <span class="dept-ico" style="background:@Avatar.Color(dept.Name)">@Avatar.Initials(dept.Name)</span>
+                        <div class="dept-head-text">
+                            <div class="dept-name" @onclick="() => OpenDeptModal(dept)">@TextCase.Title(dept.Name)</div>
+                            <div class="dept-sub">@dept.OnRoll on roll · @ShiftText()</div>
+                        </div>
                         @if (_canEdit)
                         {
                             <FluentSwitch Value="@dept.IsActive"
@@ -95,17 +100,17 @@ else
                             @if (dept.SupplyPresent > 0) { <span class="badge b-supply">OS @dept.SupplyPresent</span> }
                         </div>
 
-                        @if (_canAdmin)
-                        {
-                            <div class="dc-actions">
-                                <FluentButton Appearance="Appearance.Lightweight" @onclick="() => OpenEditDept(dept.DepartmentId)">Edit</FluentButton>
-                                <FluentButton Appearance="Appearance.Lightweight" @onclick="() => DeleteDeptAsync(dept.DepartmentId)">Delete</FluentButton>
-                            </div>
-                        }
-
-                        <span class="expander" @onclick="() => ToggleExpand(dept.DepartmentId)">
-                            @(IsExpanded(dept.DepartmentId) ? "▾ Hide people" : "▸ Show people")
-                        </span>
+                        <div class="dc-actions">
+                            <span class="link" @onclick="() => ToggleExpand(dept.DepartmentId)">
+                                @(IsExpanded(dept.DepartmentId) ? "Hide roster" : "Show roster")
+                            </span>
+                            <span class="dc-spacer"></span>
+                            @if (_canAdmin)
+                            {
+                                <FluentButton Appearance="Appearance.Neutral" @onclick="() => OpenEditDept(dept.DepartmentId)">Edit</FluentButton>
+                                <FluentButton Appearance="Appearance.Neutral" @onclick="() => DeleteDeptAsync(dept.DepartmentId)">Delete</FluentButton>
+                            }
+                        </div>
 
                         @if (IsExpanded(dept.DepartmentId) && _byDept.TryGetValue(dept.DepartmentId, out var members))
                         {
@@ -374,6 +379,14 @@ else
 
         return result;
     }
+
+    /// <summary>Label for the current shift filter, used in the department subtitle.</summary>
+    private string ShiftText() => _shift switch
+    {
+        ShiftFilter.Day => "day shift",
+        ShiftFilter.Night => "night shift",
+        _ => "all shifts"
+    };
 
     private bool IsExpanded(int departmentId) => _expanded.Contains(departmentId);
 

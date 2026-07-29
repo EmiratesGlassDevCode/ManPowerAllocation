@@ -16,17 +16,19 @@
     <header class="topbar">
         <div class="topbar-brand">
             <button class="nav-toggle" type="button" @onclick="ToggleNav" aria-label="Toggle navigation menu">☰</button>
-            <img src="img/emirates-glass-logo.png" alt="Emirates Glass" class="topbar-logo-img" />
-            <span class="topbar-title">Manpower Allocation</span>
+            <span class="eg-badge">EG</span>
+            <span>Manpower Allocation</span>
+            <span class="topbar-sub">Emirates Glass</span>
         </div>
         <div class="topbar-user">
             <AttendanceHealth />
             <AuthorizeView>
                 <Authorized>
                     <span class="topbar-name">@context.User.Identity?.Name</span>
+                    <span class="topbar-avatar" title="@context.User.Identity?.Name">@Initials(context.User.Identity?.Name)</span>
                     <form action="/auth/logout" method="post" style="display:inline">
                         <AntiforgeryToken />
-                        <button type="submit" class="link-button">Sign out</button>
+                        <button type="submit" class="signout-btn">Sign out</button>
                     </form>
                 </Authorized>
             </AuthorizeView>
@@ -72,4 +74,29 @@
 
     /// <summary>Unsubscribes from navigation events with the component.</summary>
     public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    /// <summary>Derives up-to-two-letter initials from a display name or email for the avatar chip.</summary>
+    private static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "?";
+        }
+
+        var local = name.Contains('@') ? name[..name.IndexOf('@')] : name;
+        var parts = local.Split(new[] { ' ', '.', '_', '-' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return "?";
+        }
+
+        var first = char.ToUpperInvariant(parts[0][0]);
+        if (parts.Length == 1)
+        {
+            return first.ToString();
+        }
+
+        var second = char.ToUpperInvariant(parts[1][0]);
+        return $"{first}{second}";
+    }
 }
