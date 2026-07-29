@@ -147,6 +147,30 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
+
+    // The emergency credential endpoint gets its own far stricter bucket (a handful of attempts
+    // per five minutes per client) so the Admin-granting secret cannot be brute-forced.
+    options.AddPolicy(BreakGlassAuthEndpoints.RateLimitPolicy, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            ResolveRateLimitKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(5),
+                QueueLimit = 0
+            }));
+});
+
+// Behind IIS the app sees the reverse proxy's address unless the forwarded headers are honoured.
+// Processing X-Forwarded-For gives the real client IP for rate-limit partitioning and logging.
+builder.Services.Configure<Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    // The only upstream proxy is the local IIS site, so the default localhost restriction is
+    // cleared to trust the header it forwards.
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
 });
 
 // ── Generic error responses (never leak stack traces, SQL or paths) ─────────────────────
@@ -180,6 +204,9 @@ builder.Services.AddCascadingAuthenticationState();
 var app = builder.Build();
 
 // ── HTTP pipeline ───────────────────────────────────────────────────────────────────────
+// Honour the forwarded client IP/scheme from the IIS reverse proxy before anything reads them.
+app.UseForwardedHeaders();
+
 // The exception handler runs first so every failure (in any environment) yields a generic body.
 app.UseExceptionHandler();
 

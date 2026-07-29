@@ -6,6 +6,7 @@ using ManpowerAllocation.Application.Departments;
 using ManpowerAllocation.Application.Employees;
 using ManpowerAllocation.Application.Import;
 using ManpowerAllocation.Application.Roles;
+using ManpowerAllocation.Application.Settings;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ManpowerAllocation.Application;
@@ -29,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IMasterDataImportService, MasterDataImportService>();
         services.AddScoped<IAuditReadService, AuditReadService>();
         services.AddScoped<IAttendanceSyncService, AttendanceSyncService>();
+        services.AddScoped<IShiftSettingsService, ShiftSettingsService>();
 
         // Shared holder for the last attendance-sync result shown on the admin screen.
         services.AddSingleton<AttendanceSyncStatus>();

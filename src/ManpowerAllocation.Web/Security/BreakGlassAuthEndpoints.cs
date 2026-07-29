@@ -15,6 +15,13 @@ namespace ManpowerAllocation.Web.Security;
 /// </summary>
 public static class BreakGlassAuthEndpoints
 {
+    /// <summary>
+    /// Dedicated, deliberately strict rate-limit policy for the emergency credential endpoint,
+    /// kept far tighter than the general API limiter so the Admin-granting secret cannot be
+    /// brute-forced.
+    /// </summary>
+    public const string RateLimitPolicy = "break-glass";
+
     /// <summary>Maps the break-glass sign-in and sign-out endpoints.</summary>
     /// <param name="app">The web application to map onto.</param>
     public static void MapBreakGlassAuthEndpoints(this WebApplication app)
@@ -24,7 +31,7 @@ public static class BreakGlassAuthEndpoints
         app.MapPost("/auth/break-glass", HandleLoginAsync)
             .AllowAnonymous()
             .DisableAntiforgery()
-            .RequireRateLimiting(Api.ApiEndpoints.RateLimitPolicy);
+            .RequireRateLimiting(RateLimitPolicy);
 
         app.MapPost("/auth/logout", (HttpContext context) =>
             {

@@ -33,6 +33,9 @@ public sealed class ManpowerDbContext : DbContext, IApplicationDbContext
     public DbSet<BreakGlassAccount> BreakGlassAccounts => Set<BreakGlassAccount>();
 
     /// <inheritdoc />
+    public DbSet<ShiftSetting> ShiftSettings => Set<ShiftSetting>();
+
+    /// <inheritdoc />
     public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(work);

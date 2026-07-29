@@ -30,7 +30,10 @@ else
     <div class="card-row">
         @foreach (var d in _divisions)
         {
-            <div class="stat-card" @onclick="() => Go(d.Division)">
+            <div class="stat-card" role="button" tabindex="0"
+                 @onclick="() => Go(d.Division)"
+                 @onkeydown="e => OnCardKey(e, d.Division)"
+                 aria-label="@($"Open {DivisionLabel(d.Division)} division")">
                 <div class="stat-card-title">@DivisionLabel(d.Division)</div>
                 <div class="stat-card-big">@d.TotalPresent</div>
                 <div class="stat-card-sub">Present of @d.Required required</div>
@@ -140,6 +143,15 @@ else
     };
 
     private void Go(Division division) => Navigation.NavigateTo($"division/{division}");
+
+    /// <summary>Activates a division stat-card with the keyboard (Enter or Space).</summary>
+    private void OnCardKey(KeyboardEventArgs e, Division division)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            Go(division);
+        }
+    }
 
     private static string DivisionLabel(Division division) => division switch
     {

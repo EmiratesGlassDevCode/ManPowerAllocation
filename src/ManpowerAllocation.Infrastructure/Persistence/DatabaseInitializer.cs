@@ -48,5 +48,21 @@ public sealed class DatabaseInitializer
             await _dbContext.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded the disabled break-glass account row.");
         }
+
+        var shiftSettingsExist = await _dbContext.ShiftSettings.AnyAsync(cancellationToken);
+        if (!shiftSettingsExist)
+        {
+            // Seed the default shifts (day 07:00–19:00, night 19:00–07:00); an admin can change
+            // them later from the Shift Settings screen.
+            _dbContext.ShiftSettings.Add(new ShiftSetting
+            {
+                Id = ShiftSetting.SingletonId,
+                DayShiftStart = new TimeSpan(7, 0, 0),
+                NightShiftStart = new TimeSpan(19, 0, 0),
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Seeded the default shift settings row.");
+        }
     }
 }

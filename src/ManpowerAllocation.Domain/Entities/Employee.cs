@@ -42,4 +42,11 @@ public sealed class Employee
 
     /// <summary>Free-text notes such as sub-role or machine assignment (e.g. "PACKING", "DRIVER").</summary>
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// Optimistic-concurrency token. Detects a lost update when two people (or a person and the
+    /// background sync) change the same employee at once; the second save then fails rather than
+    /// silently overwriting the first.
+    /// </summary>
+    public byte[]? RowVersion { get; set; }
 }

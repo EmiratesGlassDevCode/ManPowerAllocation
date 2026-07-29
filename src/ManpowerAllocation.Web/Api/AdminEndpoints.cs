@@ -3,6 +3,7 @@ using ManpowerAllocation.Application.Auditing;
 using ManpowerAllocation.Application.BreakGlass;
 using ManpowerAllocation.Application.Import;
 using ManpowerAllocation.Application.Roles;
+using ManpowerAllocation.Application.Settings;
 using ManpowerAllocation.Web.Security;
 
 namespace ManpowerAllocation.Web.Api;
@@ -30,6 +31,13 @@ public static class AdminEndpoints
 
         admin.MapGet("/attendance/status", (AttendanceSyncStatus status) =>
             Results.Ok(status.LastRun));
+
+        admin.MapGet("/shift-settings", async (IShiftSettingsService service, CancellationToken ct) =>
+            Results.Ok(await service.GetAsync(ct)));
+
+        admin.MapPut("/shift-settings", async (UpdateShiftSettingsRequest request, IShiftSettingsService service, CancellationToken ct) =>
+                Results.Ok(await service.UpdateAsync(request, ct)))
+            .AddEndpointFilter<ValidationFilter<UpdateShiftSettingsRequest>>();
     }
 
     /// <summary>Maps the role-assignment endpoints.</summary>

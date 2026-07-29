@@ -1,0 +1,98 @@
+@page "/admin/shift-settings"
+@using ManpowerAllocation.Application.Settings
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IShiftSettingsService ShiftSettingsService
+
+<PageTitle>Shift Settings — Manpower Allocation</PageTitle>
+
+<h1>Shift Settings</h1>
+<p class="hint">
+    Define the working shifts. The day shift runs from the day start to the night start; the
+    night shift runs from the night start back to the day start the next morning. The day start
+    also sets the "operational day" boundary — a night-shift worker who clocks in the evening
+    stays counted as present until this time the following day.
+</p>
+
+@if (!_loaded)
+{
+    <p><em>Loading…</em></p>
+}
+else
+{
+    <div class="import-block">
+        <div class="form-inline">
+            <label>Day shift start
+                <input type="time" @bind="_dayStart" />
+            </label>
+            <label>Night shift start
+                <input type="time" @bind="_nightStart" />
+            </label>
+            <button type="button" @onclick="SaveAsync">Save</button>
+        </div>
+
+        <p class="hint">
+            Current: day <strong>@_dayStart.ToString("HH\\:mm")</strong> – night
+            <strong>@_nightStart.ToString("HH\\:mm")</strong>.
+            @if (_updatedAtUtc is { } updated)
+            {
+                <span> Last changed @updated.ToString("yyyy-MM-dd HH:mm") UTC.</span>
+            }
+        </p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <p class="message @(_isError ? "error" : string.Empty)">@_message</p>
+    }
+}
+
+@code {
+    private bool _loaded;
+    private TimeOnly _dayStart = new(7, 0);
+    private TimeOnly _nightStart = new(19, 0);
+    private DateTime? _updatedAtUtc;
+    private string? _message;
+    private bool _isError;
+
+    /// <summary>Loads the current shift settings.</summary>
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var settings = await ShiftSettingsService.GetAsync();
+            _dayStart = TimeOnly.FromTimeSpan(settings.DayShiftStart);
+            _nightStart = TimeOnly.FromTimeSpan(settings.NightShiftStart);
+            _updatedAtUtc = settings.UpdatedAtUtc == default ? null : settings.UpdatedAtUtc;
+        }
+        catch (Exception ex)
+        {
+            _isError = true;
+            _message = ex.Message;
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _message = null;
+        _isError = false;
+        try
+        {
+            var updated = await ShiftSettingsService.UpdateAsync(
+                new UpdateShiftSettingsRequest(_dayStart.ToTimeSpan(), _nightStart.ToTimeSpan()));
+            _updatedAtUtc = updated.UpdatedAtUtc;
+            _message = "Shift settings saved.";
+        }
+        catch (Exception ex)
+        {
+            _isError = true;
+            _message = ex.Message;
+        }
+    }
+}

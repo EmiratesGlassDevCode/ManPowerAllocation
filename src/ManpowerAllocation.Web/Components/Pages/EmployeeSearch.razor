@@ -1,6 +1,8 @@
 @page "/search"
+@using System.Threading
 @using ManpowerAllocation.Application.Employees
 @using ManpowerAllocation.Web.Security
+@implements IDisposable
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
 @inject IEmployeeService EmployeeService
 
@@ -48,16 +50,56 @@
     private bool _searched;
     private IReadOnlyList<EmployeeDto> _results = Array.Empty<EmployeeDto>();
 
+    // Debounce each keystroke and serialise queries: the EF DbContext is scoped to the whole
+    // circuit, so two overlapping queries on it would throw "a second operation was started on
+    // this context". The gate guarantees one query at a time; the token cancels superseded ones.
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private CancellationTokenSource? _cts;
+
     private async Task OnTermChanged()
     {
-        if (_term.Trim().Length < 2)
+        _cts?.Cancel();
+        _cts?.Dispose();
+        var cts = _cts = new CancellationTokenSource();
+        var token = cts.Token;
+        var term = _term.Trim();
+
+        if (term.Length < 2)
         {
             _searched = false;
             _results = Array.Empty<EmployeeDto>();
             return;
         }
 
-        _results = await EmployeeService.SearchAsync(_term);
-        _searched = true;
+        try
+        {
+            await Task.Delay(250, token); // debounce rapid typing
+            await _gate.WaitAsync(token);
+            try
+            {
+                var results = await EmployeeService.SearchAsync(term, token);
+                if (!token.IsCancellationRequested)
+                {
+                    _results = results;
+                    _searched = true;
+                }
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer keystroke superseded this search; ignore.
+        }
+    }
+
+    /// <summary>Cancels any in-flight search when the component is disposed.</summary>
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _gate.Dispose();
     }
 }

@@ -9,6 +9,7 @@
     {
         <button type="button"
                 class="shift-button @(option == Value ? "active" : string.Empty)"
+                aria-pressed="@(option == Value)"
                 @onclick="() => Select(option)">
             @option
         </button>

@@ -1,10 +1,16 @@
 name: Generate EF migration
 
-# Manually-triggered helper that scaffolds the initial EF Core migration on a runner
-# (which has the .NET SDK and NuGet access) and commits it back to the branch. Migration
-# scaffolding does not touch a database — it only reads the model.
+# Manually-triggered helper that scaffolds an EF Core migration on a runner (which has the
+# .NET SDK and NuGet access) and commits it back to the branch. Migration scaffolding does not
+# touch a database — it only reads the model. Provide a migration name when dispatching; it
+# defaults to InitialCreate for the first run.
 on:
   workflow_dispatch:
+    inputs:
+      name:
+        description: "Migration name (e.g. AddShiftSettings)"
+        required: true
+        default: "InitialCreate"
 
 permissions:
   contents: write
@@ -21,15 +27,11 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Generate InitialCreate migration
+      - name: Generate migration
         run: |
-          if [ -d "src/ManpowerAllocation.Infrastructure/Migrations" ]; then
-            echo "Migrations folder already exists; nothing to generate."
-            exit 0
-          fi
           dotnet tool install --global dotnet-ef --version 8.0.8
           export PATH="$PATH:$HOME/.dotnet/tools"
-          dotnet ef migrations add InitialCreate \
+          dotnet ef migrations add "${{ github.event.inputs.name }}" \
             --context ManpowerDbContext \
             -p src/ManpowerAllocation.Infrastructure \
             -s src/ManpowerAllocation.Web
@@ -43,6 +45,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/ManpowerAllocation.Infrastructure/Migrations
-          git commit -m "Add InitialCreate EF Core migration (generated in CI)" \
+          git commit -m "Add ${{ github.event.inputs.name }} EF Core migration (generated in CI)" \
                      -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
           git push

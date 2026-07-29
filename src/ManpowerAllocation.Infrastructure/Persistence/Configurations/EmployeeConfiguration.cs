@@ -21,6 +21,7 @@ public sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(e => e.Status).IsRequired();
         builder.Property(e => e.IsSupply).IsRequired();
         builder.Property(e => e.Notes).HasMaxLength(500);
+        builder.Property(e => e.RowVersion).IsRowVersion();
 
         builder.HasIndex(e => e.Division);
         builder.HasIndex(e => e.DepartmentId);

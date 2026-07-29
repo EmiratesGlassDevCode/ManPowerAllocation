@@ -37,4 +37,10 @@ public sealed class Department
 
     /// <summary>Employees whose current department is this one.</summary>
     public ICollection<Employee> Employees { get; set; } = new List<Employee>();
+
+    /// <summary>
+    /// Optimistic-concurrency token. Detects a lost update when two administrators change the
+    /// same department at once; the second save then fails rather than silently overwriting.
+    /// </summary>
+    public byte[]? RowVersion { get; set; }
 }

@@ -20,6 +20,7 @@ public sealed class DepartmentConfiguration : IEntityTypeConfiguration<Departmen
         builder.Property(d => d.RequiredNight).IsRequired();
         builder.Property(d => d.Sequence).HasColumnType("decimal(9,2)");
         builder.Property(d => d.IsActive).IsRequired();
+        builder.Property(d => d.RowVersion).IsRowVersion();
 
         // A department name belongs to exactly one division and is unique within it.
         builder.HasIndex(d => new { d.Division, d.Name }).IsUnique();

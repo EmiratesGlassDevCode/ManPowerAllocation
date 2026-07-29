@@ -25,6 +25,9 @@ public interface IApplicationDbContext
     /// <summary>The single emergency break-glass account row.</summary>
     DbSet<BreakGlassAccount> BreakGlassAccounts { get; }
 
+    /// <summary>The single admin-configurable shift-definition row.</summary>
+    DbSet<ShiftSetting> ShiftSettings { get; }
+
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     /// <returns>The number of state entries written to the database.</returns>
