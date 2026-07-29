@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Small command-line utility for IT to generate the break-glass secret hash and salt for
+    protected configuration. It reuses the application's own hashing routine
+    (BreakGlassSecretHasher) so the algorithm can never drift from what the app verifies.
+    This tool is for operators; it is never deployed with the web application.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ManpowerAllocation.Tools.BreakGlassHasher</RootNamespace>
+    <AssemblyName>BreakGlassHasher</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ManpowerAllocation.Infrastructure\ManpowerAllocation.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

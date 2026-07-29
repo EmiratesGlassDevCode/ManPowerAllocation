@@ -74,15 +74,31 @@ emergency secret's **PBKDF2 hash lives in protected configuration** (`BreakGlass
 
 ## Configuration
 
-Secrets must come from user-secrets (development) or Key Vault / environment variables
-(production) — never from committed files.
+Secrets must come from user-secrets (development) or environment variables / a secret store
+(production) — never from committed files. On-prem, environment variables on the host are the
+recommended source; ASP.NET Core maps `__` to configuration nesting (for example
+`ConnectionStrings__ManpowerDatabase`).
 
-- `ConnectionStrings:ManpowerDatabase` — MSSQL connection string.
-- `AzureAd:*` — `TenantId`, `ClientId`, `Domain`; the client secret via user-secrets/Key Vault.
+- `ConnectionStrings:ManpowerDatabase` — MSSQL connection string (see the on-prem section below
+  for the non-encrypted-server form).
+- `AzureAd:*` — `TenantId`, `ClientId`, `Domain`; the client secret via user-secrets / an
+  environment variable. Register redirect URI `https://<host>/signin-oidc` and signed-out
+  callback `https://<host>/signout-callback-oidc`.
 - `BreakGlass:SecretHashBase64`, `BreakGlass:SaltBase64`, `BreakGlass:Iterations` — the emergency
-  secret hash (see `BreakGlassSecretHasher.Derive`).
+  secret hash. Generate these with the `BreakGlassHasher` tool (see below); the database never
+  stores the secret.
 - `Alerts:*` — SMTP and/or a Teams incoming-webhook URL, plus the IT Head email. If neither channel
   is configured, break-glass alerts are logged at warning level so they are never silent.
+
+### Generating the break-glass secret values
+
+```bash
+dotnet run --project tools/BreakGlassHasher -- "<the-emergency-secret>"
+```
+
+It prints ready-to-paste `BreakGlass__SaltBase64`, `BreakGlass__SecretHashBase64` and
+`BreakGlass__Iterations` values. Keep the plain secret only in IT's password vault; rotating it
+means re-running the tool and updating configuration.
 
 ## First-run setup
 
@@ -125,3 +141,43 @@ Sign in as an Admin and use **Administration → Master Data Import** to seed em
 requirements from the existing Excel workbooks (EGL / Functional Support / BRG sheets). This is a
 one-time seeding step; day-to-day changes are made through the dashboards and are individually
 audited.
+
+## On-premises deployment (self-hosted MSSQL)
+
+### Connection string when the SQL Server has no TLS certificate
+
+EF Core 8 uses `Microsoft.Data.SqlClient`, which **defaults to requiring an encrypted
+connection**. Against a SQL Server that is not configured for TLS, the connection must opt out
+explicitly or it will fail:
+
+```
+Server=YOUR-SQL-HOST;Database=ManpowerAllocation;User Id=svc_manpower;Password=***;Encrypt=False
+```
+
+(Windows/integrated auth: replace the credentials with `Trusted_Connection=True`.) The same
+connection string is used by `dotnet ef database update` and by the running app; the app applies
+migrations on startup.
+
+> **⚠ Security note — flagged to IT.** `Encrypt=False` means traffic between the application and
+> SQL Server — including employee data and the SQL login — travels **unencrypted** on the network.
+> For a CONTROLLED-tier application the recommended posture is to enable TLS on SQL Server (install
+> a certificate and use `Encrypt=True`), and to enable Transparent Data Encryption (TDE) for
+> encryption at rest. The application works either way, but running with `Encrypt=False` is a
+> conscious risk acceptance that should be recorded and, ideally, mitigated by keeping the
+> app-to-SQL traffic on an isolated, trusted network segment. This is an infrastructure decision;
+> no application change is required when TLS/TDE are later enabled.
+
+### Hosting checklist
+
+- **HTTPS is required at the front door.** The app sets a `Secure`, `SameSite=Strict` session
+  cookie, HSTS and HTTPS redirection, so the site must be served over HTTPS (a TLS certificate on
+  IIS/Kestrel or the reverse proxy). Over plain HTTP the auth cookie is not sent and sign-in
+  appears to fail. Note this HTTPS requirement is independent of the SQL connection encryption
+  above.
+- **Service account.** Run the app pool / service under an account that has `db_datareader` +
+  `db_datawriter` (and rights to run migrations) on the `ManpowerAllocation` database.
+- **Secrets** (`ConnectionStrings__ManpowerDatabase`, `AzureAd__ClientSecret`,
+  `BreakGlass__SecretHashBase64`, `BreakGlass__SaltBase64`) are supplied as environment variables
+  or a secured `appsettings.Production.json` kept out of source control — never committed.
+- **Break-glass enable** remains a manual `UPDATE BreakGlassAccounts SET IsEnabled = 1` performed by
+  IT; the app stamps the start time, alerts the IT Head, and auto-disables it four hours later.
