@@ -64,6 +64,57 @@ public sealed class RoleService : IRoleService
     }
 
     /// <inheritdoc />
+    public async Task<UserRole> EnsureDefaultViewerAsync(string entraObjectId, string? displayName, CancellationToken cancellationToken = default)
+    {
+        var normalisedObjectId = entraObjectId?.Trim();
+        if (string.IsNullOrEmpty(normalisedObjectId))
+        {
+            return UserRole.Viewer;
+        }
+
+        var existing = await _dbContext.RoleAssignments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.EntraObjectId == normalisedObjectId, cancellationToken);
+
+        if (existing is not null)
+        {
+            // Respect any role an administrator has already set (Viewer, User or Admin).
+            return existing.Role;
+        }
+
+        var created = new RoleAssignment
+        {
+            EntraObjectId = normalisedObjectId,
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim(),
+            Role = UserRole.Viewer,
+            CreatedAtUtc = _clock.UtcNow,
+            // Recorded as an automatic provisioning event rather than an administrator action.
+            CreatedByObjectId = "auto-provision"
+        };
+
+        try
+        {
+            await _dbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                _dbContext.RoleAssignments.Add(created);
+                await _dbContext.SaveChangesAsync(ct);
+
+                _auditWriter.Add(AuditAction.Create, nameof(RoleAssignment), created.Id.ToString(), null, ToDto(created));
+                await _dbContext.SaveChangesAsync(ct);
+            }, cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent login for the same principal won the race and inserted the row first;
+            // the unique index rejected this one. That is fine — the user still ends up a Viewer.
+            _dbContext.RoleAssignments.Remove(created);
+            return UserRole.Viewer;
+        }
+
+        return UserRole.Viewer;
+    }
+
+    /// <inheritdoc />
     public async Task<RoleAssignmentDto> UpsertAsync(UpsertRoleRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

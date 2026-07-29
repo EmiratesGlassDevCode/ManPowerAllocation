@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using ManpowerAllocation.Application;
 using ManpowerAllocation.Application.Abstractions;
 using ManpowerAllocation.Application.BreakGlass;
+using ManpowerAllocation.Application.Roles;
 using ManpowerAllocation.Infrastructure;
 using ManpowerAllocation.Infrastructure.Persistence;
 using ManpowerAllocation.Web.Api;
@@ -81,6 +82,29 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
         if (previousAuthFailed is not null)
         {
             await previousAuthFailed(context);
+        }
+    };
+
+    // On a successful sign-in, ensure the user has at least a Viewer role. Access is still gated
+    // upstream by the Entra enterprise-app assignment (only assigned users receive a token), so
+    // everyone who reaches here is an approved user and is provisioned Viewer on first login.
+    // Administrators are promoted to User/Admin explicitly from the Role Assignments screen; an
+    // existing assignment is never downgraded.
+    var previousTokenValidated = options.Events.OnTokenValidated;
+    options.Events.OnTokenValidated = async context =>
+    {
+        if (previousTokenValidated is not null)
+        {
+            await previousTokenValidated(context);
+        }
+
+        var objectId = context.Principal?.GetObjectId();
+        if (!string.IsNullOrEmpty(objectId))
+        {
+            var displayName = context.Principal?.FindFirst("name")?.Value
+                ?? context.Principal?.FindFirst("preferred_username")?.Value;
+            var roleService = context.HttpContext.RequestServices.GetRequiredService<IRoleService>();
+            await roleService.EnsureDefaultViewerAsync(objectId, displayName, context.HttpContext.RequestAborted);
         }
     };
 });

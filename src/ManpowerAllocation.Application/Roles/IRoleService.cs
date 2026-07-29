@@ -17,6 +17,17 @@ public interface IRoleService
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<UserRole?> GetRoleAsync(string entraObjectId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Ensures a first-time authenticated user has at least a Viewer assignment, creating one if
+    /// none exists. Runs in a system context during sign-in (no administrator present), so it does
+    /// NOT perform the Admin check that <see cref="UpsertAsync"/> does. An existing assignment
+    /// (Viewer, User or Admin) is left untouched. Returns the effective role.
+    /// </summary>
+    /// <param name="entraObjectId">The Entra object id of the signing-in user.</param>
+    /// <param name="displayName">The display name to store for a newly-created assignment.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<UserRole> EnsureDefaultViewerAsync(string entraObjectId, string? displayName, CancellationToken cancellationToken = default);
+
     /// <summary>Creates or updates a user's role assignment.</summary>
     /// <param name="request">The assignment to apply.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
