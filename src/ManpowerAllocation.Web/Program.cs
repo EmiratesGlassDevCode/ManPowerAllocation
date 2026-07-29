@@ -29,6 +29,14 @@ builder.Services
     .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
 
+// Force the secure authorization-code flow. This avoids the implicit "id_token" flow (which
+// would require enabling ID tokens in Entra and exposes the token in the browser). Code flow
+// keeps tokens off the front channel but requires a valid client secret to redeem the code.
+builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, options =>
+{
+    options.ResponseType = "code";
+});
+
 // Harden the session cookie: HttpOnly, Secure and SameSite=Strict, as mandated.
 builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options =>
 {
