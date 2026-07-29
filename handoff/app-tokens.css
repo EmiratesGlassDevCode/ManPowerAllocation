@@ -1,0 +1,152 @@
+/* ============================================================================
+   Manpower Allocation — Fluent 2 token layer
+   Drop-in replacement for the top of src/ManpowerAllocation.Web/wwwroot/app.css
+   Keeps every existing class name; only the values change.
+   Reference design: ManpowerAllocation Redesign.dc.html
+   ============================================================================ */
+
+:root {
+  /* Neutrals (Fluent 2 light) */
+  --n-bg:            #F0F0F0;   /* canvas            */
+  --n-surface:       #FFFFFF;   /* cards, panels     */
+  --n-surface-alt:   #FAFAFA;   /* table header cell */
+  --n-surface-tint:  #F5F8FC;   /* section header    */
+  --n-stroke-1:      #D1D1D1;   /* control border    */
+  --n-stroke-2:      #E0E0E0;   /* divider           */
+  --n-stroke-3:      #F5F5F5;   /* row divider       */
+  --n-fg-1:          #242424;
+  --n-fg-2:          #424242;
+  --n-fg-3:          #616161;
+  --n-fg-4:          #707070;
+
+  /* Brand (matches FluentDesignTheme CustomColor) */
+  --brand:           #0F6CBD;
+  --brand-hover:     #115EA3;
+  --brand-pressed:   #0C3B5E;
+  --brand-tint:      #EBF3FC;
+  --brand-tint-bd:   #B4D6FA;
+  --topbar-bg:       #0F548C;   /* app bar           */
+  --topbar-fg:       #CFE4FA;
+
+  /* Semantic */
+  --ok:      #0E700E;  --ok-bg:      #F1FAF1;  --ok-bd:      #9FD89F;
+  --danger:  #B10E1C;  --danger-bg:  #FDF3F4;  --danger-bd:  #F1BBBB;
+  --warn:    #BC4B09;  --warn-bg:    #FFF9F5;  --warn-bd:    #F4C7A8;
+  --supply:  #5C2E91;  --supply-bg:  #F7F4FB;  --supply-bd:  #D7C9EA;  /* outsource */
+  --info:    #038387;  --info-bg:    #EFFAFA;  --info-bd:    #A6E0E0;  /* excess/available */
+  --gold:    #986F0B;  --magenta:    #C239B3;                          /* division accents */
+
+  /* Geometry */
+  --r-sm: 2px;  --r-md: 4px;  --r-lg: 6px;  --r-xl: 8px;
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+
+  /* Elevation (Fluent depth 2 / 4 / 8) */
+  --shadow-2: 0 1px 2px rgba(0,0,0,.14), 0 0 2px rgba(0,0,0,.12);
+  --shadow-4: 0 2px 4px rgba(0,0,0,.14), 0 0 2px rgba(0,0,0,.12);
+  --shadow-8: 0 8px 16px rgba(0,0,0,.14), 0 0 2px rgba(0,0,0,.12);
+  --shadow-modal: 0 32px 64px rgba(0,0,0,.24);
+
+  /* Type ramp — Segoe UI Variable, size/line-height pairs */
+  --font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  /* caption1 12/16 · body1 14/20 · subtitle2 16/22 · subtitle1 20/26
+     title3 24/32 · title2 28/36 · KPI numeral 32/40 · hero numeral 36/40 */
+}
+
+/* ---- Rules to change, by existing selector -------------------------------
+
+body            background: var(--n-bg); font-family: var(--font); color: var(--n-fg-1);
+h1              font: 600 28px/36px var(--font); margin: 0;
+h2              font: 600 20px/26px var(--font);
+.hint           font: 400 14px/20px var(--font); color: var(--n-fg-3); max-width: 820px;
+
+.topbar         height: 48px; background: var(--topbar-bg); padding: 0 16px; gap: 12px;
+                position: sticky; top: 0; z-index: 20; border-bottom: none;
+.topbar-title   font: 600 16px/22px var(--font); color: #FFFFFF;
+.topbar-name    font: 400 12px/16px var(--font); color: var(--topbar-fg);
+.link-button    height: 32px; padding: 0 12px; border: 1px solid #4C87BE;
+                border-radius: var(--r-md); color: #FFFFFF; background: transparent;
+                &:hover { background: var(--brand-hover); }
+
+.nav            width: 260px; background: var(--n-surface);
+                border-right: 1px solid var(--n-stroke-2); padding: 8px;
+.nav-link       display: flex; align-items: center; gap: 9px; height: 36px;
+                padding: 0 12px 0 4px; border-radius: var(--r-md);
+                font: 400 14px/20px var(--font); color: var(--n-fg-1);
+                /* 3px x 16px brand indicator pseudo-element on the left */
+.nav-link:hover background: #F0F0F0;
+.nav-link.active background: var(--brand-tint); color: var(--brand-hover); font-weight: 600;
+.nav-section    font: 600 12px/16px var(--font); color: var(--n-fg-3); padding: 6px 12px;
+
+.content        padding: 20px 24px 48px; max-width: 1600px; display: flex;
+                flex-direction: column; gap: 16px;
+
+.glass          background: var(--n-surface); border-radius: var(--r-md);
+                box-shadow: var(--shadow-2); border: none;   /* remove blur/glass effect */
+.stat-card      cursor: pointer; overflow: hidden;
+                4px top strip in the division accent colour;
+                &:hover { box-shadow: var(--shadow-8); }
+.stat-card-big  font: 600 36px/40px var(--font); colour = variance sign (ok/danger)
+
+.kpi-row        display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 8px;
+.kpi            background: var(--n-surface); border-radius: var(--r-md);
+                box-shadow: var(--shadow-2); overflow: hidden;
+                4px top strip in the metric's colour; padding 12px 14px
+.kpi-val        font: 600 32px/40px var(--font);
+.kpi-lbl        font: 600 12px/16px var(--font); color: var(--n-fg-2);
+.sv-blue → var(--brand) · .sv-red → var(--danger) · .sv-amber → var(--warn)
+.sv-purple → var(--supply) · .sv-green → var(--ok)
+
+.dept-grid      display: grid; grid-template-columns: repeat(auto-fill, minmax(340px,1fr)); gap: 12px;
+.dept-card      background: var(--n-surface); border-radius: var(--r-md);
+                box-shadow: var(--shadow-4); overflow: hidden; border: none;
+.dept-card-head padding: 12px 16px; gap: 10px; tinted by status:
+                short → --danger-bg/--danger-bd · absent|vacation present → --warn-bg/--warn-bd
+                optimal → --ok-bg/--ok-bd · off → --n-surface-alt/--n-stroke-2
+                includes a 32px rounded department tile (accent bg, white initials)
+.dept-card.status-off  opacity: .62;
+.bar            height: 6px; border-radius: 3px; background: #EDEDED; display: flex;
+.bar-fill       status colour; a second --supply segment carries outsource cover
+.badge          height: 20px; padding: 0 8px; border-radius: var(--r-md);
+                font: 600 12px/16px var(--font); 1px border in the matching *-bd token
+                b-short → danger · b-vac → warn · b-supply → supply · b-ok → ok
+.expander       font: 600 14px/20px var(--font); color: var(--brand-hover);
+.emp-row        padding: 8px 12px; border-bottom: 1px solid var(--n-stroke-3);
+                26px status-tinted initials avatar; name flex:1 min-width:80px
+                with overflow:hidden/text-overflow:ellipsis (never let the name flex to 0);
+                shift 44px, status 76px right-aligned
+.move-select    height: 24px; border: 1px solid var(--n-stroke-1); border-radius: var(--r-md);
+
+.grid           background: var(--n-surface); border-radius: var(--r-md);
+                box-shadow: var(--shadow-2); border-collapse: separate; overflow: hidden;
+.grid thead th  background: var(--n-surface-tint); border-bottom: 1px solid var(--n-stroke-2);
+                font: 600 12px/16px var(--font); color: var(--n-fg-2); padding: 8px 14px;
+.grid tbody td  padding: 9px 14px; font: 400 13px/20px var(--font);
+                border-bottom: 1px solid var(--n-stroke-3);
+.grid tbody tr:hover  background: var(--n-surface-tint);
+.mono           font-family: Consolas, monospace; font-size: 12px; color: var(--n-fg-3);
+.breakglass-row background: var(--danger-bg); box-shadow: inset 3px 0 0 var(--danger);
+.audit-detail   two-column grid; <pre> on var(--n-surface) with 1px var(--n-stroke-2),
+                Consolas 12/18; "Before" label danger, "After" label ok
+
+.alert-row      display: grid; grid-template-columns: repeat(auto-fit, minmax(340px,1fr)); gap: 12px;
+AlertPanel      header tinted by accent (red/amber/purple/cyan → danger/warn/supply/info)
+                + 14px square accent icon + solid pill count in the accent colour;
+                rows: 26px avatar, name, right-aligned muted context
+
+.modal-bg       background: rgba(0,0,0,.4);
+.modal          border-radius: var(--r-xl); box-shadow: var(--shadow-modal);
+                header 14px 18px on var(--brand-tint), 1px var(--brand-tint-bd) bottom,
+                title 20/26 600 var(--brand-pressed); footer buttons right-aligned
+.message        border-radius: var(--r-md); padding: 14px 16px; font: 400 14px/20px var(--font);
+.message.error  background: var(--danger-bg); border: 1px solid var(--danger-bd); color: #8B0A11;
+
+input, select, .native-select-label select
+                height: 32px; padding: 0 10px; border: 1px solid var(--n-stroke-1);
+                border-bottom: 2px solid var(--brand);   /* Fluent underline emphasis */
+                border-radius: var(--r-md); font: 400 14px/20px var(--font);
+
+.breakglass-login, .notice
+                centered card, 8px radius, 4px top strip (danger / warn),
+                --shadow-modal on a linear-gradient(160deg,#0F548C,#0C3B5E) backdrop
+                for the login page; var(--n-bg) for the notice page
+-------------------------------------------------------------------------- */

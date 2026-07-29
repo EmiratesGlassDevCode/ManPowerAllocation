@@ -53,14 +53,15 @@ else
         </div>
 
         <div class="toolbar">
-            <FluentSelect @bind-Value="_filter" TOption="string" Label="Filter">
-                <FluentOption Value="@("all")">All</FluentOption>
-                <FluentOption Value="@("short")">Shortage</FluentOption>
-                <FluentOption Value="@("excess")">Excess</FluentOption>
-                <FluentOption Value="@("ok")">Optimal</FluentOption>
-                <FluentOption Value="@("off")">OFF</FluentOption>
-            </FluentSelect>
-            <FluentSearch @bind-Value="_search" Immediate="true" Placeholder="Search department…" />
+            <FluentSearch @bind-Value="_search" Immediate="true" Placeholder="Search department or person…" />
+            <div class="pill-row">
+                <button type="button" class="pill @(_filter == "all" ? "active" : string.Empty)" @onclick='() => _filter = "all"'>All</button>
+                <button type="button" class="pill @(_filter == "short" ? "active" : string.Empty)" @onclick='() => _filter = "short"'>Shortage</button>
+                <button type="button" class="pill @(_filter == "excess" ? "active" : string.Empty)" @onclick='() => _filter = "excess"'>Excess</button>
+                <button type="button" class="pill @(_filter == "ok" ? "active" : string.Empty)" @onclick='() => _filter = "ok"'>Optimal</button>
+                <button type="button" class="pill @(_filter == "off" ? "active" : string.Empty)" @onclick='() => _filter = "off"'>OFF</button>
+            </div>
+            <span class="dc-spacer"></span>
             @if (_canEdit)
             {
                 <FluentButton Appearance="Appearance.Neutral" @onclick="() => ToggleAllAsync(true)">All ON</FluentButton>
@@ -118,6 +119,7 @@ else
                                 @foreach (var emp in members)
                                 {
                                     <li class="emp-row">
+                                        <span class="emp-av" style="background:@StatusColor(emp.Status)">@Avatar.Initials(emp.Name)</span>
                                         <span class="emp-name">@TextCase.Title(emp.Name) @(emp.IsSupply ? "(OS)" : string.Empty)</span>
                                         <span class="emp-shift">@emp.Shift</span>
                                         <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@TextCase.Status(emp.Status)</span>
@@ -379,6 +381,14 @@ else
 
         return result;
     }
+
+    /// <summary>Status-tinted colour for the roster avatar (present green, vacation amber, else red).</summary>
+    private static string StatusColor(AttendanceStatus status) => status switch
+    {
+        AttendanceStatus.Present => "#0e700e",
+        AttendanceStatus.OnVacation => "#bc4b09",
+        _ => "#b10e1c"
+    };
 
     /// <summary>Label for the current shift filter, used in the department subtitle.</summary>
     private string ShiftText() => _shift switch
