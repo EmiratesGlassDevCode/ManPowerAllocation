@@ -30,6 +30,7 @@ jobs:
           dotnet tool install --global dotnet-ef --version 8.0.8
           export PATH="$PATH:$HOME/.dotnet/tools"
           dotnet ef migrations add InitialCreate \
+            --context ManpowerDbContext \
             -p src/ManpowerAllocation.Infrastructure \
             -s src/ManpowerAllocation.Web
 

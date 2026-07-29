@@ -139,9 +139,11 @@ dotnet build
 
 # 2. Generate the initial migration and create the database
 dotnet ef migrations add InitialCreate \
+  --context ManpowerDbContext \
   -p src/ManpowerAllocation.Infrastructure \
   -s src/ManpowerAllocation.Web
 dotnet ef database update \
+  --context ManpowerDbContext \
   -p src/ManpowerAllocation.Infrastructure \
   -s src/ManpowerAllocation.Web
 
@@ -255,7 +257,7 @@ Follow these in order. Steps 1–3 map to: (1) databases, (2) authentication, (3
 3. Generate the initial migration once (on any machine/Codespace with the .NET SDK) and commit it,
    so it ships inside the published output:
    ```bash
-   dotnet ef migrations add InitialCreate -p src/ManpowerAllocation.Infrastructure -s src/ManpowerAllocation.Web
+   dotnet ef migrations add InitialCreate --context ManpowerDbContext -p src/ManpowerAllocation.Infrastructure -s src/ManpowerAllocation.Web
    ```
    On first start the app runs the migration automatically (that is why the app login needs
    `db_ddladmin`) and seeds the disabled break-glass row.
