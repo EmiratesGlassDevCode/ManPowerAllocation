@@ -10,6 +10,7 @@ using ManpowerAllocation.Web.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.Identity.Web;
@@ -78,6 +79,17 @@ builder.Services.AddHsts(options =>
     options.IncludeSubDomains = true;
     options.Preload = true;
 });
+
+// ── Data Protection ─────────────────────────────────────────────────────────────────────
+// Persist keys to a stable folder in production so the auth cookie and antiforgery tokens
+// survive app-pool recycles under IIS (otherwise every recycle silently signs users out).
+// Set "DataProtection:KeyPath" to a folder the app-pool identity can read/write.
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("ManpowerAllocation");
+var dataProtectionKeyPath = builder.Configuration["DataProtection:KeyPath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionKeyPath))
+{
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyPath));
+}
 
 // ── Blazor Server + Fluent UI ───────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();

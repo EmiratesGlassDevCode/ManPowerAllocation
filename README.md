@@ -231,6 +231,97 @@ GRANT SELECT ON OBJECT::dbo.xxeg_attendance_v TO [svc_manpower_ro];
 The application never writes to the attendance database (its context is a keyless, read-only view
 mapping), so the `SELECT`-only grant is the enforcing control, not merely a convention.
 
+## Deploying to IIS — step by step
+
+Follow these in order. Steps 1–3 map to: (1) databases, (2) authentication, (3) the IIS site.
+
+### Prerequisites on the server
+
+- Windows Server with the **IIS** role and the **URL Rewrite** module.
+- The **.NET 8 "ASP.NET Core Hosting Bundle"** (installs the runtime + the ASP.NET Core Module
+  that lets IIS host the app). Install it, then run `iisreset`.
+- Network line-of-sight from the server to **SQL Server** and to **`login.microsoftonline.com`**
+  (Entra sign-in).
+- A **TLS certificate** for the site's hostname (the app requires HTTPS).
+
+### 1) Databases
+
+1. Create an **empty** app database `ManpowerAllocation` (the app creates its tables on first run
+   by applying the EF migration). The `attendance` database already exists.
+2. Create the two SQL logins and grant least-privilege access — see
+   "Two databases, two logins" above for the exact `CREATE USER` / `GRANT` statements
+   (`svc_manpower_app` = read/write + `db_ddladmin` on the app DB; `svc_manpower_ro` = `SELECT`
+   on the attendance view only).
+3. Generate the initial migration once (on any machine/Codespace with the .NET SDK) and commit it,
+   so it ships inside the published output:
+   ```bash
+   dotnet ef migrations add InitialCreate -p src/ManpowerAllocation.Infrastructure -s src/ManpowerAllocation.Web
+   ```
+   On first start the app runs the migration automatically (that is why the app login needs
+   `db_ddladmin`) and seeds the disabled break-glass row.
+4. After the first successful start (tables now exist), seed the first administrator — the only
+   manual role step; everything else is managed in-app afterwards:
+   ```sql
+   USE [ManpowerAllocation];
+   INSERT INTO RoleAssignments (EntraObjectId, DisplayName, Role, CreatedAtUtc)
+   VALUES ('<your-entra-object-id>', '<your name>', 3 /* Admin */, SYSUTCDATETIME());
+   ```
+
+### 2) Authentication
+
+Normal sign-in is **Entra ID only** — there is no general local-user login by design. The single
+local exception is the emergency break-glass account (below), used only during an Entra outage.
+
+**Entra ID (all normal users):**
+1. In the Entra admin centre, **App registrations → New registration** (single-tenant).
+2. Under **Authentication**, add a **Web** platform with redirect URI
+   `https://<host>/signin-oidc` and front-channel logout URL `https://<host>/signout-callback-oidc`.
+3. Under **Certificates & secrets**, create a **client secret**.
+4. Note the **Tenant ID**, **Client ID** and tenant **Domain**. No Microsoft Graph permissions are
+   required — the app only needs sign-in; roles come from the app's own Role Assignment table.
+5. Supply these to the app (as env vars / `appsettings.Production.json`):
+   `AzureAd__TenantId`, `AzureAd__ClientId`, `AzureAd__Domain`, `AzureAd__ClientSecret`.
+
+**Break-glass (the only local credential — optional but recommended):**
+1. Generate the secret hash: `dotnet run --project tools/BreakGlassHasher -- "<secret>"`.
+2. Set `BreakGlass__SaltBase64` and `BreakGlass__SecretHashBase64` from its output.
+3. Configure `Alerts__*` (SMTP and/or a Teams webhook) and `Alerts__ItHeadEmail` so enabling it,
+   and every login with it, alerts the IT Head.
+4. It stays disabled until IT runs `UPDATE BreakGlassAccounts SET IsEnabled = 1` during an outage;
+   it auto-disables four hours later.
+
+### 3) Configure the app in IIS
+
+1. **Publish** the web project (on a build machine with the SDK):
+   ```bash
+   dotnet publish src/ManpowerAllocation.Web -c Release -o .\publish
+   ```
+   This produces a self-contained folder including `web.config` for the ASP.NET Core Module.
+2. **Copy** the `publish` folder to the server, e.g. `C:\inetpub\ManpowerAllocation`.
+3. **App pool:** create one with **.NET CLR version = "No Managed Code"**. Set **Load User
+   Profile = true**. Its identity needs read access to the folder (DB access is via the SQL logins
+   in the connection strings, not the pool identity).
+4. **Site/binding:** create the IIS site pointing at the folder and add an **HTTPS binding** on 443
+   with your TLS certificate. (Over plain HTTP the `Secure` auth cookie is dropped and sign-in
+   fails.)
+5. **Configuration & secrets** — set these as **environment variables** on the app pool
+   (Configuration Editor → `system.applicationHost/applicationPools` → your pool →
+   `environmentVariables`), or in a `C:\inetpub\ManpowerAllocation\appsettings.Production.json`
+   locked down with NTFS ACLs. Set `ASPNETCORE_ENVIRONMENT=Production` plus:
+   - `ConnectionStrings__ManpowerDatabase` (read-write login)
+   - `ConnectionStrings__AttendanceDatabase` (read-only login)
+   - `AzureAd__TenantId`, `AzureAd__ClientId`, `AzureAd__Domain`, `AzureAd__ClientSecret`
+   - `BreakGlass__SaltBase64`, `BreakGlass__SecretHashBase64`
+   - `DataProtection__KeyPath` — a folder the pool can read/write (e.g.
+     `C:\inetpub\ManpowerAllocation-keys`) so cookies/antiforgery survive recycles
+   - optionally `Alerts__*`
+6. **Start** the site and browse `https://<host>/` — you should be redirected to Entra sign-in.
+   The first request applies migrations and seeds the break-glass row; then run the first-admin
+   `INSERT` from step 1.4 and sign in.
+
+If a start-up problem occurs, temporarily set `stdoutLogEnabled="true"` in `web.config` (and a
+`stdoutLogFile` path) or check **Event Viewer → Application** for the ASP.NET Core Module entry.
+
 ### Hosting checklist
 
 - **HTTPS is required at the front door.** The app sets a `Secure`, `SameSite=Strict` session
