@@ -46,7 +46,7 @@ else
         }
     </div>
 
-    <FluentCard Class="factory-total @(FactoryVariance < 0 ? "negative" : "positive")">
+    <FluentCard Class="@($"factory-total {(FactoryVariance < 0 ? "negative" : "positive")}")">
         <strong>Factory total present:</strong> @FactoryPresent / required @FactoryRequired (net variance @FactoryVariance)
     </FluentCard>
 
