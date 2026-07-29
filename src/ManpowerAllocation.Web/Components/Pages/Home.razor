@@ -18,9 +18,9 @@
 
 <div class="toolbar">
     <span class="hint">Export:</span>
-    <FluentAnchor Href="api/exports/report" Target="_blank" Appearance="Appearance.Neutral">Staffing report</FluentAnchor>
-    <FluentAnchor Href="api/exports/attendance" Target="_blank" Appearance="Appearance.Neutral">Attendance</FluentAnchor>
-    <FluentAnchor Href="api/exports/requirements-template" Target="_blank" Appearance="Appearance.Neutral">Requirements template</FluentAnchor>
+    <FluentAnchor Href="api/exports/report" Target="_blank" Appearance="Appearance.Neutral"><span class="exp-ico" style="background:var(--mpa-brand)"></span>Staffing report</FluentAnchor>
+    <FluentAnchor Href="api/exports/attendance" Target="_blank" Appearance="Appearance.Neutral"><span class="exp-ico" style="background:var(--mpa-teal)"></span>Attendance</FluentAnchor>
+    <FluentAnchor Href="api/exports/requirements-template" Target="_blank" Appearance="Appearance.Neutral"><span class="exp-ico" style="background:var(--mpa-gold)"></span>Requirements template</FluentAnchor>
 </div>
 
 @if (!_loaded)
@@ -43,18 +43,19 @@ else
                     <div class="stat-card-title">@DivisionLabel(d.Division)</div>
                     <span class="stat-open">Open →</span>
                 </div>
-                <div class="stat-card-big @(d.Variance < 0 ? "negative" : "positive")">@d.TotalPresent <span class="stat-of">present of @d.Required required</span></div>
+                <div class="stat-card-big"><span class="stat-num">@d.TotalPresent</span> <span class="stat-of">present of @d.Required required</span></div>
                 <div class="bar">
                     <div class="bar-fill @(d.Variance < 0 ? "fill-short" : "fill-optimal")" style="width:@(presentPct)%"></div>
                     @if (d.SupplyPresent > 0) { <div class="bar-supply" style="width:@(supplyPct)%"></div> }
                 </div>
-                <div class="badges">
-                    <span class="badge b-off">On roll @d.OnRoll</span>
-                    @if (d.Absent > 0) { <span class="badge b-short">Absent @d.Absent</span> }
-                    @if (d.OnVacation > 0) { <span class="badge b-vac">Vacation @d.OnVacation</span> }
-                    @if (d.SupplyPresent > 0) { <span class="badge b-supply">Outsource @d.SupplyPresent</span> }
-                    <span class="badge @(d.Variance < 0 ? "b-short" : "b-optimal")">Variance @Signed(d.Variance)</span>
-                    @if (d.ShortageDepartmentCount > 0) { <span class="badge b-short">Short depts @d.ShortageDepartmentCount</span> }
+                <div class="badge @(d.Variance < 0 ? "b-short" : "b-optimal") stat-var">@Signed(d.Variance) vs required</div>
+                <div class="metric-strip">
+                    <div class="metric"><b>@d.OnRoll</b><span>On roll</span></div>
+                    <div class="metric"><b class="@(d.Absent > 0 ? "sv-red" : string.Empty)">@d.Absent</b><span>Absent</span></div>
+                    <div class="metric"><b class="@(d.OnVacation > 0 ? "sv-amber" : string.Empty)">@d.OnVacation</b><span>Vacation</span></div>
+                    <div class="metric"><b class="@(d.SupplyPresent > 0 ? "sv-purple" : string.Empty)">@d.SupplyPresent</b><span>Outsource</span></div>
+                    <div class="metric"><b>@d.Required</b><span>Required</span></div>
+                    <div class="metric"><b class="@(d.ShortageDepartmentCount > 0 ? "sv-red" : string.Empty)">@d.ShortageDepartmentCount</b><span>Short depts</span></div>
                 </div>
             </div>
         }
@@ -62,10 +63,8 @@ else
 
     <div class="@($"factory-total {(FactoryVariance < 0 ? "negative" : "positive")}")">
         <div class="ft-row">
-            <div>
-                <div class="ft-lbl">Factory total present</div>
-                <div class="ft-num @(FactoryVariance < 0 ? "negative" : "positive")">@FactoryPresent <span class="stat-of">/ @FactoryRequired required</span></div>
-            </div>
+            <span class="ft-lbl">Factory total</span>
+            <span class="ft-num">@FactoryPresent <span class="stat-of">/ @FactoryRequired required</span></span>
             <span class="badge @(FactoryVariance < 0 ? "b-short" : "b-optimal")">Variance @Signed(FactoryVariance)</span>
             <span class="dc-spacer"></span>
             <span class="ft-scope">@ScopeText()</span>
@@ -73,8 +72,8 @@ else
     </div>
 
     <div class="sum-panel">
-        <div class="sum-panel-title">Division breakdown</div>
-        <div class="grid-scroll">
+        <div class="sum-panel-head"><span class="ico"></span><span class="sum-panel-title">Division breakdown</span></div>
+        <div class="sum-panel-body grid-scroll">
             <table class="grid">
                 <thead>
                     <tr><th>Division</th><th class="num">On roll</th><th class="num">Present</th><th class="num">Absent</th><th class="num">Vacation</th><th class="num">Outsource</th><th class="num">Required</th><th class="num">Variance</th></tr>

@@ -37,14 +37,14 @@ else
     {
         var t = _dashboard.Totals;
         <div class="kpi-row">
-            <div class="kpi k-blue"><div class="kpi-lbl">Present</div><div class="kpi-val sv-blue">@t.TotalPresent</div><div class="kpi-sub">on floor now</div></div>
+            <div class="kpi k-blue"><div class="kpi-lbl">Present</div><div class="kpi-val">@t.TotalPresent</div><div class="kpi-sub">on floor now</div></div>
             <div class="kpi k-neutral"><div class="kpi-lbl">Required</div><div class="kpi-val">@t.Required</div><div class="kpi-sub">planned</div></div>
-            <div class="kpi k-teal"><div class="kpi-lbl">On roll</div><div class="kpi-val sv-cyan">@t.OnRoll</div><div class="kpi-sub">assigned</div></div>
-            <div class="kpi k-red"><div class="kpi-lbl">Absent</div><div class="kpi-val sv-red">@t.Absent</div><div class="kpi-sub">unplanned</div></div>
-            <div class="kpi k-amber"><div class="kpi-lbl">Vacation</div><div class="kpi-val sv-amber">@t.OnVacation</div><div class="kpi-sub">approved leave</div></div>
-            <div class="kpi k-purple"><div class="kpi-lbl">Outsource</div><div class="kpi-val sv-purple">@t.SupplyPresent</div><div class="kpi-sub">contract cover</div></div>
+            <div class="kpi k-teal"><div class="kpi-lbl">On roll</div><div class="kpi-val">@t.OnRoll</div><div class="kpi-sub">assigned</div></div>
+            <div class="kpi k-red"><div class="kpi-lbl">Absent</div><div class="kpi-val @(t.Absent > 0 ? "sv-red" : string.Empty)">@t.Absent</div><div class="kpi-sub">unplanned</div></div>
+            <div class="kpi k-amber"><div class="kpi-lbl">Vacation</div><div class="kpi-val @(t.OnVacation > 0 ? "sv-amber" : string.Empty)">@t.OnVacation</div><div class="kpi-sub">approved leave</div></div>
+            <div class="kpi k-purple"><div class="kpi-lbl">Outsource</div><div class="kpi-val">@t.SupplyPresent</div><div class="kpi-sub">contract cover</div></div>
             <div class="kpi @(t.Variance < 0 ? "k-red" : "k-green")"><div class="kpi-lbl">Variance</div><div class="kpi-val @(t.Variance < 0 ? "sv-red" : "sv-green")">@Signed(t.Variance)</div><div class="kpi-sub">vs. required</div></div>
-            <div class="kpi k-red"><div class="kpi-lbl">Short depts</div><div class="kpi-val sv-red">@t.ShortageDepartmentCount</div><div class="kpi-sub">need cover</div></div>
+            <div class="kpi @(t.ShortageDepartmentCount > 0 ? "k-red" : "k-neutral")"><div class="kpi-lbl">Short depts</div><div class="kpi-val @(t.ShortageDepartmentCount > 0 ? "sv-red" : string.Empty)">@t.ShortageDepartmentCount</div><div class="kpi-sub">need cover</div></div>
         </div>
 
         <div class="toolbar">
