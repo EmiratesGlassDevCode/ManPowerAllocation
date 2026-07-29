@@ -1,0 +1,34 @@
+@*
+    Reusable coloured list panel used for Absent / Vacation / Outsource / Excess / Shortage
+    summaries. Shows a count badge and the items, or a muted "None" when empty.
+*@
+<div class="alert-panel accent-@Accent">
+    <div class="alert-head">
+        <span>@Title</span>
+        <span class="count">@(Items?.Count ?? 0)</span>
+    </div>
+    @if (Items is null || Items.Count == 0)
+    {
+        <div class="alert-empty">None</div>
+    }
+    else
+    {
+        <ul class="alert-items">
+            @foreach (var item in Items)
+            {
+                <li>@item</li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>Panel heading.</summary>
+    [Parameter] public string Title { get; set; } = string.Empty;
+
+    /// <summary>Accent colour keyword (red / amber / purple / cyan / green).</summary>
+    [Parameter] public string Accent { get; set; } = "red";
+
+    /// <summary>The lines to display.</summary>
+    [Parameter] public List<string>? Items { get; set; }
+}

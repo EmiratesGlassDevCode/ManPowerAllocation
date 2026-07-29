@@ -3,7 +3,7 @@
 @using ManpowerAllocation.Application.Departments
 @using ManpowerAllocation.Application.Employees
 @using ManpowerAllocation.Web.Security
-@attribute [Authorize]
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
 @inject IDashboardService DashboardService
 @inject IEmployeeService EmployeeService
 @inject IDepartmentService DepartmentService
@@ -18,8 +18,10 @@
 }
 else
 {
-    <h1>@_label</h1>
-    <ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
+    <div class="screen-head">
+        <h1>@_label</h1>
+        <ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
+    </div>
 
     @if (_dashboard is null)
     {
@@ -27,55 +29,111 @@ else
     }
     else
     {
-        <div class="division-totals">
-            Present <strong>@_dashboard.Totals.TotalPresent</strong> /
-            required <strong>@_dashboard.Totals.Required</strong>,
-            absent @_dashboard.Totals.Absent, vacation @_dashboard.Totals.OnVacation,
-            outsource present @_dashboard.Totals.SupplyPresent.
+        var t = _dashboard.Totals;
+        <div class="kpi-row">
+            <div class="kpi"><div class="kpi-val sv-blue">@t.TotalPresent</div><div class="kpi-lbl">Present</div></div>
+            <div class="kpi"><div class="kpi-val">@t.Required</div><div class="kpi-lbl">Required</div></div>
+            <div class="kpi"><div class="kpi-val">@t.OnRoll</div><div class="kpi-lbl">On roll</div></div>
+            <div class="kpi"><div class="kpi-val sv-red">@t.Absent</div><div class="kpi-lbl">Absent</div></div>
+            <div class="kpi"><div class="kpi-val sv-amber">@t.OnVacation</div><div class="kpi-lbl">Vacation</div></div>
+            <div class="kpi"><div class="kpi-val sv-purple">@t.SupplyPresent</div><div class="kpi-lbl">Outsource</div></div>
+            <div class="kpi"><div class="kpi-val @(t.Variance < 0 ? "sv-red" : "sv-green")">@t.Variance</div><div class="kpi-lbl">Variance</div></div>
+            <div class="kpi"><div class="kpi-val sv-red">@t.ShortageDepartmentCount</div><div class="kpi-lbl">Short depts</div></div>
+        </div>
+
+        <div class="alert-row">
+            <AlertPanel Title="⚠ Absent" Accent="red" Items="AbsentList()" />
+            <AlertPanel Title="☀ On vacation" Accent="amber" Items="VacationList()" />
+        </div>
+
+        <div class="toolbar">
+            <label>Filter:
+                <select @bind="_filter" @bind:after="StateHasChanged">
+                    <option value="all">All</option>
+                    <option value="short">Shortage</option>
+                    <option value="excess">Excess</option>
+                    <option value="ok">Optimal</option>
+                    <option value="off">OFF</option>
+                </select>
+            </label>
+            <input type="text" placeholder="Search department…" @bind="_search" @bind:event="oninput" />
+            @if (_canEdit)
+            {
+                <button type="button" @onclick="() => ToggleAllAsync(true)">All ON</button>
+                <button type="button" @onclick="() => ToggleAllAsync(false)">All OFF</button>
+            }
+            @if (_canAdmin)
+            {
+                <button type="button" class="primary" @onclick="OpenAddDept">+ Add department</button>
+            }
         </div>
 
         <div class="dept-grid">
-            @foreach (var dept in _dashboard.Departments)
+            @foreach (var dept in VisibleDepartments())
             {
+                var util = dept.Required > 0 ? Math.Min((int)Math.Round(dept.TotalPresent * 100.0 / dept.Required), 130) : (dept.TotalPresent > 0 ? 100 : 0);
                 <div class="dept-card status-@(dept.Status.ToString().ToLowerInvariant())">
                     <div class="dept-card-head">
-                        <span class="dept-name">@dept.Name</span>
-                        <span class="dept-status">@dept.Status</span>
-                    </div>
-                    <div class="dept-card-body">
-                        <div>Required: @dept.Required &nbsp; Present: @dept.TotalPresent &nbsp; Variance: @dept.Variance</div>
-                        <div>Absent: @dept.Absent &nbsp; Vacation: @dept.OnVacation &nbsp; Outsource: @dept.SupplyPresent</div>
-
+                        <span class="dept-name" @onclick="() => OpenDeptModal(dept)">@dept.Name</span>
                         @if (_canEdit)
                         {
-                            <label class="dept-toggle">
+                            <label class="switch" title="Active">
                                 <input type="checkbox" checked="@dept.IsActive"
                                        @onchange="e => ToggleDepartmentAsync(dept.DepartmentId, (bool)e.Value!)" />
-                                Active
+                                <span class="slider"></span>
                             </label>
                         }
+                    </div>
+                    <div class="dept-card-body">
+                        <div class="dc-row"><span class="dc-lbl">Present / Required</span><span class="dc-val">@dept.TotalPresent / @dept.Required</span></div>
+                        <div class="bar"><div class="bar-fill fill-@(dept.Status.ToString().ToLowerInvariant())" style="width:@(Math.Min(util,100))%"></div></div>
+                        <div class="badges">
+                            <span class="badge b-@(dept.Status.ToString().ToLowerInvariant())">@StatusLabel(dept)</span>
+                            @if (dept.OnVacation > 0) { <span class="badge b-vac">VAC @dept.OnVacation</span> }
+                            @if (dept.Absent > 0) { <span class="badge b-short">ABS @dept.Absent</span> }
+                            @if (dept.SupplyPresent > 0) { <span class="badge b-supply">OS @dept.SupplyPresent</span> }
+                        </div>
 
-                        @if (_employeesByDepartment.TryGetValue(dept.DepartmentId, out var members))
+                        @if (_canAdmin)
+                        {
+                            <div class="dc-actions">
+                                <button type="button" class="link" @onclick="() => OpenEditDept(dept.DepartmentId)">Edit</button>
+                                <button type="button" class="link danger" @onclick="() => DeleteDeptAsync(dept.DepartmentId)">Delete</button>
+                            </div>
+                        }
+
+                        <span class="expander" @onclick="() => ToggleExpand(dept.DepartmentId)">
+                            @(IsExpanded(dept.DepartmentId) ? "▾ Hide people" : "▸ Show people")
+                        </span>
+
+                        @if (IsExpanded(dept.DepartmentId) && _byDept.TryGetValue(dept.DepartmentId, out var members))
                         {
                             <ul class="emp-list">
                                 @foreach (var emp in members)
                                 {
                                     <li class="emp-row">
-                                        <span class="emp-name">@emp.Name @(emp.IsSupply ? "(outsource)" : string.Empty)</span>
+                                        <span class="emp-name">@emp.Name @(emp.IsSupply ? "(OS)" : string.Empty)</span>
                                         <span class="emp-shift">@emp.Shift</span>
                                         <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@emp.Status</span>
-                                        @* Present/Absent is owned by the attendance system; supervisors only set the vacation override. *@
-                                        @if (_canEdit && !emp.IsSupply && emp.Status != AttendanceStatus.Present)
+                                        @if (_canEdit && !emp.IsSupply)
                                         {
                                             <span class="emp-actions">
                                                 @if (emp.Status == AttendanceStatus.OnVacation)
                                                 {
-                                                    <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">Unmark vacation</button>
+                                                    <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">Unmark vac</button>
                                                 }
-                                                else
+                                                else if (emp.Status != AttendanceStatus.Present)
                                                 {
-                                                    <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">Mark vacation</button>
+                                                    <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">Mark vac</button>
                                                 }
+                                                <button type="button" @onclick="() => ChangeShiftAsync(emp.Id, emp.Shift == ShiftType.Day ? ShiftType.Night : ShiftType.Day)">↔ Shift</button>
+                                                <select @onchange="e => MoveAsync(emp.Id, int.Parse((string)e.Value!))">
+                                                    <option value="@emp.DepartmentId">Move to…</option>
+                                                    @foreach (var d in _departments.Where(d => d.Id != emp.DepartmentId))
+                                                    {
+                                                        <option value="@d.Id">@d.Name</option>
+                                                    }
+                                                </select>
                                             </span>
                                         }
                                     </li>
@@ -86,7 +144,78 @@ else
                 </div>
             }
         </div>
+
+        <div class="alert-row">
+            <AlertPanel Title="◆ Outsource present" Accent="purple" Items="OutsourceList()" />
+            <AlertPanel Title="⬆ Available / Excess" Accent="cyan" Items="ExcessList()" />
+        </div>
     }
+}
+
+@if (_showDeptForm)
+{
+    <div class="modal-bg" @onclick="CloseDeptForm">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>@(_editingId is null ? "Add department" : "Edit department")</h3>
+            <label>Name
+                <input type="text" @bind="_fName" disabled="@(_editingId is not null)" />
+            </label>
+            <div class="form-row">
+                <label>Day required <input type="number" min="0" @bind="_fReqDay" /></label>
+                <label>Night required <input type="number" min="0" @bind="_fReqNight" /></label>
+                <label>Sequence <input type="number" step="0.5" @bind="_fSeq" /></label>
+            </div>
+            @if (_editingId is not null)
+            {
+                <label class="inline"><input type="checkbox" @bind="_fActive" /> Active</label>
+            }
+            @if (!string.IsNullOrEmpty(_formError))
+            {
+                <p class="message error">@_formError</p>
+            }
+            <div class="modal-foot">
+                <button type="button" @onclick="CloseDeptForm">Cancel</button>
+                <button type="button" class="primary" @onclick="SaveDeptAsync">Save</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_modalDept is not null)
+{
+    <div class="modal-bg" @onclick="() => _modalDept = null">
+        <div class="modal wide" @onclick:stopPropagation="true">
+            <h3>@_modalDept.Name</h3>
+            <div class="kpi-row">
+                <div class="kpi"><div class="kpi-val sv-blue">@_modalDept.TotalPresent</div><div class="kpi-lbl">Present</div></div>
+                <div class="kpi"><div class="kpi-val">@_modalDept.Required</div><div class="kpi-lbl">Required</div></div>
+                <div class="kpi"><div class="kpi-val sv-red">@_modalDept.Absent</div><div class="kpi-lbl">Absent</div></div>
+                <div class="kpi"><div class="kpi-val sv-amber">@_modalDept.OnVacation</div><div class="kpi-lbl">Vacation</div></div>
+                <div class="kpi"><div class="kpi-val sv-purple">@_modalDept.SupplyPresent</div><div class="kpi-lbl">Outsource</div></div>
+            </div>
+            @if (_byDept.TryGetValue(_modalDept.DepartmentId, out var mem))
+            {
+                <table class="grid">
+                    <thead><tr><th>Name</th><th>ID</th><th>Shift</th><th>Status</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        @foreach (var e in mem)
+                        {
+                            <tr>
+                                <td>@e.Name @(e.IsSupply ? "(OS)" : "")</td>
+                                <td>@e.BadgeNumber</td>
+                                <td>@e.Shift</td>
+                                <td class="status-@(e.Status.ToString().ToLowerInvariant())">@e.Status</td>
+                                <td>@e.Notes</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="modal-foot">
+                <button type="button" @onclick="() => _modalDept = null">Close</button>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
@@ -98,10 +227,28 @@ else
     private string _label = string.Empty;
     private ShiftFilter _shift = ShiftFilter.All;
     private DivisionDashboard? _dashboard;
-    private Dictionary<int, List<EmployeeDto>> _employeesByDepartment = new();
+    private List<DepartmentDto> _departments = new();
+    private List<EmployeeDto> _employees = new();
+    private Dictionary<int, List<EmployeeDto>> _byDept = new();
+    private readonly HashSet<int> _expanded = new();
     private bool _canEdit;
+    private bool _canAdmin;
+    private string _search = string.Empty;
+    private string _filter = "all";
 
-    /// <summary>Resolves the division, the caller's edit permission and the initial data.</summary>
+    // Department add/edit form state.
+    private bool _showDeptForm;
+    private int? _editingId;
+    private string _fName = string.Empty;
+    private int _fReqDay;
+    private int _fReqNight;
+    private decimal _fSeq;
+    private bool _fActive = true;
+    private string? _formError;
+
+    private DepartmentStats? _modalDept;
+
+    /// <summary>Resolves the division, permissions and initial data.</summary>
     protected override async Task OnParametersSetAsync()
     {
         if (Enum.TryParse<Division>(DivisionName, ignoreCase: true, out var division))
@@ -116,7 +263,8 @@ else
             };
 
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            _canEdit = HasAtLeastUser(authState.User);
+            _canEdit = HasRole(authState.User, UserRole.User);
+            _canAdmin = HasRole(authState.User, UserRole.Admin);
 
             await LoadAsync();
         }
@@ -140,10 +288,98 @@ else
         }
 
         _dashboard = await DashboardService.GetDivisionDashboardAsync(_division.Value, _shift);
-        var employees = await EmployeeService.GetByDivisionAsync(_division.Value);
-        _employeesByDepartment = employees
+        _departments = (await DepartmentService.GetByDivisionAsync(_division.Value)).ToList();
+        _employees = (await EmployeeService.GetByDivisionAsync(_division.Value)).ToList();
+
+        _byDept = _employees
+            .Where(MatchesShift)
             .GroupBy(e => e.DepartmentId)
             .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    private bool MatchesShift(EmployeeDto e) => _shift switch
+    {
+        ShiftFilter.Day => e.Shift == ShiftType.Day,
+        ShiftFilter.Night => e.Shift == ShiftType.Night,
+        _ => true
+    };
+
+    private IEnumerable<DepartmentStats> VisibleDepartments()
+    {
+        if (_dashboard is null)
+        {
+            return Enumerable.Empty<DepartmentStats>();
+        }
+
+        return _dashboard.Departments.Where(d =>
+            (string.IsNullOrWhiteSpace(_search) || d.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))
+            && _filter switch
+            {
+                "short" => d.Status == DepartmentStaffingStatus.Short,
+                "excess" => d.Status == DepartmentStaffingStatus.Excess,
+                "ok" => d.Status == DepartmentStaffingStatus.Optimal,
+                "off" => d.Status == DepartmentStaffingStatus.Off,
+                _ => true
+            });
+    }
+
+    private static string StatusLabel(DepartmentStats d) => d.Status switch
+    {
+        DepartmentStaffingStatus.Short => $"Short {d.Variance}",
+        DepartmentStaffingStatus.Excess => $"Excess +{d.Variance}",
+        DepartmentStaffingStatus.Off => "OFF",
+        _ => "Optimal"
+    };
+
+    private List<string> AbsentList() =>
+        _employees.Where(MatchesShift).Where(e => !e.IsSupply && e.Status == AttendanceStatus.Absent)
+            .Select(e => $"{e.Name} · {e.DepartmentName}").ToList();
+
+    private List<string> VacationList() =>
+        _employees.Where(MatchesShift).Where(e => !e.IsSupply && e.Status == AttendanceStatus.OnVacation)
+            .Select(e => $"{e.Name} · {e.DepartmentName}").ToList();
+
+    private List<string> OutsourceList() =>
+        _employees.Where(MatchesShift).Where(e => e.IsSupply && e.Status == AttendanceStatus.Present)
+            .Select(e => $"{e.Name} · {e.DepartmentName}").ToList();
+
+    private List<string> ExcessList()
+    {
+        var result = new List<string>();
+        if (_dashboard is null)
+        {
+            return result;
+        }
+
+        foreach (var dept in _dashboard.Departments)
+        {
+            if (!_byDept.TryGetValue(dept.DepartmentId, out var members))
+            {
+                continue;
+            }
+
+            if (dept.Status == DepartmentStaffingStatus.Off)
+            {
+                result.AddRange(members.Where(e => e.Status == AttendanceStatus.Present)
+                    .Select(e => $"{e.Name} · {dept.Name} (dept OFF)"));
+            }
+            else if (dept.Variance > 0)
+            {
+                result.Add($"{dept.Name}: {dept.Variance} over required");
+            }
+        }
+
+        return result;
+    }
+
+    private bool IsExpanded(int departmentId) => _expanded.Contains(departmentId);
+
+    private void ToggleExpand(int departmentId)
+    {
+        if (!_expanded.Remove(departmentId))
+        {
+            _expanded.Add(departmentId);
+        }
     }
 
     private async Task SetStatusAsync(int employeeId, AttendanceStatus status)
@@ -152,15 +388,131 @@ else
         await LoadAsync();
     }
 
+    private async Task ChangeShiftAsync(int employeeId, ShiftType shift)
+    {
+        await EmployeeService.ChangeShiftAsync(employeeId, new ChangeShiftRequest { Shift = shift });
+        await LoadAsync();
+    }
+
+    private async Task MoveAsync(int employeeId, int targetDepartmentId)
+    {
+        if (targetDepartmentId != 0)
+        {
+            await EmployeeService.MoveAsync(employeeId, new MoveEmployeeRequest { TargetDepartmentId = targetDepartmentId });
+            await LoadAsync();
+        }
+    }
+
     private async Task ToggleDepartmentAsync(int departmentId, bool isActive)
     {
         await DepartmentService.SetActiveAsync(departmentId, isActive);
         await LoadAsync();
     }
 
-    private static bool HasAtLeastUser(System.Security.Claims.ClaimsPrincipal user)
+    private async Task ToggleAllAsync(bool active)
+    {
+        foreach (var d in _departments)
+        {
+            if (d.IsActive != active)
+            {
+                await DepartmentService.SetActiveAsync(d.Id, active);
+            }
+        }
+
+        await LoadAsync();
+    }
+
+    private void OpenAddDept()
+    {
+        _editingId = null;
+        _fName = string.Empty;
+        _fReqDay = 0;
+        _fReqNight = 0;
+        _fSeq = 9999m;
+        _fActive = true;
+        _formError = null;
+        _showDeptForm = true;
+    }
+
+    private void OpenEditDept(int departmentId)
+    {
+        var dept = _departments.FirstOrDefault(d => d.Id == departmentId);
+        if (dept is null)
+        {
+            return;
+        }
+
+        _editingId = dept.Id;
+        _fName = dept.Name;
+        _fReqDay = dept.RequiredDay;
+        _fReqNight = dept.RequiredNight;
+        _fSeq = dept.Sequence;
+        _fActive = dept.IsActive;
+        _formError = null;
+        _showDeptForm = true;
+    }
+
+    private void CloseDeptForm() => _showDeptForm = false;
+
+    private async Task SaveDeptAsync()
+    {
+        if (_division is null)
+        {
+            return;
+        }
+
+        _formError = null;
+        try
+        {
+            if (_editingId is null)
+            {
+                await DepartmentService.CreateAsync(new CreateDepartmentRequest
+                {
+                    Division = _division.Value,
+                    Name = _fName,
+                    RequiredDay = _fReqDay,
+                    RequiredNight = _fReqNight,
+                    Sequence = _fSeq
+                });
+            }
+            else
+            {
+                await DepartmentService.UpdateAsync(_editingId.Value, new UpdateDepartmentRequest
+                {
+                    RequiredDay = _fReqDay,
+                    RequiredNight = _fReqNight,
+                    Sequence = _fSeq,
+                    IsActive = _fActive
+                });
+            }
+
+            _showDeptForm = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _formError = ex.Message;
+        }
+    }
+
+    private async Task DeleteDeptAsync(int departmentId)
+    {
+        try
+        {
+            await DepartmentService.DeleteAsync(departmentId);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _formError = ex.Message;
+        }
+    }
+
+    private void OpenDeptModal(DepartmentStats dept) => _modalDept = dept;
+
+    private static bool HasRole(System.Security.Claims.ClaimsPrincipal user, UserRole minimum)
     {
         var raw = user.FindFirst(AppClaimTypes.AppRole)?.Value;
-        return Enum.TryParse<UserRole>(raw, out var role) && role >= UserRole.User;
+        return Enum.TryParse<UserRole>(raw, out var role) && role >= minimum;
     }
 }
