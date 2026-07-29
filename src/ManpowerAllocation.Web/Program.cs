@@ -163,7 +163,7 @@ builder.Services.AddRateLimiter(options =>
 
 // Behind IIS the app sees the reverse proxy's address unless the forwarded headers are honoured.
 // Processing X-Forwarded-For gives the real client IP for rate-limit partitioning and logging.
-builder.Services.Configure<Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions>(options =>
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
         | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
