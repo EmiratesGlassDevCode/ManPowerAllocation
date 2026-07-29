@@ -1,0 +1,31 @@
+name: Publish (IIS package)
+
+# Manually-triggered: publishes the web app in Release and uploads the output as a
+# downloadable artifact (a .zip) that can be copied onto the IIS server.
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish (framework-dependent; needs the .NET 8 Hosting Bundle on the server)
+        run: >-
+          dotnet publish src/ManpowerAllocation.Web/ManpowerAllocation.Web.csproj
+          -c Release
+          -o ${{ github.workspace }}/publish
+
+      - name: Upload IIS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: manpowerallocation-iis
+          path: publish/**
+          retention-days: 14
