@@ -7,12 +7,12 @@
    ============================================================================ */
 
 :root {
-    /* Surfaces */
-    --bg: #eef1f6;
+    /* Surfaces — clean, airy neutrals (Fluent 2 / Teams style) */
+    --bg: #f5f5f7;
     --panel: #ffffff;
-    --panel-2: #f3f5f9;
-    --border: #e3e8f0;
-    --border2: #cfd7e4;
+    --panel-2: #f5f5f7;
+    --border: #ededf2;
+    --border2: #e1e4ea;
 
     /* Text */
     --text: #1a2333;
@@ -37,11 +37,12 @@
     --blue-lt: #dbeafe;
 
     /* Depth */
-    --shadow-sm: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.10);
-    --shadow: 0 1px 3px rgba(16,24,40,.08), 0 4px 14px rgba(16,24,40,.06);
-    --shadow-lg: 0 10px 30px rgba(16,24,40,.14);
-    --radius: 12px;
-    --radius-sm: 8px;
+    /* Fluent 2 elevation ramp: soft, low-contrast shadows. */
+    --shadow-sm: 0 .3px .9px rgba(0,0,0,.07), 0 1.6px 3.6px rgba(0,0,0,.09);
+    --shadow: 0 .6px 1.8px rgba(0,0,0,.06), 0 3.2px 7.2px rgba(0,0,0,.10);
+    --shadow-lg: 0 1.2px 3.6px rgba(0,0,0,.08), 0 6.4px 14.4px rgba(0,0,0,.13);
+    --radius: 10px;
+    --radius-sm: 6px;
 }
 
 * { box-sizing: border-box; }
@@ -51,11 +52,7 @@ body {
     /* Fluent 2 type: prefer Segoe UI Variable (Windows 11) then Segoe UI, then the platform UI font. */
     font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system,
         'Helvetica Neue', Arial, sans-serif;
-    background:
-        radial-gradient(1100px 500px at 100% -10%, rgba(37,99,235,.06), transparent 60%),
-        radial-gradient(900px 500px at -5% 110%, rgba(124,58,237,.05), transparent 55%),
-        var(--bg);
-    background-attachment: fixed;
+    background: var(--bg);
     color: var(--text);
     font-size: 14px;
     line-height: 1.5;
@@ -137,22 +134,16 @@ a:hover { text-decoration: underline; }
 /* ── Stat cards (summary) ────────────────────────────────────────────────── */
 .card-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
 .stat-card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 18px; min-width: 230px; flex: 1; cursor: pointer;
-    box-shadow: var(--shadow); position: relative; overflow: hidden;
-    transition: transform .15s, box-shadow .15s, border-color .15s;
+    min-width: 230px; flex: 1; cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
 }
-.stat-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--blue), var(--purple)); }
-.stat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--blue); }
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .stat-card-title { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--blue); font-weight: 700; }
 .stat-card-big { font-size: 44px; font-weight: 800; line-height: 1.05; margin: 2px 0; letter-spacing: -.02em; }
 .stat-card-sub { color: var(--muted); margin-bottom: 10px; }
 .stat-card-line { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-.factory-total {
-    margin-top: 18px; padding: 14px 18px; border-radius: var(--radius);
-    background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow);
-}
+.factory-total { margin-top: 18px; }
 .positive { color: var(--green); }
 .negative { color: var(--red); }
 
@@ -164,12 +155,11 @@ a:hover { text-decoration: underline; }
 /* ── KPI row ─────────────────────────────────────────────────────────────── */
 .kpi-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
 .kpi {
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm);
-    padding: 12px 16px; min-width: 104px; position: relative; overflow: hidden;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 18px; min-width: 108px;
     box-shadow: var(--shadow-sm); transition: transform .15s;
 }
-.kpi::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 3px; background: var(--blue); }
-.kpi:hover { transform: translateY(-2px); }
+.kpi:hover { transform: translateY(-1px); }
 .kpi-val { font-size: 26px; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; }
 .kpi-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 700; margin-top: 2px; }
 .sv-blue { color: var(--blue); } .sv-green { color: var(--green); } .sv-red { color: var(--red); }
@@ -263,7 +253,7 @@ button.secondary:hover { background: var(--panel-2); filter: none; }
 .toolbar label, .toolbar .hint { color: var(--muted); font-size: 12px; }
 
 /* ── Summary panel ───────────────────────────────────────────────────────── */
-.sum-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin: 16px 0; box-shadow: var(--shadow); }
+.sum-panel { margin: 16px 0; }
 .sum-panel-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--cyan); margin-bottom: 8px; }
 
 .screen-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
@@ -271,7 +261,7 @@ button.secondary:hover { background: var(--panel-2); filter: none; }
 /* ── Alert panels ────────────────────────────────────────────────────────── */
 .alert-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
 @media (max-width: 800px) { .alert-row { grid-template-columns: 1fr; } }
-.alert-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; box-shadow: var(--shadow); }
+.alert-panel { min-height: 100%; }
 .alert-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
 .alert-head .count { background: var(--panel-2); border: 1px solid var(--border); border-radius: 20px; padding: 1px 9px; font-size: 11px; }
 .accent-red .alert-head { color: var(--red); } .accent-amber .alert-head { color: var(--amber); }
