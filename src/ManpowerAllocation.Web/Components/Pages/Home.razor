@@ -9,10 +9,12 @@
 
 <PageTitle>Summary — Manpower Allocation</PageTitle>
 
+<div class="breadcrumb">Home</div>
 <div class="screen-head">
     <h1>Factory Summary</h1>
     <ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
 </div>
+<p class="hint">Live presence across EGL, Functional Support and BRG for the selected shift.</p>
 
 <div class="toolbar">
     <span class="hint">Export:</span>
@@ -184,10 +186,10 @@ else
     /// <summary>Division identity accent (matches the nav tile and the division page).</summary>
     private static string DivAccent(Division division) => division switch
     {
-        Division.Egl => "var(--brand)",
-        Division.FunctionalSupport => "var(--info)",
-        Division.Brg => "var(--magenta)",
-        _ => "var(--brand)"
+        Division.Egl => "var(--mpa-brand)",
+        Division.FunctionalSupport => "var(--mpa-teal)",
+        Division.Brg => "var(--mpa-magenta)",
+        _ => "var(--mpa-brand)"
     };
 
     /// <summary>Short initials for the division tile.</summary>
