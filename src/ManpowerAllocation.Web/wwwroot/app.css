@@ -142,6 +142,14 @@ button {
 .import-block { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin: 12px 0; max-width: 620px; }
 .notice, .breakglass-login { max-width: 460px; margin: 40px auto; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
 
+.btn-link { display: inline-block; padding: 5px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); color: var(--text); text-decoration: none; font-size: 12px; }
+.btn-link:hover { border-color: var(--blue); color: var(--blue); }
+
+/* ---- Summary panel ---- */
+.stat-card { cursor: pointer; }
+.sum-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 14px 0; }
+.sum-panel-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--cyan); margin-bottom: 8px; }
+
 /* ---- Division / dashboard build-out ---- */
 .screen-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 

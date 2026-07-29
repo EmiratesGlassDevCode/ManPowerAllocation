@@ -1,0 +1,63 @@
+@page "/search"
+@using ManpowerAllocation.Application.Employees
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
+@inject IEmployeeService EmployeeService
+
+<PageTitle>Employee Search — Manpower Allocation</PageTitle>
+
+<h1>Employee Search</h1>
+<p class="hint">Search by name or ID across all divisions.</p>
+
+<div class="toolbar">
+    <input type="text" placeholder="Name or ID…" @bind="_term" @bind:event="oninput" @bind:after="OnTermChanged" style="width:260px" />
+</div>
+
+@if (_searched)
+{
+    @if (_results.Count == 0)
+    {
+        <p class="message">No matches.</p>
+    }
+    else
+    {
+        <table class="grid">
+            <thead>
+                <tr><th>Name</th><th>ID</th><th>Division</th><th>Department</th><th>Shift</th><th>Status</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var e in _results)
+                {
+                    <tr>
+                        <td>@e.Name @(e.IsSupply ? "(OS)" : "")</td>
+                        <td>@e.BadgeNumber</td>
+                        <td>@e.Division</td>
+                        <td>@e.DepartmentName</td>
+                        <td>@e.Shift</td>
+                        <td class="status-@(e.Status.ToString().ToLowerInvariant())">@e.Status</td>
+                        <td>@e.Notes</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private string _term = string.Empty;
+    private bool _searched;
+    private IReadOnlyList<EmployeeDto> _results = Array.Empty<EmployeeDto>();
+
+    private async Task OnTermChanged()
+    {
+        if (_term.Trim().Length < 2)
+        {
+            _searched = false;
+            _results = Array.Empty<EmployeeDto>();
+            return;
+        }
+
+        _results = await EmployeeService.SearchAsync(_term);
+        _searched = true;
+    }
+}

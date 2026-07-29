@@ -1,49 +1,100 @@
 @page "/"
 @using ManpowerAllocation.Application.Dashboard
-@attribute [Authorize]
+@using ManpowerAllocation.Application.Employees
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
 @inject IDashboardService DashboardService
+@inject IEmployeeService EmployeeService
+@inject NavigationManager Navigation
 
 <PageTitle>Summary — Manpower Allocation</PageTitle>
 
-<h1>Factory Summary</h1>
+<div class="screen-head">
+    <h1>Factory Summary</h1>
+    <ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
+</div>
 
-<ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
+<div class="toolbar">
+    <span class="hint">Export:</span>
+    <a class="btn-link" href="api/exports/report" target="_blank">Staffing report</a>
+    <a class="btn-link" href="api/exports/attendance" target="_blank">Attendance</a>
+    <a class="btn-link" href="api/exports/requirements-template" target="_blank">Requirements template</a>
+</div>
 
-@if (_summary is null)
+@if (!_loaded)
 {
     <p><em>Loading…</em></p>
 }
 else
 {
     <div class="card-row">
-        @foreach (var division in _summary.Divisions)
+        @foreach (var d in _divisions)
         {
-            <div class="stat-card">
-                <div class="stat-card-title">@DivisionLabel(division.Division)</div>
-                <div class="stat-card-big">@division.TotalPresent</div>
-                <div class="stat-card-sub">Present of @division.Required required</div>
-                <div class="stat-card-line">On roll: @division.OnRoll</div>
-                <div class="stat-card-line">Absent: @division.Absent &nbsp; Vacation: @division.OnVacation</div>
-                <div class="stat-card-line">Outsource present: @division.SupplyPresent</div>
-                <div class="stat-card-line @(division.Variance < 0 ? "negative" : "positive")">
-                    Variance: @division.Variance &nbsp; Shortage depts: @division.ShortageDepartmentCount
+            <div class="stat-card" @onclick="() => Go(d.Division)">
+                <div class="stat-card-title">@DivisionLabel(d.Division)</div>
+                <div class="stat-card-big">@d.TotalPresent</div>
+                <div class="stat-card-sub">Present of @d.Required required</div>
+                <div class="stat-card-line">On roll: @d.OnRoll &nbsp; Absent: @d.Absent &nbsp; Vacation: @d.OnVacation</div>
+                <div class="stat-card-line">Outsource present: @d.SupplyPresent</div>
+                <div class="stat-card-line @(d.Variance < 0 ? "negative" : "positive")">
+                    Variance: @d.Variance &nbsp; Shortage depts: @d.ShortageDepartmentCount
                 </div>
             </div>
         }
     </div>
 
-    <div class="factory-total @(_summary.FactoryTotal.Variance < 0 ? "negative" : "positive")">
-        <strong>Factory total present:</strong> @_summary.FactoryTotal.TotalPresent
-        &nbsp;/&nbsp; required @_summary.FactoryTotal.Required
-        &nbsp;(net variance @_summary.FactoryTotal.Variance)
+    <div class="factory-total @(FactoryVariance < 0 ? "negative" : "positive")">
+        <strong>Factory total present:</strong> @FactoryPresent / required @FactoryRequired (net variance @FactoryVariance)
+    </div>
+
+    <div class="sum-panel">
+        <div class="sum-panel-title">◆ Division breakdown</div>
+        <table class="grid">
+            <thead>
+                <tr><th>Division</th><th>On roll</th><th>Present</th><th>Absent</th><th>Vacation</th><th>Outsource</th><th>Required</th><th>Variance</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var d in _divisions)
+                {
+                    <tr>
+                        <td>@DivisionLabel(d.Division)</td>
+                        <td>@d.OnRoll</td>
+                        <td>@d.TotalPresent</td>
+                        <td>@d.Absent</td>
+                        <td>@d.OnVacation</td>
+                        <td>@d.SupplyPresent</td>
+                        <td>@d.Required</td>
+                        <td class="@(d.Variance < 0 ? "negative" : "positive")">@d.Variance</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="alert-row">
+        <AlertPanel Title="⚠ Absent today" Accent="red" Items="_absent" />
+        <AlertPanel Title="☀ On vacation" Accent="amber" Items="_vacation" />
+    </div>
+    <div class="alert-row">
+        <AlertPanel Title="▼ Shortage departments" Accent="red" Items="_shortage" />
+        <AlertPanel Title="◆ Outsource present" Accent="purple" Items="_outsource" />
     </div>
 }
 
 @code {
     private ShiftFilter _shift = ShiftFilter.All;
-    private FactorySummary? _summary;
+    private bool _loaded;
+    private readonly List<DivisionTotals> _divisions = new();
+    private List<string> _absent = new();
+    private List<string> _vacation = new();
+    private List<string> _outsource = new();
+    private List<string> _shortage = new();
 
-    /// <summary>Loads the initial summary.</summary>
+    private int FactoryPresent => _divisions.Sum(d => d.TotalPresent);
+    private int FactoryRequired => _divisions.Sum(d => d.Required);
+    private int FactoryVariance => FactoryPresent - FactoryRequired;
+
+    /// <summary>Loads the summary on first render.</summary>
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task OnShiftChanged(ShiftFilter shift)
@@ -54,8 +105,41 @@ else
 
     private async Task LoadAsync()
     {
-        _summary = await DashboardService.GetFactorySummaryAsync(_shift);
+        _divisions.Clear();
+        _absent = new();
+        _vacation = new();
+        _outsource = new();
+        _shortage = new();
+
+        foreach (var division in Enum.GetValues<Division>())
+        {
+            var dashboard = await DashboardService.GetDivisionDashboardAsync(division, _shift);
+            _divisions.Add(dashboard.Totals);
+
+            _shortage.AddRange(dashboard.Departments
+                .Where(d => d.Status == DepartmentStaffingStatus.Short)
+                .Select(d => $"{d.Name} · {DivisionLabel(division)} ({d.Variance})"));
+
+            var employees = (await EmployeeService.GetByDivisionAsync(division)).Where(MatchesShift).ToList();
+            _absent.AddRange(employees.Where(e => !e.IsSupply && e.Status == AttendanceStatus.Absent)
+                .Select(e => $"{e.Name} · {e.DepartmentName}"));
+            _vacation.AddRange(employees.Where(e => !e.IsSupply && e.Status == AttendanceStatus.OnVacation)
+                .Select(e => $"{e.Name} · {e.DepartmentName}"));
+            _outsource.AddRange(employees.Where(e => e.IsSupply && e.Status == AttendanceStatus.Present)
+                .Select(e => $"{e.Name} · {e.DepartmentName}"));
+        }
+
+        _loaded = true;
     }
+
+    private bool MatchesShift(EmployeeDto e) => _shift switch
+    {
+        ShiftFilter.Day => e.Shift == ShiftType.Day,
+        ShiftFilter.Night => e.Shift == ShiftType.Night,
+        _ => true
+    };
+
+    private void Go(Division division) => Navigation.NavigateTo($"division/{division}");
 
     private static string DivisionLabel(Division division) => division switch
     {

@@ -2,6 +2,7 @@ using ManpowerAllocation.Application.Abstractions;
 using ManpowerAllocation.Application.BreakGlass;
 using ManpowerAllocation.Infrastructure.Alerts;
 using ManpowerAllocation.Infrastructure.Attendance;
+using ManpowerAllocation.Infrastructure.Exports;
 using ManpowerAllocation.Infrastructure.Auditing;
 using ManpowerAllocation.Infrastructure.BreakGlass;
 using ManpowerAllocation.Infrastructure.Import;
@@ -41,6 +42,7 @@ public static class DependencyInjection
         services.AddSingleton<IClock, SystemClock>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IExcelImportParser, ClosedXmlImportParser>();
+        services.AddScoped<ManpowerAllocation.Application.Exports.IReportExportService, ClosedXmlReportExportService>();
         services.AddScoped<IBreakGlassService, BreakGlassService>();
         services.AddScoped<DatabaseInitializer>();
 

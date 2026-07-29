@@ -17,6 +17,7 @@ public static class ApiEndpoints
         api.MapDashboardEndpoints();
         api.MapDepartmentEndpoints();
         api.MapEmployeeEndpoints();
+        api.MapExportEndpoints();
         api.MapAdminEndpoints();
     }
 }
