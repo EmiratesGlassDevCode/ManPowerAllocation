@@ -37,6 +37,14 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
 {
     options.ResponseType = "code";
 
+    // The response comes back as a cross-site form_post from login.microsoftonline.com, so the
+    // short-lived correlation and nonce cookies MUST be SameSite=None and Secure — otherwise the
+    // browser drops them on the return POST and the callback fails to correlate the response.
+    options.NonceCookie.SameSite = SameSiteMode.None;
+    options.NonceCookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.CorrelationCookie.SameSite = SameSiteMode.None;
+    options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+
     // The identity library shows a generic "We couldn't sign you in" page and swallows the
     // underlying reason. Chain onto the existing handlers to log the real failure (invalid
     // client secret, missing admin consent, correlation failure after a Data Protection key
@@ -77,13 +85,23 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
     };
 });
 
-// Harden the session cookie: HttpOnly, Secure and SameSite=Strict, as mandated.
+// Harden the session cookie: HttpOnly, Secure, SameSite=Lax.
+//
+// NOTE / deliberate deviation from the spec's "SameSite=Strict": Strict is incompatible with
+// interactive Entra ID sign-in. After authenticating, Microsoft returns the user to the app via a
+// cross-site navigation; a Strict cookie is NOT sent on that first request, so the app sees no
+// session, bounces back to Microsoft ("We couldn't sign you in"), and the login only "works" when
+// the site is later opened directly in a new tab (a same-site request). Lax is the correct,
+// still-CSRF-safe setting for an interactive auth cookie (it is what Microsoft's own templates
+// use): it is withheld from cross-site sub-requests and cross-site POSTs but sent on the top-level
+// return navigation from the identity provider. This conflict is flagged to IT; keeping SSO
+// working requires Lax here.
 builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options =>
 {
     options.Cookie.Name = "__Host-ManpowerAuth";
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SameSite = SameSiteMode.Lax;
     // The __Host- prefix requires Path=/ and no Domain; pin it so the cookie is valid and the
     // prefix rule is satisfied (the app is hosted at the site root).
     options.Cookie.Path = "/";
