@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.Extensions.Configuration;
 
 namespace ManpowerAllocation.Infrastructure.Persistence;
 
@@ -18,13 +17,12 @@ public sealed class ManpowerDbContextFactory : IDesignTimeDbContextFactory<Manpo
     /// <returns>A configured <see cref="ManpowerDbContext"/>.</returns>
     public ManpowerDbContext CreateDbContext(string[] args)
     {
-        var configuration = new ConfigurationBuilder()
-            .AddEnvironmentVariables()
-            .Build();
-
+        // Read the connection string directly from the environment to keep this design-time
+        // factory free of additional configuration package dependencies. ASP.NET Core maps
+        // "ConnectionStrings:ManpowerDatabase" to the "ConnectionStrings__ManpowerDatabase" variable.
         var connectionString =
-            configuration["ConnectionStrings:ManpowerDatabase"]
-            ?? configuration["ManpowerAllocation_ConnectionString"]
+            Environment.GetEnvironmentVariable("ConnectionStrings__ManpowerDatabase")
+            ?? Environment.GetEnvironmentVariable("ManpowerAllocation_ConnectionString")
             ?? "Server=(localdb)\\MSSQLLocalDB;Database=ManpowerAllocation;Trusted_Connection=True;MultipleActiveResultSets=true";
 
         var options = new DbContextOptionsBuilder<ManpowerDbContext>()
