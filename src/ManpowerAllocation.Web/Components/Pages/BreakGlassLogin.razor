@@ -1,0 +1,35 @@
+@page "/break-glass"
+@attribute [AllowAnonymous]
+
+<PageTitle>Emergency Access — Manpower Allocation</PageTitle>
+
+<div class="breakglass-login">
+    <h1>Emergency Access</h1>
+    <p class="hint">
+        Use this page only when Entra ID sign-in is unavailable. All access here is temporary,
+        alerts the IT Head, and is recorded distinctly in the audit trail. For normal access,
+        <a href="MicrosoftIdentity/Account/SignIn">sign in with your organisation account</a>.
+    </p>
+
+    @if (Error == 1)
+    {
+        <p class="message error">Access denied. The emergency account may be disabled or the details incorrect.</p>
+    }
+
+    @* Plain form POST so this works even if the interactive circuit cannot start for an anonymous user. *@
+    <form action="/auth/break-glass" method="post" class="form-stack">
+        <label>Account name
+            <input type="text" name="userName" autocomplete="off" required />
+        </label>
+        <label>Emergency secret
+            <input type="password" name="password" autocomplete="off" required />
+        </label>
+        <button type="submit">Sign in with emergency account</button>
+    </form>
+</div>
+
+@code {
+    /// <summary>Set to 1 by the login endpoint when the previous attempt was rejected.</summary>
+    [SupplyParameterFromQuery]
+    public int Error { get; set; }
+}

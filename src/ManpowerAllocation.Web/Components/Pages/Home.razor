@@ -1,0 +1,67 @@
+@page "/"
+@using ManpowerAllocation.Application.Dashboard
+@attribute [Authorize]
+@inject IDashboardService DashboardService
+
+<PageTitle>Summary — Manpower Allocation</PageTitle>
+
+<h1>Factory Summary</h1>
+
+<ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
+
+@if (_summary is null)
+{
+    <p><em>Loading…</em></p>
+}
+else
+{
+    <div class="card-row">
+        @foreach (var division in _summary.Divisions)
+        {
+            <div class="stat-card">
+                <div class="stat-card-title">@DivisionLabel(division.Division)</div>
+                <div class="stat-card-big">@division.TotalPresent</div>
+                <div class="stat-card-sub">Present of @division.Required required</div>
+                <div class="stat-card-line">On roll: @division.OnRoll</div>
+                <div class="stat-card-line">Absent: @division.Absent &nbsp; Vacation: @division.OnVacation</div>
+                <div class="stat-card-line">Outsource present: @division.SupplyPresent</div>
+                <div class="stat-card-line @(division.Variance < 0 ? "negative" : "positive")">
+                    Variance: @division.Variance &nbsp; Shortage depts: @division.ShortageDepartmentCount
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="factory-total @(_summary.FactoryTotal.Variance < 0 ? "negative" : "positive")">
+        <strong>Factory total present:</strong> @_summary.FactoryTotal.TotalPresent
+        &nbsp;/&nbsp; required @_summary.FactoryTotal.Required
+        &nbsp;(net variance @_summary.FactoryTotal.Variance)
+    </div>
+}
+
+@code {
+    private ShiftFilter _shift = ShiftFilter.All;
+    private FactorySummary? _summary;
+
+    /// <summary>Loads the initial summary.</summary>
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task OnShiftChanged(ShiftFilter shift)
+    {
+        _shift = shift;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _summary = await DashboardService.GetFactorySummaryAsync(_shift);
+    }
+
+    private static string DivisionLabel(Division division) => division switch
+    {
+        Division.Egl => "EGL",
+        Division.FunctionalSupport => "Functional Support",
+        Division.Brg => "BRG",
+        _ => division.ToString()
+    };
+}

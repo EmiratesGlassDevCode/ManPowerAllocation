@@ -1,0 +1,34 @@
+@inherits LayoutComponentBase
+
+@*
+    Application shell: a top bar showing the signed-in user and a prominent banner whenever the
+    session is an emergency break-glass session, plus the primary navigation.
+*@
+<div class="page">
+    <header class="topbar">
+        <div class="topbar-brand">
+            <span class="topbar-logo">M</span>
+            <span>Manpower Allocation Dashboard</span>
+        </div>
+        <div class="topbar-user">
+            <AuthorizeView>
+                <Authorized>
+                    <span class="topbar-name">@context.User.Identity?.Name</span>
+                    <form action="/auth/logout" method="post" style="display:inline">
+                        <AntiforgeryToken />
+                        <button type="submit" class="link-button">Sign out</button>
+                    </form>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    </header>
+
+    <BreakGlassBanner />
+
+    <div class="body">
+        <NavMenu />
+        <main class="content">
+            @Body
+        </main>
+    </div>
+</div>

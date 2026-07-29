@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Infrastructure layer: EF Core (MSSQL) persistence, the audit interceptor/writer,
+    the break-glass service and its background worker, outbound alerting, and Excel
+    import parsing. Implements the abstractions declared in the application layer.
+  -->
+  <PropertyGroup>
+    <RootNamespace>ManpowerAllocation.Infrastructure</RootNamespace>
+    <AssemblyName>ManpowerAllocation.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.104.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ManpowerAllocation.Application\ManpowerAllocation.Application.csproj" />
+    <ProjectReference Include="..\ManpowerAllocation.Domain\ManpowerAllocation.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

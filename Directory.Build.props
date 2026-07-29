@@ -1,0 +1,27 @@
+<Project>
+
+  <!--
+    Shared build settings for every project in the Manpower Allocation solution.
+    Centralised here so the security- and quality-relevant switches (nullable
+    reference types, XML documentation) cannot drift between projects.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Produce XML documentation so public methods are documented (per the coding standard). -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!--
+      CS1591 (missing XML comment) is suppressed only for compiler-generated members of
+      positional record DTOs; public methods and types are documented explicitly in source.
+    -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!-- Run the standard .NET analyzers. -->
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+
+</Project>

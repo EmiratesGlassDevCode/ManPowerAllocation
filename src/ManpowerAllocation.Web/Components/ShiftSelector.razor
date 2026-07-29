@@ -1,0 +1,36 @@
+@using ManpowerAllocation.Application.Dashboard
+
+@*
+    Small reusable All / Day / Night shift selector used by every dashboard screen.
+*@
+<div class="shift-selector">
+    <span class="shift-label">Shift:</span>
+    @foreach (var option in Options)
+    {
+        <button type="button"
+                class="shift-button @(option == Value ? "active" : string.Empty)"
+                @onclick="() => Select(option)">
+            @option
+        </button>
+    }
+</div>
+
+@code {
+    private static readonly ShiftFilter[] Options = { ShiftFilter.All, ShiftFilter.Day, ShiftFilter.Night };
+
+    /// <summary>The currently selected shift filter.</summary>
+    [Parameter]
+    public ShiftFilter Value { get; set; }
+
+    /// <summary>Raised when the selection changes.</summary>
+    [Parameter]
+    public EventCallback<ShiftFilter> ValueChanged { get; set; }
+
+    private async Task Select(ShiftFilter option)
+    {
+        if (option != Value)
+        {
+            await ValueChanged.InvokeAsync(option);
+        }
+    }
+}

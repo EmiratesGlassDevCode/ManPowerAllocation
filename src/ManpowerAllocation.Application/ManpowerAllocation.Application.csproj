@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Application layer: use-case services, DTOs, validation and the abstractions the
+    outer layers implement. Depends on the Domain and on EF Core abstractions only
+    (via IApplicationDbContext) so it stays free of a concrete database provider.
+  -->
+  <PropertyGroup>
+    <RootNamespace>ManpowerAllocation.Application</RootNamespace>
+    <AssemblyName>ManpowerAllocation.Application</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="11.9.2" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.9.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ManpowerAllocation.Domain\ManpowerAllocation.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

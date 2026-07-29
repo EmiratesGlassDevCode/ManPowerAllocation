@@ -1,0 +1,106 @@
+@page "/admin/roles"
+@using ManpowerAllocation.Application.Roles
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IRoleService RoleService
+
+<PageTitle>Role Assignments — Manpower Allocation</PageTitle>
+
+<h1>Role Assignments</h1>
+<p class="hint">
+    Grants a role to an Entra ID user by their object id. The application stores only this
+    mapping — never a password or any other credential.
+</p>
+
+<div class="form-inline">
+    <label>Entra object id
+        <input type="text" @bind="_objectId" placeholder="00000000-0000-0000-0000-000000000000" />
+    </label>
+    <label>Display name
+        <input type="text" @bind="_displayName" />
+    </label>
+    <label>Role
+        <select @bind="_role">
+            @foreach (var role in Enum.GetValues<UserRole>())
+            {
+                <option value="@role">@role</option>
+            }
+        </select>
+    </label>
+    <button type="button" @onclick="SaveAsync">Save</button>
+</div>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <p class="message">@_message</p>
+}
+
+<table class="grid">
+    <thead>
+        <tr><th>Display name</th><th>Entra object id</th><th>Role</th><th>Created (UTC)</th><th></th></tr>
+    </thead>
+    <tbody>
+        @foreach (var assignment in _assignments)
+        {
+            <tr>
+                <td>@assignment.DisplayName</td>
+                <td class="mono">@assignment.EntraObjectId</td>
+                <td>@assignment.Role</td>
+                <td>@assignment.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                <td><button type="button" @onclick="() => DeleteAsync(assignment.Id)">Remove</button></td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<RoleAssignmentDto> _assignments = new();
+    private string _objectId = string.Empty;
+    private string _displayName = string.Empty;
+    private UserRole _role = UserRole.Viewer;
+    private string? _message;
+
+    /// <summary>Loads the current assignments.</summary>
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _assignments = (await RoleService.GetAllAsync()).ToList();
+    }
+
+    private async Task SaveAsync()
+    {
+        _message = null;
+        try
+        {
+            await RoleService.UpsertAsync(new UpsertRoleRequest
+            {
+                EntraObjectId = _objectId,
+                DisplayName = _displayName,
+                Role = _role
+            });
+            _objectId = string.Empty;
+            _displayName = string.Empty;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            // The service messages here are safe, business-level messages.
+            _message = ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        _message = null;
+        try
+        {
+            await RoleService.DeleteAsync(id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _message = ex.Message;
+        }
+    }
+}

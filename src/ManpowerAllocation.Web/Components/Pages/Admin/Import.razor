@@ -1,0 +1,96 @@
+@page "/admin/import"
+@using ManpowerAllocation.Application.Import
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IMasterDataImportService ImportService
+
+<PageTitle>Master Data Import — Manpower Allocation</PageTitle>
+
+<h1>Master Data Import</h1>
+<p class="hint">
+    One-time seeding of attendance and requirements from an Excel workbook. This is Admin-only;
+    every imported record is persisted to the governed database and the import is recorded in the
+    audit trail. Day-to-day changes are made through the dashboards, not by re-importing.
+</p>
+
+<section class="import-block">
+    <h2>Attendance workbook</h2>
+    <p>Sheets recognised: EGL / Functional Support / BRG.</p>
+    <label>
+        <input type="checkbox" @bind="_replaceExisting" />
+        Replace employees for divisions that already contain data
+    </label>
+    <InputFile OnChange="OnAttendanceSelected" accept=".xlsx" />
+</section>
+
+<section class="import-block">
+    <h2>Requirements workbook</h2>
+    <InputFile OnChange="OnRequirementsSelected" accept=".xlsx" />
+</section>
+
+@if (_busy)
+{
+    <p><em>Importing…</em></p>
+}
+
+@if (_result is not null)
+{
+    <div class="message">
+        Departments created: @_result.DepartmentsCreated,
+        updated: @_result.DepartmentsUpdated,
+        employees imported: @_result.EmployeesImported,
+        removed: @_result.EmployeesRemoved.
+        @if (_result.Warnings.Count > 0)
+        {
+            <ul>
+                @foreach (var warning in _result.Warnings)
+                {
+                    <li>@warning</li>
+                }
+            </ul>
+        }
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <p class="message error">@_error</p>
+}
+
+@code {
+    private const long MaxUploadBytes = 20 * 1024 * 1024;
+
+    private bool _replaceExisting;
+    private bool _busy;
+    private ImportResult? _result;
+    private string? _error;
+
+    private Task OnAttendanceSelected(InputFileChangeEventArgs e) =>
+        RunImportAsync(stream => ImportService.ImportAttendanceAsync(stream, _replaceExisting), e);
+
+    private Task OnRequirementsSelected(InputFileChangeEventArgs e) =>
+        RunImportAsync(stream => ImportService.ImportRequirementsAsync(stream), e);
+
+    private async Task RunImportAsync(Func<Stream, Task<ImportResult>> import, InputFileChangeEventArgs e)
+    {
+        _result = null;
+        _error = null;
+        _busy = true;
+        try
+        {
+            // Copy to a seekable in-memory stream: the spreadsheet reader requires random access.
+            using var buffer = new MemoryStream();
+            await e.File.OpenReadStream(MaxUploadBytes).CopyToAsync(buffer);
+            buffer.Position = 0;
+            _result = await import(buffer);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

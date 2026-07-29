@@ -1,0 +1,30 @@
+# .NET build output
+bin/
+obj/
+out/
+
+# Rider / VS / VS Code
+.idea/
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Local secrets — NEVER commit real Entra ID or break-glass secrets
+appsettings.*.local.json
+secrets.json
+*.pfx
+*.env
+
+# EF Core
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

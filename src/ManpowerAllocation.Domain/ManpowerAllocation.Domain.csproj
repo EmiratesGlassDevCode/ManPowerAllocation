@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Domain layer: entities, enums and pure business invariants only.
+    Deliberately has no package or project references so the core model
+    stays free of infrastructure and framework concerns.
+  -->
+  <PropertyGroup>
+    <RootNamespace>ManpowerAllocation.Domain</RootNamespace>
+    <AssemblyName>ManpowerAllocation.Domain</AssemblyName>
+  </PropertyGroup>
+
+</Project>

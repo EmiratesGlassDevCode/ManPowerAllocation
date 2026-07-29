@@ -1,0 +1,48 @@
+@page "/admin/break-glass"
+@using ManpowerAllocation.Application.BreakGlass
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IBreakGlassService BreakGlassService
+
+<PageTitle>Break-glass Status — Manpower Allocation</PageTitle>
+
+<h1>Emergency Break-glass Account</h1>
+<div class="hint">
+    <p>
+        This account exists only for use when Entra ID itself is unreachable. It is
+        <strong>disabled by default</strong> and can be enabled <strong>only</strong> by a manual
+        change in the database — never from this or any other screen. On enable, and on every login,
+        an alert is sent to the IT Head, and it auto-disables four hours after being enabled. Every
+        action taken during a break-glass session is flagged in the audit trail.
+    </p>
+</div>
+
+@if (_status is null)
+{
+    <p><em>Loading…</em></p>
+}
+else
+{
+    <table class="grid">
+        <tbody>
+            <tr><th>Currently enabled</th><td>@(_status.IsEnabled ? "YES" : "No")</td></tr>
+            <tr><th>Enabled at (UTC)</th><td>@Format(_status.EnabledAtUtc)</td></tr>
+            <tr><th>Auto-disables at (UTC)</th><td>@Format(_status.AutoDisableAtUtc)</td></tr>
+            <tr><th>Last login (UTC)</th><td>@Format(_status.LastLoginAtUtc)</td></tr>
+            <tr><th>Enable reason</th><td>@_status.EnableReason</td></tr>
+        </tbody>
+    </table>
+}
+
+@code {
+    private BreakGlassStatusDto? _status;
+
+    /// <summary>Loads the current break-glass status.</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        _status = await BreakGlassService.GetStatusAsync();
+    }
+
+    private static string Format(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—";
+}

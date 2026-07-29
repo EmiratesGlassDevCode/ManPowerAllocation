@@ -1,0 +1,23 @@
+@using ManpowerAllocation.Web.Security
+
+@*
+    Shows an unmissable banner whenever the current session was established through the emergency
+    break-glass path, reinforcing that these actions are audited distinctly.
+*@
+<AuthorizeView>
+    <Authorized>
+        @if (IsBreakGlass(context.User))
+        {
+            <div class="breakglass-banner" role="alert">
+                ⚠ EMERGENCY BREAK-GLASS SESSION — all actions are being audited and flagged.
+                This account auto-disables four hours after it was enabled.
+            </div>
+        }
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    /// <summary>Returns true when the principal carries the break-glass session claim.</summary>
+    private static bool IsBreakGlass(System.Security.Claims.ClaimsPrincipal user) =>
+        string.Equals(user.FindFirst(AppClaimTypes.BreakGlass)?.Value, "true", StringComparison.OrdinalIgnoreCase);
+}

@@ -1,0 +1,13 @@
+@*
+    Triggers the Entra ID sign-in flow by force-navigating to the Microsoft.Identity.Web
+    challenge endpoint. Used when an unauthenticated user reaches a protected route.
+*@
+@inject NavigationManager Navigation
+
+@code {
+    /// <summary>Redirects the browser to the Entra ID sign-in endpoint on first render.</summary>
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("MicrosoftIdentity/Account/SignIn", forceLoad: true);
+    }
+}

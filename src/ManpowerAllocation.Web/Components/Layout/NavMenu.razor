@@ -1,0 +1,22 @@
+@using ManpowerAllocation.Web.Security
+
+@*
+    Primary navigation. Admin links are only shown to administrators; this is a usability aid,
+    not a security control — the Admin pages and their endpoints enforce the role server-side.
+*@
+<nav class="nav">
+    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Summary</NavLink>
+    <NavLink class="nav-link" href="division/Egl">EGL</NavLink>
+    <NavLink class="nav-link" href="division/FunctionalSupport">Functional Support</NavLink>
+    <NavLink class="nav-link" href="division/Brg">BRG</NavLink>
+
+    <AuthorizeView Policy="@AuthorizationPolicies.RequireAdmin">
+        <Authorized>
+            <div class="nav-section">Administration</div>
+            <NavLink class="nav-link" href="admin/roles">Role Assignments</NavLink>
+            <NavLink class="nav-link" href="admin/import">Master Data Import</NavLink>
+            <NavLink class="nav-link" href="admin/break-glass">Break-glass Status</NavLink>
+            <NavLink class="nav-link" href="admin/audit">Audit Trail</NavLink>
+        </Authorized>
+    </AuthorizeView>
+</nav>

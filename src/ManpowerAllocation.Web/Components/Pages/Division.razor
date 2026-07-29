@@ -1,0 +1,160 @@
+@page "/division/{DivisionName}"
+@using ManpowerAllocation.Application.Dashboard
+@using ManpowerAllocation.Application.Departments
+@using ManpowerAllocation.Application.Employees
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize]
+@inject IDashboardService DashboardService
+@inject IEmployeeService EmployeeService
+@inject IDepartmentService DepartmentService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>@_label — Manpower Allocation</PageTitle>
+
+@if (_division is null)
+{
+    <h1>Unknown division</h1>
+    <p>The requested division does not exist.</p>
+}
+else
+{
+    <h1>@_label</h1>
+    <ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
+
+    @if (_dashboard is null)
+    {
+        <p><em>Loading…</em></p>
+    }
+    else
+    {
+        <div class="division-totals">
+            Present <strong>@_dashboard.Totals.TotalPresent</strong> /
+            required <strong>@_dashboard.Totals.Required</strong>,
+            absent @_dashboard.Totals.Absent, vacation @_dashboard.Totals.OnVacation,
+            outsource present @_dashboard.Totals.SupplyPresent.
+        </div>
+
+        <div class="dept-grid">
+            @foreach (var dept in _dashboard.Departments)
+            {
+                <div class="dept-card status-@(dept.Status.ToString().ToLowerInvariant())">
+                    <div class="dept-card-head">
+                        <span class="dept-name">@dept.Name</span>
+                        <span class="dept-status">@dept.Status</span>
+                    </div>
+                    <div class="dept-card-body">
+                        <div>Required: @dept.Required &nbsp; Present: @dept.TotalPresent &nbsp; Variance: @dept.Variance</div>
+                        <div>Absent: @dept.Absent &nbsp; Vacation: @dept.OnVacation &nbsp; Outsource: @dept.SupplyPresent</div>
+
+                        @if (_canEdit)
+                        {
+                            <label class="dept-toggle">
+                                <input type="checkbox" checked="@dept.IsActive"
+                                       @onchange="e => ToggleDepartmentAsync(dept.DepartmentId, (bool)e.Value!)" />
+                                Active
+                            </label>
+                        }
+
+                        @if (_employeesByDepartment.TryGetValue(dept.DepartmentId, out var members))
+                        {
+                            <ul class="emp-list">
+                                @foreach (var emp in members)
+                                {
+                                    <li class="emp-row">
+                                        <span class="emp-name">@emp.Name @(emp.IsSupply ? "(outsource)" : string.Empty)</span>
+                                        <span class="emp-shift">@emp.Shift</span>
+                                        <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@emp.Status</span>
+                                        @if (_canEdit)
+                                        {
+                                            <span class="emp-actions">
+                                                <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Present)">P</button>
+                                                <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">A</button>
+                                                <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">V</button>
+                                            </span>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    /// <summary>The division name from the route.</summary>
+    [Parameter]
+    public string? DivisionName { get; set; }
+
+    private Division? _division;
+    private string _label = string.Empty;
+    private ShiftFilter _shift = ShiftFilter.All;
+    private DivisionDashboard? _dashboard;
+    private Dictionary<int, List<EmployeeDto>> _employeesByDepartment = new();
+    private bool _canEdit;
+
+    /// <summary>Resolves the division, the caller's edit permission and the initial data.</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Enum.TryParse<Division>(DivisionName, ignoreCase: true, out var division))
+        {
+            _division = division;
+            _label = division switch
+            {
+                Division.Egl => "EGL Departments",
+                Division.FunctionalSupport => "Functional Support Departments",
+                Division.Brg => "BRG Departments",
+                _ => division.ToString()
+            };
+
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            _canEdit = HasAtLeastUser(authState.User);
+
+            await LoadAsync();
+        }
+        else
+        {
+            _division = null;
+        }
+    }
+
+    private async Task OnShiftChanged(ShiftFilter shift)
+    {
+        _shift = shift;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_division is null)
+        {
+            return;
+        }
+
+        _dashboard = await DashboardService.GetDivisionDashboardAsync(_division.Value, _shift);
+        var employees = await EmployeeService.GetByDivisionAsync(_division.Value);
+        _employeesByDepartment = employees
+            .GroupBy(e => e.DepartmentId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+
+    private async Task SetStatusAsync(int employeeId, AttendanceStatus status)
+    {
+        await EmployeeService.ChangeStatusAsync(employeeId, new ChangeStatusRequest { Status = status });
+        await LoadAsync();
+    }
+
+    private async Task ToggleDepartmentAsync(int departmentId, bool isActive)
+    {
+        await DepartmentService.SetActiveAsync(departmentId, isActive);
+        await LoadAsync();
+    }
+
+    private static bool HasAtLeastUser(System.Security.Claims.ClaimsPrincipal user)
+    {
+        var raw = user.FindFirst(AppClaimTypes.AppRole)?.Value;
+        return Enum.TryParse<UserRole>(raw, out var role) && role >= UserRole.User;
+    }
+}

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Web layer: Blazor Server (Fluent UI) front-end plus the governed Minimal API surface.
+    Hosts authentication (Entra ID via Microsoft.Identity.Web), security hardening,
+    role-based authorization and structured logging.
+  -->
+  <PropertyGroup>
+    <RootNamespace>ManpowerAllocation.Web</RootNamespace>
+    <AssemblyName>ManpowerAllocation.Web</AssemblyName>
+    <UserSecretsId>manpower-allocation-web</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.11.1" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="3.3.0" />
+    <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ManpowerAllocation.Application\ManpowerAllocation.Application.csproj" />
+    <ProjectReference Include="..\ManpowerAllocation.Infrastructure\ManpowerAllocation.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

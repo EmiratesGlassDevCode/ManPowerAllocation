@@ -1,0 +1,53 @@
+@page "/admin/audit"
+@using ManpowerAllocation.Application.Auditing
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IAuditReadService AuditReadService
+
+<PageTitle>Audit Trail — Manpower Allocation</PageTitle>
+
+<h1>Audit Trail</h1>
+
+<label>
+    <input type="checkbox" @bind="_breakGlassOnly" @bind:after="LoadAsync" />
+    Show only break-glass sessions
+</label>
+
+@if (_entries is null)
+{
+    <p><em>Loading…</em></p>
+}
+else
+{
+    <table class="grid">
+        <thead>
+            <tr><th>Time (UTC)</th><th>User</th><th>Action</th><th>Entity</th><th>Record</th><th>Break-glass</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var entry in _entries)
+            {
+                <tr class="@(entry.IsBreakGlassSession ? "breakglass-row" : string.Empty)">
+                    <td>@entry.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td>@(entry.UserDisplayName ?? entry.UserId)</td>
+                    <td>@entry.Action</td>
+                    <td>@entry.EntityName</td>
+                    <td>@entry.RecordId</td>
+                    <td>@(entry.IsBreakGlassSession ? "YES" : string.Empty)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<AuditLogDto>? _entries;
+    private bool _breakGlassOnly;
+
+    /// <summary>Loads the most recent audit entries.</summary>
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _entries = await AuditReadService.GetRecentAsync(200, _breakGlassOnly);
+    }
+}
