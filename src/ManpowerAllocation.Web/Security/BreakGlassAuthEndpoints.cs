@@ -3,6 +3,7 @@ using ManpowerAllocation.Application.BreakGlass;
 using ManpowerAllocation.Domain.Enums;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 
 namespace ManpowerAllocation.Web.Security;
 
@@ -25,10 +26,28 @@ public static class BreakGlassAuthEndpoints
             .DisableAntiforgery()
             .RequireRateLimiting(Api.ApiEndpoints.RateLimitPolicy);
 
-        app.MapPost("/auth/logout", async (HttpContext context) =>
+        app.MapPost("/auth/logout", (HttpContext context) =>
             {
-                await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-                return Results.LocalRedirect("/");
+                var isBreakGlass = string.Equals(
+                    context.User.FindFirstValue(AppClaimTypes.BreakGlass),
+                    "true",
+                    StringComparison.OrdinalIgnoreCase);
+
+                var properties = new AuthenticationProperties { RedirectUri = "/" };
+
+                // Break-glass sessions are local-only, so clearing the cookie is a complete
+                // sign-out. Entra sessions must ALSO end the federated session at the identity
+                // provider; otherwise the next request to a protected route is silently
+                // re-authenticated by the still-active SSO session and sign-out appears to do
+                // nothing. Signing out the OpenID Connect scheme redirects to Entra's
+                // end-session endpoint and back to the configured SignedOutCallbackPath.
+                return isBreakGlass
+                    ? Results.SignOut(properties, new[] { CookieAuthenticationDefaults.AuthenticationScheme })
+                    : Results.SignOut(properties, new[]
+                        {
+                            CookieAuthenticationDefaults.AuthenticationScheme,
+                            OpenIdConnectDefaults.AuthenticationScheme
+                        });
             });
     }
 

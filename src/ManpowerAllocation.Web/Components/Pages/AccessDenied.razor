@@ -1,4 +1,6 @@
 @page "/access-denied"
+@using System.Security.Claims
+@using Microsoft.Identity.Web
 @attribute [AllowAnonymous]
 
 <PageTitle>Access Denied — Manpower Allocation</PageTitle>
@@ -7,6 +9,51 @@
     <h1>Access Denied</h1>
     <p>
         You are signed in, but your account has not been granted a role in this application.
-        Please contact IT to request access.
+        Please contact IT and quote the details below so they can grant you access.
     </p>
+
+    @if (_objectId is not null)
+    {
+        <table class="grid access-detail">
+            <tbody>
+                <tr><th>Signed in as</th><td>@(_displayName ?? "—")</td></tr>
+                <tr><th>Sign-in name</th><td>@(_userName ?? "—")</td></tr>
+                <tr><th>Entra Object ID</th><td><code>@_objectId</code></td></tr>
+            </tbody>
+        </table>
+        <p class="hint">
+            IT: grant access by adding this Object ID to the role table (Admin → Roles),
+            or directly in the database.
+        </p>
+    }
+
+    <p><a href="MicrosoftIdentity/Account/SignOut">Sign out</a></p>
 </div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private string? _objectId;
+    private string? _displayName;
+    private string? _userName;
+
+    /// <summary>Reads the signed-in identity so the user can quote the exact Object ID to IT.</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthenticationState is null)
+        {
+            return;
+        }
+
+        var user = (await AuthenticationState).User;
+        if (user.Identity?.IsAuthenticated != true)
+        {
+            return;
+        }
+
+        _objectId = user.GetObjectId();
+        _displayName = user.FindFirst("name")?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value;
+        _userName = user.FindFirst("preferred_username")?.Value ?? user.FindFirst(ClaimTypes.Upn)?.Value;
+    }
+}

@@ -1,15 +1,21 @@
 :root {
-    --bg: #0f1117;
+    --bg: #0b0e16;
     --panel: #161b27;
     --panel-2: #1e2535;
     --border: #2e3a52;
+    --border2: #3a4a68;
     --text: #e8ecf4;
     --muted: #a0aec0;
     --blue: #3b82f6;
     --green: #22c55e;
+    --green-lt: #14301e;
     --red: #ef4444;
     --amber: #f59e0b;
     --cyan: #06b6d4;
+    --purple: #a855f7;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.25);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,.45);
+    --radius: 12px;
 }
 
 * { box-sizing: border-box; }
@@ -222,3 +228,88 @@ button.primary { background: var(--blue); border-color: var(--blue); color: #fff
 }
 #blazor-error-ui .reload { color: #1a1200; font-weight: 700; }
 #blazor-error-ui .dismiss { cursor: pointer; float: right; }
+
+/* ============================================================================
+   Visual polish layer: depth, motion and gradient accents. Purely cosmetic —
+   no layout structure changes, so it is safe over the functional styles above.
+   ============================================================================ */
+
+body {
+    background:
+        radial-gradient(1200px 600px at 80% -10%, rgba(59,130,246,.10), transparent 60%),
+        radial-gradient(900px 500px at 0% 110%, rgba(168,85,247,.08), transparent 55%),
+        var(--bg);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Elevated surfaces */
+.topbar { box-shadow: var(--shadow); position: sticky; top: 0; z-index: 50; }
+.stat-card, .sum-panel, .alert-panel, .dept-card, .kpi,
+.import-block, .notice, .breakglass-login, .factory-total, .division-totals {
+    box-shadow: var(--shadow);
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+
+/* Interactive lift on clickable/statistical cards */
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--blue); }
+.dept-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.kpi:hover { transform: translateY(-1px); }
+
+/* KPI cards: subtle top accent so the row reads as a dashboard, not a list */
+.kpi { position: relative; overflow: hidden; background: linear-gradient(180deg, var(--panel-2), var(--panel)); }
+.kpi::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 3px; background: var(--blue); opacity: .8; }
+
+/* Stat cards on the summary get a division-coloured spine */
+.stat-card { position: relative; overflow: hidden; }
+.stat-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--blue), var(--purple)); }
+
+/* Department card heads get a faint tint that matches their status border */
+.dept-card-head { background: linear-gradient(180deg, rgba(255,255,255,.03), transparent); }
+.dept-card.status-short .dept-card-head { background: linear-gradient(180deg, rgba(239,68,68,.10), transparent); }
+.dept-card.status-excess .dept-card-head { background: linear-gradient(180deg, rgba(6,182,212,.10), transparent); }
+.dept-card.status-optimal .dept-card-head { background: linear-gradient(180deg, rgba(34,197,94,.10), transparent); }
+
+/* Buttons: gradient, hover and press feedback */
+button, button.primary {
+    background: linear-gradient(180deg, #4a90ff, var(--blue));
+    box-shadow: 0 1px 2px rgba(0,0,0,.3);
+    transition: filter .12s ease, transform .06s ease;
+}
+button:hover { filter: brightness(1.08); }
+button:active { transform: translateY(1px); }
+.link-button, .link { background: none; box-shadow: none; }
+.link-button:hover, .link:hover { filter: none; text-decoration: underline; }
+
+/* Inputs: clearer focus ring for a more finished feel */
+input:focus, select:focus {
+    outline: none; border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(59,130,246,.25);
+}
+
+/* Progress bars: gradient fill and a soft glow */
+.bar-fill { background: linear-gradient(90deg, #16a34a, var(--green)); transition: width .3s ease; }
+.fill-short { background: linear-gradient(90deg, #b91c1c, var(--red)); }
+.fill-excess { background: linear-gradient(90deg, #0891b2, var(--cyan)); }
+
+/* Nav active state: accent bar on the left */
+.nav-link { position: relative; transition: background .12s ease, color .12s ease; }
+.nav-link.active::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--blue); }
+
+/* Table rows: gentle hover for scannability */
+.grid tbody tr { transition: background .1s ease; }
+.grid tbody tr:hover { background: rgba(255,255,255,.03); }
+
+/* Modal: stronger elevation and a fade-in */
+.modal { box-shadow: var(--shadow-lg); animation: modal-in .16s ease-out; }
+@keyframes modal-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* Access-denied identity table */
+.access-detail { max-width: 520px; }
+.access-detail th { width: 150px; color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0; }
+.access-detail code { color: var(--cyan); font-family: 'Consolas', monospace; }
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+}

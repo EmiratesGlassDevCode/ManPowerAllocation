@@ -35,6 +35,45 @@ builder.Services
 builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, options =>
 {
     options.ResponseType = "code";
+
+    // The identity library shows a generic "We couldn't sign you in" page and swallows the
+    // underlying reason. Chain onto the existing handlers to log the real failure (invalid
+    // client secret, missing admin consent, correlation failure after a Data Protection key
+    // change, reply-URL mismatch, etc.) so operators can diagnose it. No tokens or secrets are
+    // logged — only the provider error and message.
+    var previousRemoteFailure = options.Events.OnRemoteFailure;
+    options.Events.OnRemoteFailure = async context =>
+    {
+        var logger = context.HttpContext.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Authentication.OpenIdConnect");
+        logger.LogError(
+            context.Failure,
+            "Sign-in failed at the OpenID Connect callback: {Message}",
+            context.Failure?.Message);
+
+        if (previousRemoteFailure is not null)
+        {
+            await previousRemoteFailure(context);
+        }
+    };
+
+    var previousAuthFailed = options.Events.OnAuthenticationFailed;
+    options.Events.OnAuthenticationFailed = async context =>
+    {
+        var logger = context.HttpContext.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Authentication.OpenIdConnect");
+        logger.LogError(
+            context.Exception,
+            "Sign-in token validation failed: {Message}",
+            context.Exception?.Message);
+
+        if (previousAuthFailed is not null)
+        {
+            await previousAuthFailed(context);
+        }
+    };
 });
 
 // Harden the session cookie: HttpOnly, Secure and SameSite=Strict, as mandated.
