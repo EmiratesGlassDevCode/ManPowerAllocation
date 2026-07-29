@@ -28,9 +28,12 @@ public sealed class AttendanceReadDbContext : DbContext
         {
             entity.HasNoKey();
             entity.ToView("xxeg_attendance_v", "dbo");
-            entity.Property(r => r.EmployeeId).HasColumnName("Employee ID");
-            entity.Property(r => r.Dt).HasColumnName("Dt");
-            entity.Property(r => r.InTime).HasColumnName("Intime");
+            // Column names below match the external view exactly. SQL Server column names are
+            // case-insensitive, so "dt"/"InTime" resolve fine, but the employee identifier column
+            // is genuinely named "EmpID" in the source view (not "Employee ID").
+            entity.Property(r => r.EmployeeId).HasColumnName("EmpID");
+            entity.Property(r => r.Dt).HasColumnName("dt");
+            entity.Property(r => r.InTime).HasColumnName("InTime");
             entity.Property(r => r.OutTime).HasColumnName("OutTime");
         });
     }
