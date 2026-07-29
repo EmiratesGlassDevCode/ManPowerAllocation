@@ -121,15 +121,15 @@ else
 
             _shortage.AddRange(dashboard.Departments
                 .Where(d => d.Status == DepartmentStaffingStatus.Short)
-                .Select(d => $"{d.Name} · {DivisionLabel(division)} ({d.Variance})"));
+                .Select(d => $"{TextCase.Title(d.Name)} · {DivisionLabel(division)} ({d.Variance})"));
 
             var employees = (await EmployeeService.GetByDivisionAsync(division)).Where(MatchesShift).ToList();
             _absent.AddRange(employees.Where(e => !e.IsSupply && e.Status == AttendanceStatus.Absent)
-                .Select(e => $"{e.Name} · {e.DepartmentName}"));
+                .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(e.DepartmentName)}"));
             _vacation.AddRange(employees.Where(e => !e.IsSupply && e.Status == AttendanceStatus.OnVacation)
-                .Select(e => $"{e.Name} · {e.DepartmentName}"));
+                .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(e.DepartmentName)}"));
             _outsource.AddRange(employees.Where(e => e.IsSupply && e.Status == AttendanceStatus.Present)
-                .Select(e => $"{e.Name} · {e.DepartmentName}"));
+                .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(e.DepartmentName)}"));
         }
 
         _loaded = true;

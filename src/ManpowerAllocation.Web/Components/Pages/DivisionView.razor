@@ -77,7 +77,7 @@ else
                 var util = dept.Required > 0 ? Math.Min((int)Math.Round(dept.TotalPresent * 100.0 / dept.Required), 130) : (dept.TotalPresent > 0 ? 100 : 0);
                 <div class="dept-card status-@(dept.Status.ToString().ToLowerInvariant())">
                     <div class="dept-card-head">
-                        <span class="dept-name" @onclick="() => OpenDeptModal(dept)">@dept.Name</span>
+                        <span class="dept-name" @onclick="() => OpenDeptModal(dept)">@TextCase.Title(dept.Name)</span>
                         @if (_canEdit)
                         {
                             <FluentSwitch Value="@dept.IsActive"
@@ -113,7 +113,7 @@ else
                                 @foreach (var emp in members)
                                 {
                                     <li class="emp-row">
-                                        <span class="emp-name">@emp.Name @(emp.IsSupply ? "(OS)" : string.Empty)</span>
+                                        <span class="emp-name">@TextCase.Title(emp.Name) @(emp.IsSupply ? "(OS)" : string.Empty)</span>
                                         <span class="emp-shift">@emp.Shift</span>
                                         <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@emp.Status</span>
                                         @if (_canEdit && !emp.IsSupply)
@@ -132,7 +132,7 @@ else
                                                     <option value="0">Move to…</option>
                                                     @foreach (var d in _departments.Where(d => d.Id != emp.DepartmentId))
                                                     {
-                                                        <option value="@d.Id">@d.Name</option>
+                                                        <option value="@d.Id">@TextCase.Title(d.Name)</option>
                                                     }
                                                 </select>
                                             </span>
@@ -184,7 +184,7 @@ else
 {
     <div class="modal-bg" @onclick="() => _modalDept = null">
         <div class="modal wide" @onclick:stopPropagation="true">
-            <h3>@_modalDept.Name</h3>
+            <h3>@TextCase.Title(_modalDept.Name)</h3>
             <div class="kpi-row">
                 <div class="kpi"><div class="kpi-val sv-blue">@_modalDept.TotalPresent</div><div class="kpi-lbl">Present</div></div>
                 <div class="kpi"><div class="kpi-val">@_modalDept.Required</div><div class="kpi-lbl">Required</div></div>
@@ -200,7 +200,7 @@ else
                         @foreach (var e in mem)
                         {
                             <tr>
-                                <td>@e.Name @(e.IsSupply ? "(OS)" : "")</td>
+                                <td>@TextCase.Title(e.Name) @(e.IsSupply ? "(OS)" : "")</td>
                                 <td>@e.BadgeNumber</td>
                                 <td>@e.Shift</td>
                                 <td class="status-@(e.Status.ToString().ToLowerInvariant())">@e.Status</td>
@@ -336,15 +336,15 @@ else
 
     private List<string> AbsentList() =>
         _employees.Where(MatchesShift).Where(e => !e.IsSupply && e.Status == AttendanceStatus.Absent)
-            .Select(e => $"{e.Name} · {e.DepartmentName}").ToList();
+            .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(e.DepartmentName)}").ToList();
 
     private List<string> VacationList() =>
         _employees.Where(MatchesShift).Where(e => !e.IsSupply && e.Status == AttendanceStatus.OnVacation)
-            .Select(e => $"{e.Name} · {e.DepartmentName}").ToList();
+            .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(e.DepartmentName)}").ToList();
 
     private List<string> OutsourceList() =>
         _employees.Where(MatchesShift).Where(e => e.IsSupply && e.Status == AttendanceStatus.Present)
-            .Select(e => $"{e.Name} · {e.DepartmentName}").ToList();
+            .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(e.DepartmentName)}").ToList();
 
     private List<string> ExcessList()
     {
@@ -364,11 +364,11 @@ else
             if (dept.Status == DepartmentStaffingStatus.Off)
             {
                 result.AddRange(members.Where(e => e.Status == AttendanceStatus.Present)
-                    .Select(e => $"{e.Name} · {dept.Name} (dept OFF)"));
+                    .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(dept.Name)} (dept OFF)"));
             }
             else if (dept.Variance > 0)
             {
-                result.Add($"{dept.Name}: {dept.Variance} over required");
+                result.Add($"{TextCase.Title(dept.Name)}: {dept.Variance} over required");
             }
         }
 

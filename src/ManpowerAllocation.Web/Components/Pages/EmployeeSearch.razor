@@ -32,10 +32,10 @@
                 @foreach (var e in _results)
                 {
                     <tr>
-                        <td>@e.Name @(e.IsSupply ? "(OS)" : "")</td>
+                        <td>@TextCase.Title(e.Name) @(e.IsSupply ? "(OS)" : "")</td>
                         <td>@e.BadgeNumber</td>
                         <td>@e.Division</td>
-                        <td>@e.DepartmentName</td>
+                        <td>@TextCase.Title(e.DepartmentName)</td>
                         <td>@e.Shift</td>
                         <td class="status-@(e.Status.ToString().ToLowerInvariant())">@e.Status</td>
                         <td>@e.Notes</td>
