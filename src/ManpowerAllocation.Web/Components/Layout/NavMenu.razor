@@ -1,7 +1,9 @@
 @using ManpowerAllocation.Web.Security
 @using ManpowerAllocation.Application.Attendance
+@using ManpowerAllocation.Application.Departments
 @inject AttendanceSyncStatus SyncStatus
 @inject DisplayTimeZone Time
+@inject IDepartmentService DepartmentService
 
 @*
     Primary navigation. Admin links are only shown to administrators; this is a usability aid,
@@ -10,27 +12,27 @@
     biometric attendance-sync health.
 *@
 <nav class="nav">
-    <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><span class="nav-ico" style="background:#0f6cbd"></span>Summary</NavLink>
-    <NavLink class="nav-link" href="division/Egl"><span class="nav-ico" style="background:#038387"></span>EGL</NavLink>
-    <NavLink class="nav-link" href="division/FunctionalSupport"><span class="nav-ico" style="background:#5c2e91"></span>Functional Support</NavLink>
-    <NavLink class="nav-link" href="division/Brg"><span class="nav-ico" style="background:#c19c00"></span>BRG</NavLink>
-    <NavLink class="nav-link" href="search"><span class="nav-ico" style="background:#0e700e"></span>Employee Search</NavLink>
+    <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><span class="nav-ico" style="background:var(--brand)"></span>Summary</NavLink>
+    <NavLink class="nav-link" href="division/Egl"><span class="nav-ico" style="background:var(--brand)"></span>EGL@DivisionCount(Division.Egl)</NavLink>
+    <NavLink class="nav-link" href="division/FunctionalSupport"><span class="nav-ico" style="background:var(--info)"></span>Functional Support@DivisionCount(Division.FunctionalSupport)</NavLink>
+    <NavLink class="nav-link" href="division/Brg"><span class="nav-ico" style="background:var(--magenta)"></span>BRG@DivisionCount(Division.Brg)</NavLink>
+    <NavLink class="nav-link" href="search"><span class="nav-ico" style="background:var(--gold)"></span>Employee Search</NavLink>
 
     <AuthorizeView Policy="@AuthorizationPolicies.RequireAdmin">
         <Authorized>
             <div class="nav-section">Administration</div>
-            <NavLink class="nav-link" href="admin/roles"><span class="nav-ico" style="background:#0f6cbd"></span>Role Assignments</NavLink>
-            <NavLink class="nav-link" href="admin/import"><span class="nav-ico" style="background:#038387"></span>Master Data Import</NavLink>
-            <NavLink class="nav-link" href="admin/attendance"><span class="nav-ico" style="background:#5c2e91"></span>Attendance Sync</NavLink>
-            <NavLink class="nav-link" href="admin/shift-settings"><span class="nav-ico" style="background:#c19c00"></span>Shift Settings</NavLink>
-            <NavLink class="nav-link" href="admin/break-glass"><span class="nav-ico" style="background:#b10e1c"></span>Break-glass Status</NavLink>
-            <NavLink class="nav-link" href="admin/audit"><span class="nav-ico" style="background:#0e700e"></span>Audit Trail</NavLink>
+            <NavLink class="nav-link" href="admin/roles"><span class="nav-ico" style="background:var(--brand)"></span>Role Assignments</NavLink>
+            <NavLink class="nav-link" href="admin/import"><span class="nav-ico" style="background:var(--info)"></span>Master Data Import</NavLink>
+            <NavLink class="nav-link" href="admin/attendance"><span class="nav-ico" style="background:var(--supply)"></span>Attendance Sync</NavLink>
+            <NavLink class="nav-link" href="admin/shift-settings"><span class="nav-ico" style="background:var(--gold)"></span>Shift Settings</NavLink>
+            <NavLink class="nav-link" href="admin/break-glass"><span class="nav-ico" style="background:var(--danger)"></span>Break-glass Status</NavLink>
+            <NavLink class="nav-link" href="admin/audit"><span class="nav-ico" style="background:var(--ok)"></span>Audit Trail</NavLink>
         </Authorized>
     </AuthorizeView>
 
     <div class="nav-section">System pages</div>
-    <NavLink class="nav-link" href="break-glass"><span class="nav-ico" style="background:#b10e1c"></span>Emergency Access</NavLink>
-    <NavLink class="nav-link" href="access-denied"><span class="nav-ico" style="background:#986f0b"></span>Access Denied</NavLink>
+    <NavLink class="nav-link" href="break-glass"><span class="nav-ico" style="background:var(--danger)"></span>Emergency Access</NavLink>
+    <NavLink class="nav-link" href="access-denied"><span class="nav-ico" style="background:var(--gold)"></span>Access Denied</NavLink>
 
     <div class="nav-foot">
         <div class="sync-foot @(_healthy ? string.Empty : "bad")">
@@ -43,6 +45,29 @@
 @code {
     private bool _healthy;
     private string _footLine = "Waiting for first sync";
+    private readonly Dictionary<Division, int> _counts = new();
+
+    /// <summary>Loads the department count per division once for the nav count pills.</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        foreach (var division in new[] { Division.Egl, Division.FunctionalSupport, Division.Brg })
+        {
+            try
+            {
+                _counts[division] = (await DepartmentService.GetByDivisionAsync(division)).Count;
+            }
+            catch
+            {
+                // A count is a nicety; never let it break the shell.
+            }
+        }
+    }
+
+    /// <summary>Renders the department-count pill for a division link, or nothing when unknown/zero.</summary>
+    private MarkupString DivisionCount(Division division) =>
+        _counts.TryGetValue(division, out var n) && n > 0
+            ? (MarkupString)$"<span class=\"nav-count\">{n}</span>"
+            : default;
 
     /// <summary>Summarises the latest attendance-sync result for the sidebar footer.</summary>
     protected override void OnParametersSet()
