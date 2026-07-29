@@ -20,7 +20,7 @@
     </span>
     @if (_entries is not null)
     {
-        <span class="audit-count">Showing @_entries.Count of @_entries.Count most recent entries</span>
+        <span class="audit-count">Showing @_entries.Count of @_total most recent entries</span>
     }
 </div>
 
@@ -34,7 +34,7 @@ else if (_entries.Count == 0)
 }
 else
 {
-    <div class="data-card">
+    <div class="data-card audit-card">
         <div class="data-grid audit-cols head">
             <div></div>
             <div>Time (@Time.Name)</div>
@@ -82,6 +82,7 @@ else
 @code {
     private IReadOnlyList<AuditLogDto>? _entries;
     private bool _breakGlassOnly;
+    private int _total;
     private readonly HashSet<long> _open = new();
 
     /// <summary>Loads the most recent audit entries.</summary>
@@ -91,6 +92,10 @@ else
     {
         _open.Clear();
         _entries = await AuditReadService.GetRecentAsync(200, _breakGlassOnly);
+        if (!_breakGlassOnly)
+        {
+            _total = _entries.Count;
+        }
     }
 
     private async Task ToggleBreakGlassOnly()
