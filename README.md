@@ -195,6 +195,42 @@ migrations on startup.
 > app-to-SQL traffic on an isolated, trusted network segment. This is an infrastructure decision;
 > no application change is required when TLS/TDE are later enabled.
 
+### Two databases, two logins (least-privilege)
+
+The application uses **two independent connection strings**, so each database is reached with its
+own SQL login and you control the access level separately:
+
+| Config key | Database | Access | Suggested login |
+| --- | --- | --- | --- |
+| `ConnectionStrings:ManpowerDatabase` | app DB (`ManpowerAllocation`) | **read-write** (+ migrations) | `svc_manpower_app` |
+| `ConnectionStrings:AttendanceDatabase` | attendance DB (`attendance`) | **read-only** | `svc_manpower_ro` |
+
+Example values (SQL auth, non-TLS server — see the note above):
+
+```
+ConnectionStrings__ManpowerDatabase=Server=SQLHOST;Database=ManpowerAllocation;User Id=svc_manpower_app;Password=***;Encrypt=False
+ConnectionStrings__AttendanceDatabase=Server=SQLHOST;Database=attendance;User Id=svc_manpower_ro;Password=***;Encrypt=False
+```
+
+Grant each login only what it needs:
+
+```sql
+-- App database: read/write, and DDL so startup migrations can run.
+USE [ManpowerAllocation];
+CREATE USER [svc_manpower_app] FOR LOGIN [svc_manpower_app];
+ALTER ROLE db_datareader   ADD MEMBER [svc_manpower_app];
+ALTER ROLE db_datawriter   ADD MEMBER [svc_manpower_app];
+ALTER ROLE db_ddladmin     ADD MEMBER [svc_manpower_app];   -- needed for EF migrations
+
+-- Attendance database: SELECT on the one view only. No write access at all.
+USE [attendance];
+CREATE USER [svc_manpower_ro] FOR LOGIN [svc_manpower_ro];
+GRANT SELECT ON OBJECT::dbo.xxeg_attendance_v TO [svc_manpower_ro];
+```
+
+The application never writes to the attendance database (its context is a keyless, read-only view
+mapping), so the `SELECT`-only grant is the enforcing control, not merely a convention.
+
 ### Hosting checklist
 
 - **HTTPS is required at the front door.** The app sets a `Secure`, `SameSite=Strict` session
