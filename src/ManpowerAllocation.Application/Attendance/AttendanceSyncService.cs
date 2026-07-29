@@ -3,6 +3,7 @@ using ManpowerAllocation.Application.Abstractions;
 using ManpowerAllocation.Domain.Entities;
 using ManpowerAllocation.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace ManpowerAllocation.Application.Attendance;
 
@@ -25,22 +26,26 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
     private readonly IPresenceProvider _presenceProvider;
     private readonly IClock _clock;
     private readonly AttendanceSyncStatus _status;
+    private readonly ILogger<AttendanceSyncService> _logger;
 
     /// <summary>Initialises the service.</summary>
     /// <param name="dbContext">The governed application persistence context.</param>
     /// <param name="presenceProvider">Provider of today's present employee identifiers.</param>
     /// <param name="clock">Clock used for the run timestamp.</param>
     /// <param name="status">Shared holder for the most recent run result.</param>
+    /// <param name="logger">Logger used to record the real cause of a failed run.</param>
     public AttendanceSyncService(
         IApplicationDbContext dbContext,
         IPresenceProvider presenceProvider,
         IClock clock,
-        AttendanceSyncStatus status)
+        AttendanceSyncStatus status,
+        ILogger<AttendanceSyncService> logger)
     {
         _dbContext = dbContext;
         _presenceProvider = presenceProvider;
         _clock = clock;
         _status = status;
+        _logger = logger;
     }
 
     /// <inheritdoc />
@@ -107,7 +112,16 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Never throw out of the sync: the dashboards must keep working off the last-known
-            // state even when the attendance database is briefly unreachable.
+            // state even when the attendance database is briefly unreachable. The user-facing
+            // message stays generic, but the true cause (missing view, denied SELECT, column or
+            // type mismatch, unreachable server) is logged here so operators can diagnose it.
+            _logger.LogError(
+                ex,
+                "Attendance sync failed while reading the external source (triggered by {TriggeredBy}). {ExceptionType}: {ExceptionMessage}",
+                triggeredBy,
+                ex.GetType().Name,
+                ex.Message);
+
             return Record(new AttendanceSyncResult
             {
                 RanAtUtc = _clock.UtcNow,
