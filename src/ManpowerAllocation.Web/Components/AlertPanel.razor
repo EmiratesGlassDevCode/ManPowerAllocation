@@ -1,15 +1,18 @@
+@using ManpowerAllocation.Web.Common
 @*
-    Reusable coloured list panel used for Absent / Vacation / Outsource / Excess / Shortage
-    summaries. Shows a count badge and the items, or a muted "None" when empty.
+    Reusable list panel used for Absent / Vacation / Outsource / Excess / Shortage summaries.
+    The header carries an accent square + count; each row shows a status-tinted avatar (tinted
+    by the panel accent), the person and a right-aligned context. Empty state is explicit.
 *@
-<div class="@($"glass alert-panel accent-{Accent}")">
+<div class="@($"alert-panel accent-{Accent}")">
     <div class="alert-head">
-        <span>@Title</span>
-        <FluentBadge Appearance="Appearance.Neutral">@(Items?.Count ?? 0)</FluentBadge>
+        <span class="alert-ico"></span>
+        <span class="alert-title">@Title</span>
+        <span class="count">@(Items?.Count ?? 0)</span>
     </div>
     @if (Items is null || Items.Count == 0)
     {
-        <div class="alert-empty">None</div>
+        <div class="alert-empty">Nothing to report.</div>
     }
     else
     {
@@ -20,7 +23,7 @@
                 var name = sep >= 0 ? item[..sep] : item;
                 var detail = sep >= 0 ? item[(sep + 3)..] : string.Empty;
                 <li>
-                    <span class="av" style="background:@ManpowerAllocation.Web.Common.Avatar.Color(name)">@ManpowerAllocation.Web.Common.Avatar.Initials(name)</span>
+                    <span class="av">@Avatar.Initials(name)</span>
                     <span class="av-name">@name</span>
                     <span class="av-dept">@detail</span>
                 </li>

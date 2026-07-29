@@ -20,7 +20,7 @@ else
 {
     <div class="breadcrumb">Home / Departments</div>
     <div class="screen-head">
-        <h1>@_label Departments</h1>
+        <h1>@_label</h1>
         <ShiftSelector Value="_shift" ValueChanged="OnShiftChanged" />
     </div>
 
@@ -48,8 +48,8 @@ else
         </div>
 
         <div class="alert-row">
-            <AlertPanel Title="⚠ Absent" Accent="red" Items="AbsentList()" />
-            <AlertPanel Title="☀ On vacation" Accent="amber" Items="VacationList()" />
+            <AlertPanel Title="Absent" Accent="red" Items="AbsentList()" />
+            <AlertPanel Title="On vacation" Accent="amber" Items="VacationList()" />
         </div>
 
         <div class="toolbar">
@@ -76,10 +76,11 @@ else
         <div class="dept-grid">
             @foreach (var dept in VisibleDepartments())
             {
-                var util = dept.Required > 0 ? Math.Min((int)Math.Round(dept.TotalPresent * 100.0 / dept.Required), 130) : (dept.TotalPresent > 0 ? 100 : 0);
+                var presentPct = dept.Required > 0 ? Math.Min((int)Math.Round(dept.Present * 100.0 / dept.Required), 100) : (dept.Present > 0 ? 100 : 0);
+                var supplyPct = dept.Required > 0 ? Math.Min((int)Math.Round(dept.SupplyPresent * 100.0 / dept.Required), 100 - presentPct) : 0;
                 <div class="dept-card status-@(dept.Status.ToString().ToLowerInvariant())">
                     <div class="dept-card-head">
-                        <span class="dept-ico" style="background:@Avatar.Color(dept.Name)">@Avatar.Initials(dept.Name)</span>
+                        <span class="dept-ico" style="background:@DeptAccent(dept.DepartmentId)">@Avatar.Initials(dept.Name)</span>
                         <div class="dept-head-text">
                             <div class="dept-name" @onclick="() => OpenDeptModal(dept)">@TextCase.Title(dept.Name)</div>
                             <div class="dept-sub">@dept.OnRoll on roll · @ShiftText()</div>
@@ -93,12 +94,18 @@ else
                     </div>
                     <div class="dept-card-body">
                         <div class="dc-row"><span class="dc-lbl">Present / Required</span><span class="dc-val">@dept.TotalPresent / @dept.Required</span></div>
-                        <div class="bar"><div class="bar-fill fill-@(dept.Status.ToString().ToLowerInvariant())" style="width:@(Math.Min(util,100))%"></div></div>
+                        <div class="bar">
+                            <div class="bar-fill fill-@(dept.Status.ToString().ToLowerInvariant())" style="width:@(presentPct)%"></div>
+                            @if (dept.SupplyPresent > 0)
+                            {
+                                <div class="bar-supply" style="width:@(supplyPct)%" title="Outsource cover"></div>
+                            }
+                        </div>
                         <div class="badges">
                             <span class="badge b-@(dept.Status.ToString().ToLowerInvariant())">@StatusLabel(dept)</span>
-                            @if (dept.OnVacation > 0) { <span class="badge b-vac">VAC @dept.OnVacation</span> }
-                            @if (dept.Absent > 0) { <span class="badge b-short">ABS @dept.Absent</span> }
-                            @if (dept.SupplyPresent > 0) { <span class="badge b-supply">OS @dept.SupplyPresent</span> }
+                            @if (dept.OnVacation > 0) { <span class="badge b-vac">Vacation @dept.OnVacation</span> }
+                            @if (dept.Absent > 0) { <span class="badge b-short">Absent @dept.Absent</span> }
+                            @if (dept.SupplyPresent > 0) { <span class="badge b-supply">Outsource @dept.SupplyPresent</span> }
                         </div>
 
                         <div class="dc-actions">
@@ -119,9 +126,9 @@ else
                                 @foreach (var emp in members)
                                 {
                                     <li class="emp-row">
-                                        <span class="emp-av" style="background:@StatusColor(emp.Status)">@Avatar.Initials(emp.Name)</span>
+                                        <span class="emp-av @(emp.IsSupply ? "supply" : "status-" + emp.Status.ToString().ToLowerInvariant())">@Avatar.Initials(emp.Name)</span>
                                         <span class="emp-name">@TextCase.Title(emp.Name) @(emp.IsSupply ? "(OS)" : string.Empty)</span>
-                                        <span class="emp-shift">@emp.Shift</span>
+                                        <span class="emp-shift shift-@emp.Shift.ToString().ToLowerInvariant()">@emp.Shift</span>
                                         <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@TextCase.Status(emp.Status)</span>
                                         @if (_canEdit && !emp.IsSupply)
                                         {
@@ -154,8 +161,8 @@ else
         </div>
 
         <div class="alert-row">
-            <AlertPanel Title="◆ Outsource present" Accent="purple" Items="OutsourceList()" />
-            <AlertPanel Title="⬆ Available / Excess" Accent="cyan" Items="ExcessList()" />
+            <AlertPanel Title="Outsource present" Accent="purple" Items="OutsourceList()" />
+            <AlertPanel Title="Available / excess" Accent="cyan" Items="ExcessList()" />
         </div>
     }
 }
@@ -382,13 +389,9 @@ else
         return result;
     }
 
-    /// <summary>Status-tinted colour for the roster avatar (present green, vacation amber, else red).</summary>
-    private static string StatusColor(AttendanceStatus status) => status switch
-    {
-        AttendanceStatus.Present => "#0e700e",
-        AttendanceStatus.OnVacation => "#bc4b09",
-        _ => "#b10e1c"
-    };
+    /// <summary>Fixed department tile accent, cycling the Fluent token palette by department id.</summary>
+    private static readonly string[] DeptPalette = { "#0F6CBD", "#038387", "#5C2E91", "#986F0B", "#C239B3", "#0E700E" };
+    private static string DeptAccent(int departmentId) => DeptPalette[Math.Abs(departmentId) % DeptPalette.Length];
 
     /// <summary>Label for the current shift filter, used in the department subtitle.</summary>
     private string ShiftText() => _shift switch

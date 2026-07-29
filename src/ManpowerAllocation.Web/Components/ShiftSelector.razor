@@ -4,15 +4,18 @@
     Small reusable All / Day / Night shift selector used by every dashboard screen.
 *@
 <div class="shift-selector">
-    <span class="shift-label">Shift:</span>
-    @foreach (var option in Options)
-    {
-        <FluentButton Appearance="@(option == Value ? Appearance.Accent : Appearance.Neutral)"
-                      aria-pressed="@(option == Value)"
-                      @onclick="() => Select(option)">
-            @option
-        </FluentButton>
-    }
+    <span class="shift-label">Shift</span>
+    <div class="segmented" role="group" aria-label="Shift filter">
+        @foreach (var option in Options)
+        {
+            <button type="button"
+                    class="seg @(option == Value ? "active" : string.Empty)"
+                    aria-pressed="@(option == Value)"
+                    @onclick="() => Select(option)">
+                @option
+            </button>
+        }
+    </div>
 </div>
 
 @code {
