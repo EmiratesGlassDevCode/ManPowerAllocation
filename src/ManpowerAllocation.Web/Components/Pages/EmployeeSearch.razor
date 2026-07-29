@@ -12,7 +12,8 @@
 <p class="hint">Search by name or ID across all divisions.</p>
 
 <div class="toolbar">
-    <input type="text" placeholder="Name or ID…" @bind="_term" @bind:event="oninput" @bind:after="OnTermChanged" style="width:260px" />
+    <FluentSearch @bind-Value="_term" @bind-Value:after="OnTermChanged" Immediate="true"
+                  Placeholder="Name or ID…" Style="width:280px" />
 </div>
 
 @if (_searched)

@@ -20,8 +20,8 @@
     --faint: #8a96aa;
 
     /* Brand + status accents (tuned for contrast on white) */
-    --blue: #2563eb;
-    --blue-dark: #1d4ed8;
+    --blue: #0f6cbd;
+    --blue-dark: #0c5aa6;
     --green: #16a34a;
     --red: #dc2626;
     --amber: #d97706;
@@ -34,7 +34,7 @@
     --amber-lt: #fef3c7;
     --cyan-lt: #cffafe;
     --purple-lt: #ede9fe;
-    --blue-lt: #dbeafe;
+    --blue-lt: #e5f0fb;
 
     /* Depth */
     /* Fluent 2 elevation ramp: soft, low-contrast shadows. */
@@ -45,12 +45,12 @@
     --radius-sm: 6px;
 
     /* Glassmorphism — frosted translucent surfaces (fitting for a glass manufacturer). */
-    --glass-bg: rgba(255, 255, 255, 0.55);
-    --glass-bg-strong: rgba(255, 255, 255, 0.74);
-    --glass-border: rgba(255, 255, 255, 0.70);
-    --glass-blur: blur(18px) saturate(150%);
-    --glass-shadow: 0 8px 30px rgba(23, 54, 106, 0.12), 0 2px 6px rgba(23, 54, 106, 0.06);
-    --glass-radius: 16px;
+    --glass-bg: rgba(238, 246, 255, 0.42);
+    --glass-bg-strong: rgba(240, 247, 255, 0.66);
+    --glass-border: rgba(255, 255, 255, 0.85);
+    --glass-blur: blur(28px) saturate(170%);
+    --glass-shadow: 0 10px 36px rgba(15, 108, 189, 0.16), 0 2px 8px rgba(15, 108, 189, 0.08);
+    --glass-radius: 18px;
 }
 
 * { box-sizing: border-box; }
@@ -62,10 +62,10 @@ body {
         'Helvetica Neue', Arial, sans-serif;
     /* Soft blue/cyan wash so the frosted-glass surfaces have something to refract. */
     background:
-        radial-gradient(900px 620px at 10% 4%, rgba(59, 130, 246, 0.22), transparent 60%),
-        radial-gradient(1000px 720px at 92% 96%, rgba(45, 212, 191, 0.16), transparent 60%),
-        radial-gradient(700px 700px at 60% 30%, rgba(124, 141, 246, 0.10), transparent 60%),
-        linear-gradient(135deg, #e9f0fb 0%, #eef4fb 45%, #e8f1f8 100%);
+        radial-gradient(1000px 680px at 8% 2%, rgba(15, 108, 189, 0.30), transparent 60%),
+        radial-gradient(1100px 780px at 94% 98%, rgba(56, 189, 248, 0.24), transparent 62%),
+        radial-gradient(760px 760px at 62% 28%, rgba(99, 130, 246, 0.16), transparent 60%),
+        linear-gradient(135deg, #dbe8fb 0%, #e6f1fc 45%, #dceaf6 100%);
     background-attachment: fixed;
     color: var(--text);
     font-size: 14px;

@@ -52,24 +52,22 @@ else
         </div>
 
         <div class="toolbar">
-            <label>Filter:
-                <select @bind="_filter" @bind:after="StateHasChanged">
-                    <option value="all">All</option>
-                    <option value="short">Shortage</option>
-                    <option value="excess">Excess</option>
-                    <option value="ok">Optimal</option>
-                    <option value="off">OFF</option>
-                </select>
-            </label>
-            <input type="text" placeholder="Search department…" @bind="_search" @bind:event="oninput" />
+            <FluentSelect @bind-Value="_filter" TOption="string" Label="Filter">
+                <FluentOption Value="@("all")">All</FluentOption>
+                <FluentOption Value="@("short")">Shortage</FluentOption>
+                <FluentOption Value="@("excess")">Excess</FluentOption>
+                <FluentOption Value="@("ok")">Optimal</FluentOption>
+                <FluentOption Value="@("off")">OFF</FluentOption>
+            </FluentSelect>
+            <FluentSearch @bind-Value="_search" Immediate="true" Placeholder="Search department…" />
             @if (_canEdit)
             {
-                <button type="button" @onclick="() => ToggleAllAsync(true)">All ON</button>
-                <button type="button" @onclick="() => ToggleAllAsync(false)">All OFF</button>
+                <FluentButton Appearance="Appearance.Neutral" @onclick="() => ToggleAllAsync(true)">All ON</FluentButton>
+                <FluentButton Appearance="Appearance.Neutral" @onclick="() => ToggleAllAsync(false)">All OFF</FluentButton>
             }
             @if (_canAdmin)
             {
-                <button type="button" class="primary" @onclick="OpenAddDept">+ Add department</button>
+                <FluentButton Appearance="Appearance.Accent" @onclick="OpenAddDept">+ Add department</FluentButton>
             }
         </div>
 
@@ -82,11 +80,9 @@ else
                         <span class="dept-name" @onclick="() => OpenDeptModal(dept)">@dept.Name</span>
                         @if (_canEdit)
                         {
-                            <label class="switch" title="Active">
-                                <input type="checkbox" checked="@dept.IsActive"
-                                       @onchange="e => ToggleDepartmentAsync(dept.DepartmentId, (bool)e.Value!)" />
-                                <span class="slider"></span>
-                            </label>
+                            <FluentSwitch Value="@dept.IsActive"
+                                          ValueChanged="v => ToggleDepartmentAsync(dept.DepartmentId, v)"
+                                          title="Active" />
                         }
                     </div>
                     <div class="dept-card-body">
@@ -102,8 +98,8 @@ else
                         @if (_canAdmin)
                         {
                             <div class="dc-actions">
-                                <button type="button" class="link" @onclick="() => OpenEditDept(dept.DepartmentId)">Edit</button>
-                                <button type="button" class="link danger" @onclick="() => DeleteDeptAsync(dept.DepartmentId)">Delete</button>
+                                <FluentButton Appearance="Appearance.Lightweight" @onclick="() => OpenEditDept(dept.DepartmentId)">Edit</FluentButton>
+                                <FluentButton Appearance="Appearance.Lightweight" @onclick="() => DeleteDeptAsync(dept.DepartmentId)">Delete</FluentButton>
                             </div>
                         }
 
@@ -125,14 +121,14 @@ else
                                             <span class="emp-actions">
                                                 @if (emp.Status == AttendanceStatus.OnVacation)
                                                 {
-                                                    <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">Unmark vac</button>
+                                                    <FluentButton Appearance="Appearance.Lightweight" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">Unmark vac</FluentButton>
                                                 }
                                                 else
                                                 {
-                                                    <button type="button" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">Mark vac</button>
+                                                    <FluentButton Appearance="Appearance.Lightweight" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">Mark vac</FluentButton>
                                                 }
-                                                <button type="button" @onclick="() => ChangeShiftAsync(emp.Id, emp.Shift == ShiftType.Day ? ShiftType.Night : ShiftType.Day)">↔ Shift</button>
-                                                <select @onchange="e => MoveAsync(emp.Id, e.Value?.ToString())">
+                                                <FluentButton Appearance="Appearance.Lightweight" @onclick="() => ChangeShiftAsync(emp.Id, emp.Shift == ShiftType.Day ? ShiftType.Night : ShiftType.Day)">↔ Shift</FluentButton>
+                                                <select class="move-select" @onchange="e => MoveAsync(emp.Id, e.Value?.ToString())">
                                                     <option value="0">Move to…</option>
                                                     @foreach (var d in _departments.Where(d => d.Id != emp.DepartmentId))
                                                     {
@@ -162,25 +158,23 @@ else
     <div class="modal-bg" @onclick="CloseDeptForm">
         <div class="modal" @onclick:stopPropagation="true">
             <h3>@(_editingId is null ? "Add department" : "Edit department")</h3>
-            <label>Name
-                <input type="text" @bind="_fName" disabled="@(_editingId is not null)" />
-            </label>
+            <FluentTextField @bind-Value="_fName" Disabled="@(_editingId is not null)" Label="Name" Style="width:100%" />
             <div class="form-row">
-                <label>Day required <input type="number" min="0" @bind="_fReqDay" /></label>
-                <label>Night required <input type="number" min="0" @bind="_fReqNight" /></label>
-                <label>Sequence <input type="number" step="0.5" @bind="_fSeq" /></label>
+                <FluentNumberField @bind-Value="_fReqDay" Min="0" Label="Day required" />
+                <FluentNumberField @bind-Value="_fReqNight" Min="0" Label="Night required" />
+                <FluentNumberField @bind-Value="_fSeq" Step="0.5" Label="Sequence" />
             </div>
             @if (_editingId is not null)
             {
-                <label class="inline"><input type="checkbox" @bind="_fActive" /> Active</label>
+                <FluentCheckbox @bind-Value="_fActive">Active</FluentCheckbox>
             }
             @if (!string.IsNullOrEmpty(_formError))
             {
                 <p class="message error">@_formError</p>
             }
             <div class="modal-foot">
-                <button type="button" @onclick="CloseDeptForm">Cancel</button>
-                <button type="button" class="primary" @onclick="SaveDeptAsync">Save</button>
+                <FluentButton Appearance="Appearance.Neutral" @onclick="CloseDeptForm">Cancel</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" @onclick="SaveDeptAsync">Save</FluentButton>
             </div>
         </div>
     </div>
