@@ -43,6 +43,14 @@
     --shadow-lg: 0 1.2px 3.6px rgba(0,0,0,.08), 0 6.4px 14.4px rgba(0,0,0,.13);
     --radius: 10px;
     --radius-sm: 6px;
+
+    /* Glassmorphism — frosted translucent surfaces (fitting for a glass manufacturer). */
+    --glass-bg: rgba(255, 255, 255, 0.55);
+    --glass-bg-strong: rgba(255, 255, 255, 0.74);
+    --glass-border: rgba(255, 255, 255, 0.70);
+    --glass-blur: blur(18px) saturate(150%);
+    --glass-shadow: 0 8px 30px rgba(23, 54, 106, 0.12), 0 2px 6px rgba(23, 54, 106, 0.06);
+    --glass-radius: 16px;
 }
 
 * { box-sizing: border-box; }
@@ -52,7 +60,13 @@ body {
     /* Fluent 2 type: prefer Segoe UI Variable (Windows 11) then Segoe UI, then the platform UI font. */
     font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system,
         'Helvetica Neue', Arial, sans-serif;
-    background: var(--bg);
+    /* Soft blue/cyan wash so the frosted-glass surfaces have something to refract. */
+    background:
+        radial-gradient(900px 620px at 10% 4%, rgba(59, 130, 246, 0.22), transparent 60%),
+        radial-gradient(1000px 720px at 92% 96%, rgba(45, 212, 191, 0.16), transparent 60%),
+        radial-gradient(700px 700px at 60% 30%, rgba(124, 141, 246, 0.10), transparent 60%),
+        linear-gradient(135deg, #e9f0fb 0%, #eef4fb 45%, #e8f1f8 100%);
+    background-attachment: fixed;
     color: var(--text);
     font-size: 14px;
     line-height: 1.5;
@@ -69,15 +83,32 @@ h3 { font-size: 15px; font-weight: 600; letter-spacing: -.005em; }
 a { color: var(--blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* Frosted-glass surface shared by every panel/card. */
+.glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--glass-radius);
+    box-shadow: var(--glass-shadow);
+    padding: 16px 18px;
+}
+/* Graceful fallback where backdrop-filter is unsupported: a more opaque surface. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass { background: var(--glass-bg-strong); }
+}
+
 .page { min-height: 100vh; display: flex; flex-direction: column; }
 
 /* ── Top bar ─────────────────────────────────────────────────────────────── */
 .topbar {
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 24px; height: 58px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
+    background: rgba(255, 255, 255, 0.60);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
     position: sticky; top: 0; z-index: 50;
 }
 .topbar-brand { display: flex; align-items: center; gap: 14px; font-weight: 700; font-size: 15px; }
@@ -107,7 +138,11 @@ a:hover { text-decoration: underline; }
 
 /* ── Side navigation ─────────────────────────────────────────────────────── */
 .nav {
-    width: 232px; background: var(--panel); border-right: 1px solid var(--border);
+    width: 232px;
+    background: rgba(255, 255, 255, 0.45);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-right: 1px solid var(--glass-border);
     padding: 16px 12px; display: flex; flex-direction: column; gap: 3px;
 }
 .nav-link {
@@ -148,16 +183,22 @@ a:hover { text-decoration: underline; }
 .negative { color: var(--red); }
 
 .division-totals {
-    margin-bottom: 16px; padding: 12px 16px; border-radius: var(--radius-sm);
-    background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+    margin-bottom: 16px; padding: 12px 16px; border-radius: var(--glass-radius);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow);
 }
 
 /* ── KPI row ─────────────────────────────────────────────────────────────── */
 .kpi-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
 .kpi {
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border); border-radius: var(--glass-radius);
     padding: 14px 18px; min-width: 108px;
-    box-shadow: var(--shadow-sm); transition: transform .15s;
+    box-shadow: var(--glass-shadow); transition: transform .15s;
 }
 .kpi:hover { transform: translateY(-1px); }
 .kpi-val { font-size: 26px; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; }
@@ -168,8 +209,11 @@ a:hover { text-decoration: underline; }
 /* ── Department grid ─────────────────────────────────────────────────────── */
 .dept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 .dept-card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-    overflow: hidden; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s, border-color .15s;
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border); border-radius: var(--glass-radius);
+    overflow: hidden; box-shadow: var(--glass-shadow); transition: transform .15s, box-shadow .15s, border-color .15s;
 }
 .dept-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 .dept-card.status-short { border-color: var(--red); }
@@ -237,12 +281,21 @@ button.secondary:hover { background: var(--panel-2); filter: none; }
 .hint { color: var(--muted); font-size: 12px; max-width: 760px; }
 .message { margin: 10px 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--blue-lt); color: var(--blue-dark); border: 1px solid #bcd3fb; }
 .message.error { background: var(--red-lt); color: #991b1b; border-color: #f5b5b5; }
-.import-block { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 14px 0; max-width: 640px; box-shadow: var(--shadow); }
+.import-block {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border); border-radius: var(--glass-radius);
+    padding: 16px; margin: 14px 0; max-width: 640px; box-shadow: var(--glass-shadow);
+}
 
 /* ── Notice / login panels ───────────────────────────────────────────────── */
 .notice, .breakglass-login {
-    max-width: 480px; margin: 48px auto; background: var(--panel);
-    border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow-lg);
+    max-width: 480px; margin: 48px auto;
+    background: var(--glass-bg-strong);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border); border-radius: var(--glass-radius); padding: 28px; box-shadow: var(--glass-shadow);
 }
 .panel-logo { height: 40px; width: auto; display: block; margin-bottom: 18px; }
 
@@ -312,7 +365,14 @@ button.secondary:hover { background: var(--panel-2); filter: none; }
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */
 .modal-bg { position: fixed; inset: 0; background: rgba(16,24,40,.45); backdrop-filter: blur(2px); display: flex; align-items: flex-start; justify-content: center; padding-top: 6vh; z-index: 300; }
-.modal { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; width: 480px; max-width: 94vw; max-height: 86vh; overflow-y: auto; box-shadow: var(--shadow-lg); animation: modal-in .16s ease-out; }
+.modal {
+    background: var(--glass-bg-strong);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid var(--glass-border); border-radius: var(--glass-radius);
+    padding: 22px; width: 480px; max-width: 94vw; max-height: 86vh; overflow-y: auto;
+    box-shadow: var(--shadow-lg); animation: modal-in .16s ease-out;
+}
 @keyframes modal-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
 .modal.wide { width: 660px; }
 .modal h3 { margin-top: 0; }
