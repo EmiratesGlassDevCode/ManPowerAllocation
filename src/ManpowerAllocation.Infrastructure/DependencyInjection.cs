@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ManpowerDbContext>());
 
         services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<IFactoryClock, ManpowerAllocation.Infrastructure.Time.FactoryClock>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IExcelImportParser, ClosedXmlImportParser>();
         services.AddScoped<ManpowerAllocation.Application.Exports.IReportExportService, ClosedXmlReportExportService>();
@@ -77,6 +78,10 @@ public static class DependencyInjection
     {
         services.AddOptions<AttendanceOptions>()
             .Bind(configuration.GetSection(AttendanceOptions.SectionName));
+
+        // Grace window (early comer / late leaver) used to scope the sync to the live shift.
+        services.AddOptions<ManpowerAllocation.Application.Attendance.ShiftWindowOptions>()
+            .Bind(configuration.GetSection(ManpowerAllocation.Application.Attendance.ShiftWindowOptions.SectionName));
 
         var attendanceConnectionString = configuration.GetConnectionString("AttendanceDatabase");
         if (!string.IsNullOrWhiteSpace(attendanceConnectionString))

@@ -95,6 +95,18 @@ else
                         </tr>
                     }
                 </tbody>
+                <tfoot>
+                    <tr class="grid-subtotal">
+                        <td>Subtotal</td>
+                        <td class="num">@_divisions.Sum(d => d.OnRoll)</td>
+                        <td class="num">@_divisions.Sum(d => d.TotalPresent)</td>
+                        <td class="num">@_divisions.Sum(d => d.Absent)</td>
+                        <td class="num">@_divisions.Sum(d => d.OnVacation)</td>
+                        <td class="num">@_divisions.Sum(d => d.SupplyPresent)</td>
+                        <td class="num">@_divisions.Sum(d => d.Required)</td>
+                        <td class="num strong @(FactoryVariance < 0 ? "negative" : "positive")">@Signed(FactoryVariance)</td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>

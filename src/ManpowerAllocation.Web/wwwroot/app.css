@@ -307,6 +307,14 @@ a:hover { text-decoration: underline; }
 .detail-emp-name { font-weight: 600; }
 .detail-emp-dept { color: var(--mpa-fg-3); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grid tbody tr.row-selected { background: var(--mpa-brand-tint); }
+.grid tfoot .grid-subtotal td { border-top: 2px solid var(--mpa-stroke-1); background: var(--mpa-surface-tint); font-weight: 700; }
+
+/* ALL-CAPS headers across the app (matches the navigation treatment). */
+h1, h2, h3, h4 { text-transform: uppercase; letter-spacing: .02em; }
+.breadcrumb { text-transform: uppercase; letter-spacing: .08em; }
+.grid thead th, .data-grid.head { text-transform: uppercase; letter-spacing: .05em; }
+.sum-panel-title, .stat-card-title, .import-card-head, .kpi-lbl, .ft-lbl,
+.dept-card-head, .alert-head, .sync-card-title, .audit-col-title { text-transform: uppercase; letter-spacing: .04em; }
 .danger-zone { margin-top: 20px; max-width: 520px; }
 .import-card-head.danger { background: var(--mpa-danger-bg); border-bottom: 1px solid var(--mpa-danger-bd); color: #8B0A11; }
 .import-card-head.danger .ico { background: var(--mpa-danger); }

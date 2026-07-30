@@ -4,6 +4,7 @@ using ManpowerAllocation.Domain.Entities;
 using ManpowerAllocation.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace ManpowerAllocation.Application.Attendance;
 
@@ -25,6 +26,8 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
     private readonly IApplicationDbContext _dbContext;
     private readonly IPresenceProvider _presenceProvider;
     private readonly IClock _clock;
+    private readonly IFactoryClock _factoryClock;
+    private readonly ShiftWindowOptions _shiftWindow;
     private readonly AttendanceSyncStatus _status;
     private readonly ILogger<AttendanceSyncService> _logger;
 
@@ -32,18 +35,24 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
     /// <param name="dbContext">The governed application persistence context.</param>
     /// <param name="presenceProvider">Provider of today's present employee identifiers.</param>
     /// <param name="clock">Clock used for the run timestamp.</param>
+    /// <param name="factoryClock">Local (factory) clock used to decide which shift is currently live.</param>
+    /// <param name="shiftWindow">Grace-window tuning for scoping presence to a shift.</param>
     /// <param name="status">Shared holder for the most recent run result.</param>
     /// <param name="logger">Logger used to record the real cause of a failed run.</param>
     public AttendanceSyncService(
         IApplicationDbContext dbContext,
         IPresenceProvider presenceProvider,
         IClock clock,
+        IFactoryClock factoryClock,
+        IOptions<ShiftWindowOptions> shiftWindow,
         AttendanceSyncStatus status,
         ILogger<AttendanceSyncService> logger)
     {
         _dbContext = dbContext;
         _presenceProvider = presenceProvider;
         _clock = clock;
+        _factoryClock = factoryClock;
+        _shiftWindow = shiftWindow.Value;
         _status = status;
         _logger = logger;
     }
@@ -66,6 +75,12 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
         {
             var presentIds = await _presenceProvider.GetPresentEmployeeIdsForTodayAsync(cancellationToken);
 
+            // The biometric feed only returns punches for the shift that is currently live, so an
+            // employee may only be auto-marked present/absent while their OWN shift is live. This
+            // stops a night worker being shown absent in the morning (and a day worker at night):
+            // off-shift employees keep their last status until their shift window opens.
+            var liveShift = await ResolveLiveShiftAsync(cancellationToken);
+
             // Outsource/supply workers are not in the biometric system, so their status is left alone.
             var employees = await _dbContext.Employees
                 .Where(e => !e.IsSupply)
@@ -75,6 +90,14 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
 
             foreach (var employee in employees)
             {
+                // Off-shift: not this employee's window yet (or any more). Leave the status as-is
+                // and just tally it under its current bucket.
+                if (employee.Shift != liveShift)
+                {
+                    Tally(employee.Status, ref present, ref absent, ref onVacation);
+                    continue;
+                }
+
                 var badge = employee.BadgeNumber?.Trim();
 
                 // A blank badge means the employee cannot be matched against the biometric
@@ -83,13 +106,7 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
                 // sync tick until a badge is assigned.
                 if (string.IsNullOrEmpty(badge))
                 {
-                    switch (employee.Status)
-                    {
-                        case AttendanceStatus.Present: present++; break;
-                        case AttendanceStatus.OnVacation: onVacation++; break;
-                        default: absent++; break;
-                    }
-
+                    Tally(employee.Status, ref present, ref absent, ref onVacation);
                     continue;
                 }
 
@@ -102,12 +119,7 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
                     changed++;
                 }
 
-                switch (target)
-                {
-                    case AttendanceStatus.Present: present++; break;
-                    case AttendanceStatus.OnVacation: onVacation++; break;
-                    default: absent++; break;
-                }
+                Tally(target, ref present, ref absent, ref onVacation);
             }
 
             if (changed > 0)
@@ -160,6 +172,55 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
         }
 
         return current == AttendanceStatus.OnVacation ? AttendanceStatus.OnVacation : AttendanceStatus.Absent;
+    }
+
+    /// <summary>Increments the matching status counter.</summary>
+    private static void Tally(AttendanceStatus status, ref int present, ref int absent, ref int onVacation)
+    {
+        switch (status)
+        {
+            case AttendanceStatus.Present: present++; break;
+            case AttendanceStatus.OnVacation: onVacation++; break;
+            default: absent++; break;
+        }
+    }
+
+    /// <summary>
+    /// Determines which shift is live in factory-local time, opening each shift's window
+    /// <see cref="ShiftWindowOptions.GraceMinutes"/> before its official start so early comers count.
+    /// </summary>
+    private async Task<ShiftType> ResolveLiveShiftAsync(CancellationToken cancellationToken)
+    {
+        var settings = await _dbContext.ShiftSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == ShiftSetting.SingletonId, cancellationToken);
+
+        var dayStart = settings?.DayShiftStart ?? new TimeSpan(7, 0, 0);
+        var nightStart = settings?.NightShiftStart ?? new TimeSpan(19, 0, 0);
+        var grace = TimeSpan.FromMinutes(Math.Max(0, _shiftWindow.GraceMinutes));
+
+        var now = _factoryClock.LocalNow.TimeOfDay;
+        var dayFrom = WrapToDay(dayStart - grace);
+        var nightFrom = WrapToDay(nightStart - grace);
+
+        // Day is live from dayFrom until nightFrom; the rest of the 24h cycle is night.
+        bool dayLive = dayFrom <= nightFrom
+            ? now >= dayFrom && now < nightFrom
+            : now >= dayFrom || now < nightFrom;
+
+        return dayLive ? ShiftType.Day : ShiftType.Night;
+    }
+
+    /// <summary>Normalises a possibly-negative time-of-day into the [0,24h) range.</summary>
+    private static TimeSpan WrapToDay(TimeSpan value)
+    {
+        var ticks = value.Ticks % TimeSpan.TicksPerDay;
+        if (ticks < 0)
+        {
+            ticks += TimeSpan.TicksPerDay;
+        }
+
+        return TimeSpan.FromTicks(ticks);
     }
 
     /// <summary>Writes a single summary audit entry describing the run.</summary>
