@@ -1,10 +1,13 @@
 @page "/search"
 @using System.Threading
 @using ManpowerAllocation.Application.Employees
+@using ManpowerAllocation.Application.Departments
 @using ManpowerAllocation.Web.Security
 @implements IDisposable
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
 @inject IEmployeeService EmployeeService
+@inject IDepartmentService DepartmentService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Employee Search — Manpower Allocation</PageTitle>
 
@@ -14,7 +17,16 @@
 <div class="toolbar">
     <FluentSearch @bind-Value="_term" @bind-Value:after="OnTermChanged" Immediate="true"
                   Placeholder="Name or ID…" Style="width:320px" />
+    @if (_canEdit)
+    {
+        <FluentButton Appearance="Appearance.Accent" @onclick="OpenAdd">+ Add employee</FluentButton>
+    }
 </div>
+
+@if (!string.IsNullOrEmpty(_addedMessage))
+{
+    <p class="message ok">@_addedMessage</p>
+}
 
 @if (!_searched)
 {
@@ -48,16 +60,100 @@ else
     </div>
 }
 
+@if (_showAdd)
+{
+    <div class="modal-bg" @onclick="CloseAdd">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>Add employee</h3>
+            <FluentTextField @bind-Value="_aName" Label="Name" Style="width:100%" />
+            <FluentTextField @bind-Value="_aBadge" Label="Badge / employee ID" Placeholder="Leave blank if none yet" Style="width:100%" />
+            <label class="native-select-label">Department
+                <select @bind="_aDeptId">
+                    @if (_departments.Count == 0)
+                    {
+                        <option value="0">No departments — import master data first</option>
+                    }
+                    @foreach (var group in _departments.GroupBy(d => d.Division))
+                    {
+                        <optgroup label="@DivisionLabel(group.Key)">
+                            @foreach (var d in group)
+                            {
+                                <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                            }
+                        </optgroup>
+                    }
+                </select>
+            </label>
+            <div class="form-row">
+                <label class="native-select-label">Shift
+                    <select @bind="_aShift">
+                        <option value="@ShiftType.Day">Day</option>
+                        <option value="@ShiftType.Night">Night</option>
+                    </select>
+                </label>
+                <label class="native-select-label">Status
+                    <select @bind="_aStatus">
+                        <option value="@AttendanceStatus.Present">Present</option>
+                        <option value="@AttendanceStatus.Absent">Absent</option>
+                        <option value="@AttendanceStatus.OnVacation">On vacation</option>
+                    </select>
+                </label>
+            </div>
+            <FluentCheckbox @bind-Value="_aSupply">Outsource / supply worker</FluentCheckbox>
+            <FluentTextField @bind-Value="_aNotes" Label="Notes / designation" Style="width:100%" />
+            @if (!string.IsNullOrEmpty(_addError))
+            {
+                <p class="message error">@_addError</p>
+            }
+            <div class="modal-foot">
+                <FluentButton Appearance="Appearance.Neutral" @onclick="CloseAdd">Cancel</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" @onclick="SaveAddAsync" Disabled="@_saving">Save</FluentButton>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private string _term = string.Empty;
     private bool _searched;
     private IReadOnlyList<EmployeeDto> _results = Array.Empty<EmployeeDto>();
+
+    private bool _canEdit;
+    private List<DepartmentDto> _departments = new();
+
+    // Add-employee form state.
+    private bool _showAdd;
+    private bool _saving;
+    private string _aName = string.Empty;
+    private string _aBadge = string.Empty;
+    private int _aDeptId;
+    private ShiftType _aShift = ShiftType.Day;
+    private AttendanceStatus _aStatus = AttendanceStatus.Present;
+    private bool _aSupply;
+    private string _aNotes = string.Empty;
+    private string? _addError;
+    private string? _addedMessage;
 
     // Debounce each keystroke and serialise queries: the EF DbContext is scoped to the whole
     // circuit, so two overlapping queries on it would throw "a second operation was started on
     // this context". The gate guarantees one query at a time; the token cancels superseded ones.
     private readonly SemaphoreSlim _gate = new(1, 1);
     private CancellationTokenSource? _cts;
+
+    /// <summary>Resolves edit permission and loads the department list for the add form.</summary>
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _canEdit = HasRole(authState.User, UserRole.User);
+
+        if (_canEdit)
+        {
+            foreach (var division in new[] { Division.Egl, Division.FunctionalSupport, Division.Brg })
+            {
+                _departments.AddRange(await DepartmentService.GetByDivisionAsync(division));
+            }
+        }
+    }
 
     private async Task OnTermChanged()
     {
@@ -98,6 +194,71 @@ else
         }
     }
 
+    private void OpenAdd()
+    {
+        _addError = null;
+        _addedMessage = null;
+        _aName = string.Empty;
+        _aBadge = string.Empty;
+        _aDeptId = _departments.Count > 0 ? _departments[0].Id : 0;
+        _aShift = ShiftType.Day;
+        _aStatus = AttendanceStatus.Present;
+        _aSupply = false;
+        _aNotes = string.Empty;
+        _showAdd = true;
+    }
+
+    private void CloseAdd() => _showAdd = false;
+
+    private async Task SaveAddAsync()
+    {
+        _addError = null;
+
+        if (string.IsNullOrWhiteSpace(_aName))
+        {
+            _addError = "Employee name is required.";
+            return;
+        }
+
+        if (_aDeptId <= 0)
+        {
+            _addError = "A department is required.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var created = await EmployeeService.CreateAsync(new CreateEmployeeRequest
+            {
+                Name = _aName.Trim(),
+                BadgeNumber = string.IsNullOrWhiteSpace(_aBadge) ? null : _aBadge.Trim(),
+                DepartmentId = _aDeptId,
+                Shift = _aShift,
+                Status = _aStatus,
+                IsSupply = _aSupply,
+                Notes = string.IsNullOrWhiteSpace(_aNotes) ? null : _aNotes.Trim()
+            });
+
+            _showAdd = false;
+            _addedMessage = $"Added {TextCase.Title(created.Name)} to {TextCase.Title(created.DepartmentName)}.";
+
+            // Refresh the current search so the new person appears if they match the active term.
+            if (_searched && _term.Trim().Length >= 2)
+            {
+                await OnTermChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            _addError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
     /// <summary>Cancels any in-flight search when the component is disposed.</summary>
     public void Dispose()
     {
@@ -113,4 +274,18 @@ else
         AttendanceStatus.OnVacation => "b-vac",
         _ => "b-optimal"
     };
+
+    private static string DivisionLabel(Division division) => division switch
+    {
+        Division.Egl => "EGL",
+        Division.FunctionalSupport => "Functional Support",
+        Division.Brg => "BRG",
+        _ => division.ToString()
+    };
+
+    private static bool HasRole(System.Security.Claims.ClaimsPrincipal user, UserRole minimum)
+    {
+        var raw = user.FindFirst(AppClaimTypes.AppRole)?.Value;
+        return Enum.TryParse<UserRole>(raw, out var role) && role >= minimum;
+    }
 }

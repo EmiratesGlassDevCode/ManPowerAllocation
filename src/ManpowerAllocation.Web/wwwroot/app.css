@@ -315,6 +315,7 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
 
 .message { border-radius: var(--mpa-r-md); padding: 14px 16px; font: 400 14px/20px var(--mpa-font); background: var(--mpa-brand-tint); color: var(--mpa-brand-pressed); border: 1px solid var(--mpa-brand-tint-bd); }
 .message.error { background: var(--mpa-danger-bg); border: 1px solid var(--mpa-danger-bd); color: #8B0A11; }
+.message.ok { background: var(--mpa-ok-bg); border: 1px solid var(--mpa-ok-bd); color: #0B5A0B; }
 
 /* ── Data grid (search / roles / audit) ──────────────────────────────────── */
 .data-card { background: var(--mpa-surface); border-radius: var(--mpa-r-md); box-shadow: var(--mpa-shadow-2); overflow: hidden; }
@@ -459,6 +460,11 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
 .modal .form-row { display: flex; gap: 12px; padding: 0 18px; }
 .modal label { display: block; font: 600 12px/16px var(--mpa-font); color: var(--mpa-fg-3); margin: 12px 18px; }
 .modal label.inline { display: flex; align-items: center; gap: 6px; }
+/* Native selects inside a modal keep the stacked label/select layout (the generic .modal label
+   rule would otherwise force display:block) and a full-width control. */
+.modal .native-select-label { display: flex; flex-direction: column; gap: 5px; }
+.modal .native-select-label select { width: 100%; }
+.modal .form-row .native-select-label { margin: 0; flex: 1 1 0; }
 .modal input[type=text], .modal input[type=number] { width: 100%; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 18px; }
 
