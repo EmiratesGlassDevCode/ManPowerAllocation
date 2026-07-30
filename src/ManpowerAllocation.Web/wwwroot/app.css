@@ -16,6 +16,9 @@
   --mpa-fg-2:          #424242;
   --mpa-fg-3:          #616161;
   --mpa-fg-4:          #707070;
+  --mpa-field:         #FFFFFF;   /* input / select well (dark theme overrides this) */
+  --mpa-ink:           #FFFFFF;   /* text on an accent fill (dark theme flips to near-black) */
+  --mpa-night:         #3B4A8C;   /* night-shift accent */
 
   /* Brand */
   --mpa-brand:           #0F6CBD;
@@ -47,6 +50,81 @@
   --mpa-font:         'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --mpa-font-display: 'Segoe UI Variable Display', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
 }
+
+/* ============================================================================
+   DARK theme token layer (companion to handoff/app-tokens-dark.css). Selected by
+   data-theme="dark" on <html> (the default; a top-bar toggle switches to light and
+   persists the choice). Because every rule consumes --mpa-* tokens, swapping the
+   values here re-themes the whole app; a handful of rules that hardcoded light hex
+   are overridden explicitly below.
+   ============================================================================ */
+:root[data-theme="dark"] {
+  --mpa-bg:            #0A0D12;
+  --mpa-surface:       #14181F;
+  --mpa-surface-alt:   #191E26;
+  --mpa-surface-tint:  #1A2029;
+  --mpa-field:         #0E1218;
+  --mpa-ink:           #06131A;
+  --mpa-stroke-1:      #333C49;
+  --mpa-stroke-2:      #2A323D;
+  --mpa-stroke-3:      #1E242D;
+  --mpa-fg-1:          #EEF2F8;
+  --mpa-fg-2:          #BFC7D4;
+  --mpa-fg-3:          #8B95A4;
+  --mpa-fg-4:          #7E8896;
+
+  /* Brand: neon cyan. brand-pressed is remapped to a LIGHT cyan because the light
+     theme uses it as text on tinted grounds, where the original near-navy vanishes. */
+  --mpa-brand:         #2BE7FF;
+  --mpa-brand-hover:   #6FF0FF;
+  --mpa-brand-pressed: #8FEBFF;
+  --mpa-brand-tint:    rgba(43,231,255,.12);
+  --mpa-brand-tint-bd: #1E5A6B;
+  --mpa-topbar-bg:     linear-gradient(180deg,#0D1319,#080B0F);
+  --mpa-topbar-fg:     #98A3B2;
+  --mpa-night:         #7C9CFF;
+
+  --mpa-ok:      #34F5A0;  --mpa-ok-bg:      #0C2B20;  --mpa-ok-bd:      #1D6B47;
+  --mpa-danger:  #FF4D6A;  --mpa-danger-bg:  #2B1119;  --mpa-danger-bd:  #6E2434;
+  --mpa-warn:    #FFC24A;  --mpa-warn-bg:    #2C2110;  --mpa-warn-bd:    #6B4C15;
+  --mpa-supply:  #B57BFF;  --mpa-supply-bg:  #211734;  --mpa-supply-bd:  #4B2F7C;
+  --mpa-teal:    #2FE3D0;  --mpa-teal-bg:    #0C2A28;  --mpa-teal-bd:    #186058;
+  --mpa-gold:    #FFD24A;  --mpa-magenta:    #FF5FE0;
+
+  --mpa-shadow-2:     0 1px 3px rgba(0,0,0,.7),  inset 0 0 0 1px #212832;
+  --mpa-shadow-4:     0 3px 10px rgba(0,0,0,.72), inset 0 0 0 1px #212832;
+  --mpa-shadow-8:     0 12px 32px rgba(0,0,0,.8), inset 0 0 0 1px rgba(43,231,255,.35);
+  --mpa-shadow-modal: 0 32px 72px rgba(0,0,0,.85), inset 0 0 0 1px #262E39;
+}
+
+html { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+
+/* Explicit dark overrides for rules that hardcoded a light-theme hex and would
+   otherwise render an unreadable or glaring result on the dark canvas. */
+:root[data-theme="dark"] .nav-link:hover { background: var(--mpa-brand-tint); }
+:root[data-theme="dark"] .topbar-sub { border-left-color: #1E2833; }
+:root[data-theme="dark"] .breakglass-banner { color: #FFB3BE; }
+:root[data-theme="dark"] .message.error { color: #FFB3BE; }
+:root[data-theme="dark"] .message.ok { color: #8CF5C4; }
+:root[data-theme="dark"] .callout-danger-title { color: #FFB3BE; }
+:root[data-theme="dark"] .bg-pill.active { color: #FFB3BE; }
+:root[data-theme="dark"] .login-submit:hover { background: var(--mpa-danger); border-color: var(--mpa-danger); }
+:root[data-theme="dark"] .b-night { color: var(--mpa-night); border-color: #33405F; }
+:root[data-theme="dark"] .import-drop { background: rgba(43,231,255,.05); }
+:root[data-theme="dark"] .import-drop.info { background: rgba(47,227,208,.05); }
+:root[data-theme="dark"] .import-drop.info .import-drop-label { color: #7FEDE0; }
+:root[data-theme="dark"] .import-drop.gold { background: rgba(255,210,74,.05); border-color: #6B4C15; }
+:root[data-theme="dark"] .import-card-head.brand { color: var(--mpa-brand-hover); }
+:root[data-theme="dark"] .import-card-head.info { color: #7FEDE0; }
+:root[data-theme="dark"] .import-card-head.gold { background: var(--mpa-warn-bg); border-bottom-color: var(--mpa-warn-bd); color: var(--mpa-gold); }
+:root[data-theme="dark"] .import-choose { color: var(--mpa-ink); }
+:root[data-theme="dark"] .import-result-title { color: #8CF5C4; }
+:root[data-theme="dark"] .sync-card-head.ok .sync-card-title { color: #8CF5C4; }
+
+/* The theme toggle button in the top bar. */
+.theme-toggle { height: 28px; min-width: 28px; padding: 0 8px; border-radius: var(--mpa-r-md); border: 1px solid #4C87BE; background: transparent; color: #fff; cursor: pointer; font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.theme-toggle:hover { background: var(--mpa-brand-hover); }
 
 * { box-sizing: border-box; }
 
@@ -318,7 +396,7 @@ a:hover { text-decoration: underline; }
 .form-inline { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
 .form-inline label, .form-stack label, .native-select-label { display: flex; flex-direction: column; font: 600 12px/16px var(--mpa-font); color: var(--mpa-fg-3); gap: 5px; }
 .form-stack { display: flex; flex-direction: column; gap: 14px; max-width: 340px; }
-input, select, .native-select-label select { height: 32px; padding: 0 10px; border: 1px solid var(--mpa-stroke-1); border-bottom: 2px solid var(--mpa-brand); border-radius: var(--mpa-r-md); font: 400 14px/20px var(--mpa-font); background: var(--mpa-surface); color: var(--mpa-fg-1); }
+input, select, .native-select-label select { height: 32px; padding: 0 10px; border: 1px solid var(--mpa-stroke-1); border-bottom: 2px solid var(--mpa-brand); border-radius: var(--mpa-r-md); font: 400 14px/20px var(--mpa-font); background: var(--mpa-field); color: var(--mpa-fg-1); }
 input:focus, select:focus { outline: 2px solid var(--mpa-brand); outline-offset: 1px; }
 button { height: 32px; padding: 0 16px; background: var(--mpa-brand); border: 1px solid var(--mpa-brand); color: #fff; border-radius: var(--mpa-r-md); cursor: pointer; font: 600 14px/1 var(--mpa-font); }
 button:hover { background: var(--mpa-brand-hover); border-color: var(--mpa-brand-hover); }

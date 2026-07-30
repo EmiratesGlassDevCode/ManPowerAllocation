@@ -1,10 +1,13 @@
 @inherits LayoutComponentBase
 @implements IDisposable
+@using Microsoft.JSInterop
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-@* Fluent 2 design system: applies the Fluent token set (typography, neutral palette, elevation,
-   corner radius) with the Emirates Glass navy as the accent, in light mode. *@
-<FluentDesignTheme Mode="DesignThemeModes.Light" CustomColor="#0F6CBD" StorageName="mpa-theme" />
+@* Fluent 2 design system. The mode follows the app's own colour-theme toggle (dark by default);
+   the CSS token layer is switched via data-theme on <html> by theme.js, and this keeps the Fluent
+   components' own chrome in step. *@
+<FluentDesignTheme Mode="_mode" CustomColor="#0F6CBD" />
 
 @*
     Application shell: a responsive top bar showing the signed-in user and a prominent banner
@@ -20,6 +23,7 @@
             <span class="topbar-sub">Manpower Allocation</span>
         </div>
         <div class="topbar-user">
+            <button class="theme-toggle" type="button" @onclick="ToggleTheme" title="Toggle light / dark theme" aria-label="Toggle colour theme">@(_isDark ? "☀" : "🌙")</button>
             <AttendanceHealth />
             <AuthorizeView>
                 <Authorized>
@@ -55,8 +59,40 @@
 @code {
     private bool _navOpen;
 
+    // Colour theme. Dark is the default; theme.js has already applied the stored choice to
+    // <html data-theme> before first paint, and OnAfterRenderAsync reads it back to keep the
+    // Fluent component mode in step.
+    private DesignThemeModes _mode = DesignThemeModes.Dark;
+    private bool _isDark = true;
+
     /// <summary>Closes the mobile navigation drawer whenever the route changes.</summary>
     protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    /// <summary>Reads the persisted colour theme once the circuit is interactive and syncs the Fluent mode.</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var theme = await JS.InvokeAsync<string>("mpaTheme.get");
+        var isDark = !string.Equals(theme, "light", StringComparison.OrdinalIgnoreCase);
+        if (isDark != _isDark)
+        {
+            _isDark = isDark;
+            _mode = isDark ? DesignThemeModes.Dark : DesignThemeModes.Light;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Flips the colour theme, updates the Fluent mode and persists the choice via theme.js.</summary>
+    private async Task ToggleTheme()
+    {
+        _isDark = !_isDark;
+        _mode = _isDark ? DesignThemeModes.Dark : DesignThemeModes.Light;
+        await JS.InvokeVoidAsync("mpaTheme.set", _isDark ? "dark" : "light");
+    }
 
     private void ToggleNav() => _navOpen = !_navOpen;
 
