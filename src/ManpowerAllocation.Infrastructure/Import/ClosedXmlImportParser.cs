@@ -307,7 +307,14 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
             var notes = GetString(sheet, r, columns.Notes);
 
             var isSupply = string.Equals(name, "SUPPLY", StringComparison.OrdinalIgnoreCase)
-                           || string.Equals(badge, "SUPPLY", StringComparison.OrdinalIgnoreCase);
+                           || string.Equals(badge, "SUPPLY", StringComparison.OrdinalIgnoreCase)
+                           || (columns.Outsource > 0 && IsAffirmative(GetString(sheet, r, columns.Outsource)));
+
+            // Prefer the row's own Division column (the app's single-sheet export carries one) so a
+            // multi-division roster lands in the right divisions; fall back to the sheet's division.
+            var rowDivision = columns.Division > 0
+                ? ParseDivision(GetString(sheet, r, columns.Division)) ?? division
+                : division;
 
             var status = NormaliseStatus(statusRaw);
 
@@ -350,7 +357,7 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
 
             yield return new ImportedEmployeeRow
             {
-                Division = division,
+                Division = rowDivision,
                 Name = name.Trim(),
                 BadgeNumber = string.IsNullOrWhiteSpace(badge) ? null : badge.Trim(),
                 DepartmentName = departmentName,
@@ -385,13 +392,13 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
         }
 
         // No header row found: fall back to the fixed column order used by the source data.
-        return (0, new AttendanceColumns(1, 2, 3, 4, 5, 6));
+        return (0, new AttendanceColumns(1, 2, 0, 3, 4, 5, 0, 6));
     }
 
     /// <summary>Maps attendance columns from a header row, keeping the fixed order as a per-column fallback.</summary>
     private static AttendanceColumns MapAttendanceColumns(IXLWorksheet sheet, int headerRow, int lastCol)
     {
-        int name = 1, id = 2, dept = 3, shift = 4, status = 5, notes = 6;
+        int name = 1, id = 2, division = 0, dept = 3, shift = 4, status = 5, outsource = 0, notes = 6;
 
         for (var c = 1; c <= lastCol; c++)
         {
@@ -405,9 +412,13 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
             {
                 name = c;
             }
-            else if (header is "ID" or "EMP ID" or "EMPID" or "EMPLOYEE ID")
+            else if (header is "ID" or "EMP ID" or "EMPID" or "EMPLOYEE ID" or "BADGE" or "BADGE NUMBER")
             {
                 id = c;
+            }
+            else if (header is "DIVISION" or "CATEGORY")
+            {
+                division = c;
             }
             else if (header.Contains("DEPT", StringComparison.Ordinal) || header.Contains("DEPART", StringComparison.Ordinal) || header == "SECTION")
             {
@@ -421,13 +432,17 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
             {
                 status = c;
             }
+            else if (header.Contains("OUTSOURCE", StringComparison.Ordinal) || header.Contains("SUPPLY", StringComparison.Ordinal))
+            {
+                outsource = c;
+            }
             else if (header is "NOTES" or "NOTE" or "REMARK" or "REMARKS" or "DESIGNATION" or "ROLE" or "POSITION")
             {
                 notes = c;
             }
         }
 
-        return new AttendanceColumns(name, id, dept, shift, status, notes);
+        return new AttendanceColumns(name, id, division, dept, shift, status, outsource, notes);
     }
 
     /// <summary>Extracts requirement rows from a recognised requirements sheet.</summary>
@@ -668,7 +683,7 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
     }
 
     /// <summary>The resolved column positions (1-based) for an attendance sheet.</summary>
-    private readonly record struct AttendanceColumns(int Name, int Id, int Department, int Shift, int Status, int Notes);
+    private readonly record struct AttendanceColumns(int Name, int Id, int Division, int Department, int Shift, int Status, int Outsource, int Notes);
 
     /// <summary>The resolved column positions (1-based) for an edited Attendance export. 0 means absent.</summary>
     private readonly record struct EditColumns(int Ref, int Name, int Id, int Division, int Department, int Shift, int Status, int Outsource, int Notes);
