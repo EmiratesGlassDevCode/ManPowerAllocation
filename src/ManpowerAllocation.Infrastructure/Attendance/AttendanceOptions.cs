@@ -18,6 +18,16 @@ public sealed class AttendanceOptions
     /// </summary>
     public string TimeZoneId { get; set; } = "Arabian Standard Time";
 
+    /// <summary>
+    /// Grace, in minutes, applied on both sides of the shift-day boundary. Each operational day
+    /// is treated as present from (day start − grace) until (next day start + grace), so the
+    /// windows of consecutive days overlap by twice this value around the boundary. With the
+    /// default 60 and a 07:00 day start, an early arrival from 06:00 is already counted and the
+    /// outgoing shift keeps showing until 08:00, after which it drops on the clock — no dependence
+    /// on punch-out times. Set to 0 for a hard cutover exactly at the shift start.
+    /// </summary>
+    public int BoundaryGraceMinutes { get; set; } = 60;
+
     /// <summary>The external attendance view's schema.</summary>
     public string ViewSchema { get; set; } = "dbo";
 
