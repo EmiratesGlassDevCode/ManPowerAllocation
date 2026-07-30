@@ -1,8 +1,9 @@
 namespace ManpowerAllocation.Infrastructure.Attendance;
 
 /// <summary>
-/// A read-only projection of one row of the external attendance view
-/// <c>[attendance].[dbo].[xxeg_attendance_v]</c>. Keyless: the application never writes to it.
+/// A read-only projection of one row of the external attendance view (schema/name configured
+/// via <see cref="AttendanceOptions"/>, currently <c>[dbo].[MPA]</c>). Keyless: the application
+/// never writes to it.
 /// </summary>
 public sealed class AttendanceRecord
 {

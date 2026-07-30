@@ -22,7 +22,7 @@ public sealed class AttendanceOptions
     public string ViewSchema { get; set; } = "dbo";
 
     /// <summary>The external attendance view's name.</summary>
-    public string ViewName { get; set; } = "xxeg_attendance_v";
+    public string ViewName { get; set; } = "MPA";
 
     /// <summary>Column in the view holding the employee identifier (maps to <c>Employee.BadgeNumber</c>).</summary>
     public string EmployeeIdColumn { get; set; } = "EmpID";
