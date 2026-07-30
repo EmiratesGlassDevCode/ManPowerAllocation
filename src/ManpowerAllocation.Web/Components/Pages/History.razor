@@ -3,7 +3,7 @@
 @using ManpowerAllocation.Web.Common
 @using ManpowerAllocation.Web.Security
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
-@inject IAllocationHistoryService History
+@inject IAllocationHistoryService HistoryService
 @inject DisplayTimeZone Time
 
 <PageTitle>Report History — Manpower Allocation</PageTitle>
@@ -148,7 +148,7 @@ else
         _loading = true;
         try
         {
-            _all = await History.ListAsync(_from, _to);
+            _all = await HistoryService.ListAsync(_from, _to);
         }
         finally
         {
@@ -163,7 +163,7 @@ else
         _ => _all.ToList()
     };
 
-    private async Task OpenDetailAsync(long id) => _detail = await History.GetAsync(id);
+    private async Task OpenDetailAsync(long id) => _detail = await HistoryService.GetAsync(id);
 
     private static int FillPercent(IReadOnlyCollection<SnapshotSummaryDto> rows)
     {
