@@ -31,4 +31,21 @@ public interface IDepartmentService
     /// <param name="departmentId">The department to delete.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task DeleteAsync(int departmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns every department across all divisions that has no employees allocated to it,
+    /// ordered by division then name. Used by the cleanup screen to surface departments that
+    /// are safe to remove (for example, ones created by a mistaken import).
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<IReadOnlyList<DepartmentDto>> GetEmptyDepartmentsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes the given departments, but only those that still have no employees allocated —
+    /// any that have gained staff are skipped, never orphaned. Each deletion is audited. Returns
+    /// how many were removed, skipped (had employees) or not found.
+    /// </summary>
+    /// <param name="departmentIds">The department ids selected for removal.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<DepartmentCleanupResult> DeleteEmptyDepartmentsAsync(IReadOnlyCollection<int> departmentIds, CancellationToken cancellationToken = default);
 }

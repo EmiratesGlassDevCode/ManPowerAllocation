@@ -1,0 +1,152 @@
+@page "/admin/cleanup"
+@using ManpowerAllocation.Application.Departments
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IDepartmentService DepartmentService
+
+<PageTitle>Clean Up Departments — Manpower Allocation</PageTitle>
+
+<h1>Clean Up Departments</h1>
+<p class="hint">
+    Lists every department that has <strong>no employees allocated</strong> — the only departments
+    that are safe to remove. Use it to undo a mistaken import: tick the bogus rows (the
+    <em>Select oversized</em> button pre-selects those with implausibly large requirements) and
+    delete them in one reviewed step. A department that has staff can never be deleted here.
+</p>
+
+@if (_result is not null)
+{
+    <p class="message ok">
+        Removed @_result.Deleted department(s).@(_result.SkippedWithEmployees > 0 ? $" Skipped {_result.SkippedWithEmployees} that had staff." : "")@(_result.NotFound > 0 ? $" {_result.NotFound} were already gone." : "")
+    </p>
+}
+
+@if (_empties.Count == 0)
+{
+    <p class="message">No empty departments — nothing to clean up.</p>
+}
+else
+{
+    <div class="toolbar">
+        <span class="hint">@_selected.Count of @_empties.Count selected</span>
+        <span class="toolbar-spacer"></span>
+        <button type="button" class="link-btn" @onclick="SelectOversized">Select oversized (req ≥ 100)</button>
+        <button type="button" class="link-btn" @onclick="SelectAll">Select all</button>
+        <button type="button" class="link-btn" @onclick="Clear">Clear</button>
+        <FluentButton Appearance="Appearance.Accent" Disabled="@(_selected.Count == 0)" @onclick="() => _confirming = true">Delete selected</FluentButton>
+    </div>
+
+    <div class="grid-scroll">
+        <table class="grid">
+            <thead>
+                <tr>
+                    <th style="width:36px"></th>
+                    <th>Division</th><th>Department</th>
+                    <th class="num">Req day</th><th class="num">Req night</th>
+                    <th class="num">Sequence</th><th>Active</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var d in _empties)
+                {
+                    var oversized = d.RequiredDay >= 100 || d.RequiredNight >= 100;
+                    <tr class="@(_selected.Contains(d.Id) ? "row-selected" : "")">
+                        <td><input type="checkbox" checked="@_selected.Contains(d.Id)" @onchange="e => Toggle(d.Id, e)" /></td>
+                        <td>@DivisionLabel(d.Division)</td>
+                        <td class="strong">@d.Name</td>
+                        <td class="num @(oversized ? "sv-red" : "")">@d.RequiredDay</td>
+                        <td class="num @(oversized ? "sv-red" : "")">@d.RequiredNight</td>
+                        <td class="num">@d.Sequence</td>
+                        <td>@(d.IsActive ? "On" : "Off")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_confirming)
+{
+    <div class="modal-bg" @onclick="() => _confirming = false">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>Delete @_selected.Count department(s)?</h3>
+            <div class="modal-scroll">
+                <p>This permanently removes the selected empty departments. It cannot affect any
+                   employee (departments with staff are skipped automatically) and every deletion is
+                   written to the audit trail. Requirements for your real departments are unchanged.</p>
+            </div>
+            <div class="modal-foot">
+                <FluentButton Appearance="Appearance.Neutral" @onclick="() => _confirming = false">Cancel</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" Disabled="@_deleting" @onclick="ConfirmDeleteAsync">Delete</FluentButton>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<DepartmentDto> _empties = Array.Empty<DepartmentDto>();
+    private readonly HashSet<int> _selected = new();
+    private bool _confirming;
+    private bool _deleting;
+    private DepartmentCleanupResult? _result;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _empties = await DepartmentService.GetEmptyDepartmentsAsync();
+
+    private void Toggle(int id, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _selected.Add(id);
+        }
+        else
+        {
+            _selected.Remove(id);
+        }
+    }
+
+    private void SelectOversized()
+    {
+        _selected.Clear();
+        foreach (var d in _empties.Where(d => d.RequiredDay >= 100 || d.RequiredNight >= 100))
+        {
+            _selected.Add(d.Id);
+        }
+    }
+
+    private void SelectAll()
+    {
+        _selected.Clear();
+        foreach (var d in _empties)
+        {
+            _selected.Add(d.Id);
+        }
+    }
+
+    private void Clear() => _selected.Clear();
+
+    private async Task ConfirmDeleteAsync()
+    {
+        _deleting = true;
+        try
+        {
+            _result = await DepartmentService.DeleteEmptyDepartmentsAsync(_selected.ToList());
+            _selected.Clear();
+            _confirming = false;
+            await LoadAsync();
+        }
+        finally
+        {
+            _deleting = false;
+        }
+    }
+
+    private static string DivisionLabel(ManpowerAllocation.Domain.Enums.Division division) => division switch
+    {
+        ManpowerAllocation.Domain.Enums.Division.Egl => "EGL",
+        ManpowerAllocation.Domain.Enums.Division.FunctionalSupport => "Functional Support",
+        ManpowerAllocation.Domain.Enums.Division.Brg => "BRG",
+        _ => division.ToString()
+    };
+}

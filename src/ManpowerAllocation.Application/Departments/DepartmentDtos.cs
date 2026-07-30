@@ -12,6 +12,9 @@ public sealed record DepartmentDto(
     decimal Sequence,
     bool IsActive);
 
+/// <summary>Outcome of a bulk empty-department cleanup.</summary>
+public sealed record DepartmentCleanupResult(int Deleted, int SkippedWithEmployees, int NotFound);
+
 /// <summary>Request to create a department. The name is normalised server-side.</summary>
 public sealed record CreateDepartmentRequest
 {

@@ -151,6 +151,77 @@ public sealed class DepartmentService : IDepartmentService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DepartmentDto>> GetEmptyDepartmentsAsync(CancellationToken cancellationToken = default)
+    {
+        Require(UserRole.Admin);
+
+        return await _dbContext.Departments
+            .AsNoTracking()
+            .Where(d => !_dbContext.Employees.Any(e => e.DepartmentId == d.Id))
+            .OrderBy(d => d.Division)
+            .ThenBy(d => d.Name)
+            .Select(d => new DepartmentDto(
+                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<DepartmentCleanupResult> DeleteEmptyDepartmentsAsync(IReadOnlyCollection<int> departmentIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(departmentIds);
+        Require(UserRole.Admin);
+
+        var deleted = 0;
+        var skipped = 0;
+        var notFound = 0;
+
+        var ids = departmentIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return new DepartmentCleanupResult(0, 0, 0);
+        }
+
+        await _dbContext.ExecuteInTransactionAsync(async ct =>
+        {
+            // Reset accumulators so a transient-failure retry does not double-count.
+            deleted = 0;
+            skipped = 0;
+            notFound = 0;
+
+            var departments = await _dbContext.Departments
+                .Where(d => ids.Contains(d.Id))
+                .ToListAsync(ct);
+            var found = departments.ToDictionary(d => d.Id);
+
+            foreach (var id in ids)
+            {
+                if (!found.TryGetValue(id, out var department))
+                {
+                    notFound++;
+                    continue;
+                }
+
+                // Re-check under the transaction: never orphan employees, even if staff were
+                // assigned between listing the empties and confirming the delete.
+                var hasEmployees = await _dbContext.Employees.AnyAsync(e => e.DepartmentId == id, ct);
+                if (hasEmployees)
+                {
+                    skipped++;
+                    continue;
+                }
+
+                _dbContext.Departments.Remove(department);
+                _auditWriter.Add(AuditAction.Delete, nameof(Department), id.ToString(), ToDto(department), null);
+                deleted++;
+            }
+
+            await _dbContext.SaveChangesAsync(ct);
+        }, cancellationToken);
+
+        return new DepartmentCleanupResult(deleted, skipped, notFound);
+    }
+
     /// <summary>
     /// Server-side authorization guard applied to every mutation, independent of the caller
     /// (Minimal API or in-process Blazor). Throws when the current principal lacks the role.
