@@ -56,7 +56,7 @@ h2 { font: 600 20px/26px var(--mpa-font-display); margin: 16px 0 8px; }
 h3 { font: 600 16px/22px var(--mpa-font); }
 a { color: var(--mpa-brand); text-decoration: none; }
 a:hover { text-decoration: underline; }
-.hint { font: 400 14px/20px var(--mpa-font); color: var(--mpa-fg-3); max-width: 820px; }
+.hint { font: 400 14px/22px var(--mpa-font); color: var(--mpa-fg-3); max-width: 760px; text-wrap: pretty; }
 
 .page { min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; background: var(--mpa-bg); }
 
@@ -97,8 +97,17 @@ a:hover { text-decoration: underline; }
 .sync-foot.bad .sync-title { color: var(--mpa-danger); }
 
 .content { flex: 1; padding: 28px 32px 64px; max-width: 1600px; display: flex; flex-direction: column; gap: 24px; }
-.breadcrumb { font: 400 12px/16px var(--mpa-font); color: var(--mpa-fg-3); }
-.screen-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.breadcrumb { font: 400 12px/16px var(--mpa-font); color: var(--mpa-fg-4); }
+
+/* Header block: crumb + h1 + hint stacked with explicit per-line spacing (not a
+   uniform gap), so the title sits as a distinct block between two pieces of small text.
+   The shift selector is a sibling in the row, aligned to the bottom of this block. */
+.screen-head { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 12px 16px; }
+.screen-head-block { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
+.screen-head-block .breadcrumb { margin: 0 0 8px; }
+.screen-head-block h1 { font: 600 30px/36px var(--mpa-font-display); letter-spacing: -.015em; margin: 0 0 8px; }
+.screen-head-block h1:last-child { margin-bottom: 0; }
+.screen-head-block .hint { margin: 0; }
 
 /* ── Shift + filter pills ────────────────────────────────────────────────── */
 .shift-selector { display: flex; align-items: center; gap: 8px; }
