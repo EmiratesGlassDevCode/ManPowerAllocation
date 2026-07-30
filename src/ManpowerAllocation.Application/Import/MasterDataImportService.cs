@@ -321,17 +321,31 @@ public sealed class MasterDataImportService : IMasterDataImportService
 
         await _dbContext.ExecuteInTransactionAsync(async ct =>
         {
-            employeesRemoved = await _dbContext.Employees.CountAsync(ct);
-            departmentsRemoved = await _dbContext.Departments.CountAsync(ct);
-            snapshotsRemoved = await _dbContext.AllocationSnapshots.CountAsync(ct);
+            // Reset accumulators so a transient-failure retry does not double-count.
+            employeesRemoved = 0;
+            departmentsRemoved = 0;
+            snapshotsRemoved = 0;
 
             // Employees first (they reference departments through a restricted FK), then the now
             // unreferenced departments, then the snapshots (their per-department and per-employee
             // detail rows are removed by the database cascade). Roles, audit, shift settings and the
-            // break-glass account are deliberately untouched.
-            await _dbContext.Employees.ExecuteDeleteAsync(ct);
-            await _dbContext.Departments.ExecuteDeleteAsync(ct);
-            await _dbContext.AllocationSnapshots.ExecuteDeleteAsync(ct);
+            // break-glass account are deliberately untouched. Load-and-RemoveRange keeps this in the
+            // application layer's core-EF surface (set-based ExecuteDelete lives in the relational
+            // assembly, which this project does not reference).
+            var employees = await _dbContext.Employees.ToListAsync(ct);
+            employeesRemoved = employees.Count;
+            _dbContext.Employees.RemoveRange(employees);
+            await _dbContext.SaveChangesAsync(ct);
+
+            var departments = await _dbContext.Departments.ToListAsync(ct);
+            departmentsRemoved = departments.Count;
+            _dbContext.Departments.RemoveRange(departments);
+            await _dbContext.SaveChangesAsync(ct);
+
+            var snapshots = await _dbContext.AllocationSnapshots.ToListAsync(ct);
+            snapshotsRemoved = snapshots.Count;
+            _dbContext.AllocationSnapshots.RemoveRange(snapshots);
+            await _dbContext.SaveChangesAsync(ct);
 
             var summary = new
             {
