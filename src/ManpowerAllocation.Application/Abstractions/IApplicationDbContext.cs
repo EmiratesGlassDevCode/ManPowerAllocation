@@ -28,6 +28,15 @@ public interface IApplicationDbContext
     /// <summary>The single admin-configurable shift-definition row.</summary>
     DbSet<ShiftSetting> ShiftSettings { get; }
 
+    /// <summary>Captured daily report snapshots (one per operational date and shift).</summary>
+    DbSet<AllocationSnapshot> AllocationSnapshots { get; }
+
+    /// <summary>Per-department rows of captured snapshots.</summary>
+    DbSet<AllocationSnapshotDepartment> AllocationSnapshotDepartments { get; }
+
+    /// <summary>Per-employee allocation lines of captured snapshots.</summary>
+    DbSet<AllocationSnapshotEmployee> AllocationSnapshotEmployees { get; }
+
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     /// <returns>The number of state entries written to the database.</returns>

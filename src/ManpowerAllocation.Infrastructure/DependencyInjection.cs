@@ -59,6 +59,9 @@ public static class DependencyInjection
         // Enforces the four-hour auto-disable window and detects manual enables out of band.
         services.AddHostedService<BreakGlassLifecycleWorker>();
 
+        // Captures the daily report at the 10:00 and 22:00 shift cut-offs.
+        services.AddHostedService<Snapshots.AllocationSnapshotWorker>();
+
         AddAttendanceIntegration(services, configuration);
 
         return services;

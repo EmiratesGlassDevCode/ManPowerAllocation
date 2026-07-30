@@ -36,6 +36,15 @@ public sealed class ManpowerDbContext : DbContext, IApplicationDbContext
     public DbSet<ShiftSetting> ShiftSettings => Set<ShiftSetting>();
 
     /// <inheritdoc />
+    public DbSet<AllocationSnapshot> AllocationSnapshots => Set<AllocationSnapshot>();
+
+    /// <inheritdoc />
+    public DbSet<AllocationSnapshotDepartment> AllocationSnapshotDepartments => Set<AllocationSnapshotDepartment>();
+
+    /// <inheritdoc />
+    public DbSet<AllocationSnapshotEmployee> AllocationSnapshotEmployees => Set<AllocationSnapshotEmployee>();
+
+    /// <inheritdoc />
     public async Task ExecuteInTransactionAsync(Func<CancellationToken, Task> work, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(work);
