@@ -20,13 +20,13 @@
             <FluentCheckbox @bind-Value="_replaceExisting">
                 Replace employees for divisions that already contain data
             </FluentCheckbox>
-            <div class="import-drop">
+            <label class="import-drop">
                 <span class="import-drop-label">Drop .xlsx here</span>
                 <span class="import-drop-or">or</span>
-                <FluentButton Appearance="Appearance.Accent">Choose file</FluentButton>
+                <span class="import-choose">Choose file</span>
                 <span class="import-drop-max">Max 20 MB</span>
                 <InputFile OnChange="OnAttendanceSelected" accept=".xlsx" />
-            </div>
+            </label>
         </div>
     </div>
 
@@ -34,12 +34,12 @@
         <div class="import-card-head info"><span class="ico"></span>Requirements workbook</div>
         <div class="import-card-body">
             <span class="hint">Sets day and night required headcount per department.</span>
-            <div class="import-drop info">
+            <label class="import-drop info">
                 <span class="import-drop-label">Drop .xlsx here</span>
                 <span class="import-drop-or">or</span>
-                <FluentButton Appearance="Appearance.Accent">Choose file</FluentButton>
+                <span class="import-choose">Choose file</span>
                 <InputFile OnChange="OnRequirementsSelected" accept=".xlsx" />
-            </div>
+            </label>
         </div>
     </div>
 
