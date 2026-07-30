@@ -10,8 +10,13 @@ public sealed class AttendanceRecord
     /// <summary>The employee identifier from the attendance system (maps to <c>Employee.BadgeNumber</c>).</summary>
     public string EmployeeId { get; set; } = string.Empty;
 
-    /// <summary>The attendance date.</summary>
-    public DateTime Dt { get; set; }
+    /// <summary>
+    /// The shift the row belongs to, as labelled by the view (e.g. "Current Shift" /
+    /// "Previous Night Shift"). The view owns the shift-boundary and early-arrival logic; the
+    /// application treats the row as belonging to the live shift when this matches
+    /// <see cref="AttendanceOptions.CurrentShiftValue"/>.
+    /// </summary>
+    public string ShiftLabel { get; set; } = string.Empty;
 
     /// <summary>The check-in time, if the employee has checked in.</summary>
     public DateTime? InTime { get; set; }

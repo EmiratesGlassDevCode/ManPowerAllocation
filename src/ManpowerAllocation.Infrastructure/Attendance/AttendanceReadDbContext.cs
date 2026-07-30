@@ -36,13 +36,13 @@ public sealed class AttendanceReadDbContext : DbContext
         {
             entity.HasNoKey();
             entity.ToView(_options.ViewName, _options.ViewSchema);
-            // SQL Server column names are case-insensitive, so the defaults below ("dt"/"InTime")
-            // resolve fine as-is; override any of the Attendance:*Column settings if a
-            // replacement view uses different column names.
+            // SQL Server column names are case-insensitive, so the defaults below resolve fine
+            // as-is; override any of the Attendance:*Column settings if a replacement view uses
+            // different column names.
             entity.Property(r => r.EmployeeId).HasColumnName(_options.EmployeeIdColumn);
-            entity.Property(r => r.Dt).HasColumnName(_options.DateColumn);
             entity.Property(r => r.InTime).HasColumnName(_options.InTimeColumn);
             entity.Property(r => r.OutTime).HasColumnName(_options.OutTimeColumn);
+            entity.Property(r => r.ShiftLabel).HasColumnName(_options.ShiftLabelColumn);
         });
     }
 }
