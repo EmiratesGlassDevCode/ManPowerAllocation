@@ -163,9 +163,9 @@ a:hover { text-decoration: underline; }
 .nav-link.active::before { background: var(--mpa-brand); }
 .nav-ico { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; margin-left: 8px; opacity: .4; }
 .nav-link.active .nav-ico, .nav-link:hover .nav-ico { opacity: 1; }
-.nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; letter-spacing: .04em; font-size: 13px; }
 .nav-count { margin-left: auto; background: var(--mpa-brand-tint); color: var(--mpa-brand); font: 600 11px/16px var(--mpa-font); border-radius: 10px; padding: 1px 8px; }
-.nav-section { font: 600 12px/16px var(--mpa-font); color: var(--mpa-fg-3); padding: 6px 12px; margin-top: 8px; }
+.nav-section { text-transform: uppercase; font: 700 11px/16px var(--mpa-font); letter-spacing: .12em; color: var(--mpa-fg-3); padding: 6px 12px; margin-top: 8px; }
 
 .nav-foot { margin-top: auto; }
 .sync-foot { margin: 10px 4px 2px; padding: 12px; border-radius: var(--mpa-r-md); background: var(--mpa-brand-tint); font: 400 12px/16px var(--mpa-font); }

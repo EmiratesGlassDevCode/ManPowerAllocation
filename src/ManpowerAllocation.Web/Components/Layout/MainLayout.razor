@@ -59,11 +59,11 @@
 @code {
     private bool _navOpen;
 
-    // Colour theme. Dark is the default; theme.js has already applied the stored choice to
+    // Colour theme. Light is the default; theme.js has already applied the stored choice to
     // <html data-theme> before first paint, and OnAfterRenderAsync reads it back to keep the
     // Fluent component mode in step.
-    private DesignThemeModes _mode = DesignThemeModes.Dark;
-    private bool _isDark = true;
+    private DesignThemeModes _mode = DesignThemeModes.Light;
+    private bool _isDark;
 
     /// <summary>Closes the mobile navigation drawer whenever the route changes.</summary>
     protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
