@@ -17,4 +17,22 @@ public sealed class AttendanceOptions
     /// "Arabian Standard Time") or an IANA id (e.g. "Asia/Dubai"); .NET resolves either.
     /// </summary>
     public string TimeZoneId { get; set; } = "Arabian Standard Time";
+
+    /// <summary>The external attendance view's schema.</summary>
+    public string ViewSchema { get; set; } = "dbo";
+
+    /// <summary>The external attendance view's name.</summary>
+    public string ViewName { get; set; } = "xxeg_attendance_v";
+
+    /// <summary>Column in the view holding the employee identifier (maps to <c>Employee.BadgeNumber</c>).</summary>
+    public string EmployeeIdColumn { get; set; } = "EmpID";
+
+    /// <summary>Column in the view holding the attendance date.</summary>
+    public string DateColumn { get; set; } = "dt";
+
+    /// <summary>Column in the view holding the check-in time.</summary>
+    public string InTimeColumn { get; set; } = "InTime";
+
+    /// <summary>Column in the view holding the check-out time.</summary>
+    public string OutTimeColumn { get; set; } = "OutTime";
 }
