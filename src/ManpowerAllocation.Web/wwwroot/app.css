@@ -346,6 +346,8 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
 .import-card-head.brand .ico { background: var(--mpa-brand); }
 .import-card-head.info { background: var(--mpa-teal-bg); border-bottom: 1px solid var(--mpa-teal-bd); color: #02565A; }
 .import-card-head.info .ico { background: var(--mpa-teal); }
+.import-card-head.gold { background: #FBF4E6; border-bottom: 1px solid #EAD9B0; color: #6B4E12; }
+.import-card-head.gold .ico { background: var(--mpa-gold); }
 .import-card-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .import-drop { border: 1px dashed var(--mpa-brand-tint-bd); background: #FAFCFF; border-radius: var(--mpa-r-md); padding: 22px; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; cursor: pointer; }
 /* The accent "Choose file" affordance is a plain span, not a Fluent web component, so it
@@ -354,6 +356,8 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
    every click fall straight through to the input below. */
 .import-choose { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 16px; border-radius: var(--mpa-r-md); background: var(--mpa-brand); color: #fff; font: 600 13px/1 var(--mpa-font); pointer-events: none; }
 .import-drop.info { border-color: var(--mpa-teal-bd); background: #FAFEFE; }
+.import-drop.gold { border-color: #EAD9B0; background: #FEFCF6; }
+.import-drop.gold .import-drop-label { color: #6B4E12; }
 .import-drop-label { font: 600 14px/20px var(--mpa-font); color: var(--mpa-brand-hover); }
 .import-drop.info .import-drop-label { color: #02565A; }
 .import-drop-or { font: 400 12px/16px var(--mpa-font); color: var(--mpa-fg-3); }

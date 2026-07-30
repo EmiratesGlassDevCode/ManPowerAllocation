@@ -43,6 +43,24 @@
         </div>
     </div>
 
+    <div class="data-card">
+        <div class="import-card-head gold"><span class="ico"></span>Apply edits from a downloaded report</div>
+        <div class="import-card-body">
+            <span class="hint">
+                Upload an Attendance workbook you downloaded from Home and edited. Rows are matched by
+                their <b>Ref</b> column and updated in place — status, shift, department, outsource and
+                notes. Nothing is deleted; rows that match no employee are listed as warnings.
+            </span>
+            <label class="import-drop gold">
+                <span class="import-drop-label">Drop edited .xlsx here</span>
+                <span class="import-drop-or">or</span>
+                <span class="import-choose">Choose file</span>
+                <span class="import-drop-max">Max 20 MB</span>
+                <InputFile OnChange="OnEditsSelected" accept=".xlsx" />
+            </label>
+        </div>
+    </div>
+
     @if (_busy)
     {
         <p style="grid-column:1 / -1"><em>Importing…</em></p>
@@ -56,6 +74,7 @@
                 <div class="import-stat"><b>@_result.DepartmentsCreated</b><span>Departments created</span></div>
                 <div class="import-stat"><b>@_result.DepartmentsUpdated</b><span>Departments updated</span></div>
                 <div class="import-stat"><b>@_result.EmployeesImported</b><span>Employees imported</span></div>
+                <div class="import-stat"><b>@_result.EmployeesUpdated</b><span>Employees updated</span></div>
                 <div class="import-stat"><b>@_result.EmployeesRemoved</b><span>Employees removed</span></div>
             </div>
             @foreach (var warning in _result.Warnings)
@@ -84,6 +103,9 @@
 
     private Task OnRequirementsSelected(InputFileChangeEventArgs e) =>
         RunImportAsync(stream => ImportService.ImportRequirementsAsync(stream), e);
+
+    private Task OnEditsSelected(InputFileChangeEventArgs e) =>
+        RunImportAsync(stream => ImportService.ApplyAttendanceEditsAsync(stream), e);
 
     private async Task RunImportAsync(Func<Stream, Task<ImportResult>> import, InputFileChangeEventArgs e)
     {

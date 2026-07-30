@@ -38,6 +38,189 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<ImportedEmployeeRow>> ParseAttendanceEditsAsync(Stream workbook, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(workbook);
+
+        using var wb = new XLWorkbook(workbook);
+        var rows = new List<ImportedEmployeeRow>();
+
+        foreach (var sheet in wb.Worksheets)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            rows.AddRange(ExtractEditedEmployees(sheet));
+        }
+
+        return Task.FromResult<IReadOnlyList<ImportedEmployeeRow>>(rows);
+    }
+
+    /// <summary>
+    /// Extracts edited employee rows from a workbook downloaded from the Attendance export. Unlike
+    /// the seed path, the division comes from the row's Division column, the outsource column sets
+    /// the supply flag, and the Ref column (employee id) is captured for exact matching. A header
+    /// row is required — without recognised headers the sheet is skipped rather than guessed.
+    /// </summary>
+    private static IEnumerable<ImportedEmployeeRow> ExtractEditedEmployees(IXLWorksheet sheet)
+    {
+        var lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+        var lastCol = sheet.LastColumnUsed()?.ColumnNumber() ?? 0;
+        if (lastRow == 0 || lastCol == 0)
+        {
+            yield break;
+        }
+
+        var headerRow = 0;
+        var scanTo = Math.Min(8, lastRow);
+        for (var r = 1; r <= scanTo && headerRow == 0; r++)
+        {
+            for (var c = 1; c <= lastCol; c++)
+            {
+                if (GetString(sheet, r, c).Contains("NAME", StringComparison.OrdinalIgnoreCase))
+                {
+                    headerRow = r;
+                    break;
+                }
+            }
+        }
+
+        if (headerRow == 0)
+        {
+            yield break;
+        }
+
+        var cols = MapEditColumns(sheet, headerRow, lastCol);
+        if (cols.Name == 0)
+        {
+            yield break;
+        }
+
+        for (var r = headerRow + 1; r <= lastRow; r++)
+        {
+            var name = GetString(sheet, r, cols.Name);
+            var shift = NormaliseShift(GetString(sheet, r, cols.Shift));
+            var status = NormaliseStatus(GetString(sheet, r, cols.Status));
+
+            // A row needs at least a name, a recognised shift and a recognised status to be an edit.
+            if (string.IsNullOrWhiteSpace(name) || shift is null || status is null)
+            {
+                continue;
+            }
+
+            int? refId = null;
+            if (cols.Ref > 0 && TryGetInt(sheet, r, cols.Ref, out var idValue) && idValue > 0)
+            {
+                refId = idValue;
+            }
+
+            var badge = GetString(sheet, r, cols.Id);
+            var isSupply = IsAffirmative(GetString(sheet, r, cols.Outsource))
+                           || string.Equals(name, "SUPPLY", StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(badge, "SUPPLY", StringComparison.OrdinalIgnoreCase);
+
+            yield return new ImportedEmployeeRow
+            {
+                Ref = refId,
+                Division = ParseDivision(GetString(sheet, r, cols.Division)) ?? Division.Egl,
+                Name = name.Trim(),
+                BadgeNumber = string.IsNullOrWhiteSpace(badge) ? null : badge.Trim(),
+                DepartmentName = DepartmentName.Normalize(GetString(sheet, r, cols.Department)),
+                Shift = shift.Value,
+                Status = status.Value,
+                IsSupply = isSupply,
+                Notes = NormaliseNote(GetString(sheet, r, cols.Notes))
+            };
+        }
+    }
+
+    /// <summary>Maps the columns of an edited Attendance export by header text.</summary>
+    private static EditColumns MapEditColumns(IXLWorksheet sheet, int headerRow, int lastCol)
+    {
+        int reference = 0, name = 0, id = 0, division = 0, dept = 0, shift = 0, status = 0, outsource = 0, notes = 0;
+
+        for (var c = 1; c <= lastCol; c++)
+        {
+            var header = GetString(sheet, headerRow, c).Trim().ToUpperInvariant();
+            if (header.Length == 0)
+            {
+                continue;
+            }
+
+            if (header is "REF" or "REF ID" or "REFID" or "ROW ID" or "ROWID" or "EMP REF")
+            {
+                reference = c;
+            }
+            else if (header is "NAME" or "EMPLOYEE" or "EMPLOYEE NAME")
+            {
+                name = c;
+            }
+            else if (header is "ID" or "EMP ID" or "EMPID" or "EMPLOYEE ID" or "BADGE" or "BADGE NUMBER")
+            {
+                id = c;
+            }
+            else if (header is "DIVISION" or "CATEGORY")
+            {
+                division = c;
+            }
+            else if (header.Contains("DEPART", StringComparison.Ordinal) || header.Contains("DEPT", StringComparison.Ordinal) || header == "SECTION")
+            {
+                dept = c;
+            }
+            else if (header is "SHIFT" or "SHIFT TYPE")
+            {
+                shift = c;
+            }
+            else if (header.Contains("AVAIL", StringComparison.Ordinal) || header is "STATUS" or "PRESENT")
+            {
+                status = c;
+            }
+            else if (header.Contains("OUTSOURCE", StringComparison.Ordinal) || header.Contains("SUPPLY", StringComparison.Ordinal))
+            {
+                outsource = c;
+            }
+            else if (header is "NOTES" or "NOTE" or "REMARK" or "REMARKS" or "DESIGNATION" or "ROLE" or "POSITION")
+            {
+                notes = c;
+            }
+        }
+
+        return new EditColumns(reference, name, id, division, dept, shift, status, outsource, notes);
+    }
+
+    /// <summary>Parses a division label (as written by the export) to a <see cref="Division"/>, or null when unknown.</summary>
+    private static Division? ParseDivision(string raw)
+    {
+        var value = raw.Trim().ToUpperInvariant();
+        if (value.Length == 0)
+        {
+            return null;
+        }
+
+        if (value.Contains("BRG", StringComparison.Ordinal))
+        {
+            return Division.Brg;
+        }
+
+        if (value.Contains("FUNCTION", StringComparison.Ordinal) || value.Contains("SUPPORT", StringComparison.Ordinal) || value.Contains("OPERAT", StringComparison.Ordinal) || value == "FS")
+        {
+            return Division.FunctionalSupport;
+        }
+
+        if (value.Contains("EGL", StringComparison.Ordinal) || value.Contains("PRODUCT", StringComparison.Ordinal))
+        {
+            return Division.Egl;
+        }
+
+        return null;
+    }
+
+    /// <summary>Returns true for an affirmative cell (YES / Y / TRUE / 1) used by the outsource column.</summary>
+    private static bool IsAffirmative(string raw)
+    {
+        var value = raw.Trim().ToUpperInvariant();
+        return value is "YES" or "Y" or "TRUE" or "1";
+    }
+
+    /// <inheritdoc />
     public Task<IReadOnlyList<ImportedRequirementRow>> ParseRequirementsAsync(Stream workbook, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(workbook);
@@ -486,6 +669,9 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
 
     /// <summary>The resolved column positions (1-based) for an attendance sheet.</summary>
     private readonly record struct AttendanceColumns(int Name, int Id, int Department, int Shift, int Status, int Notes);
+
+    /// <summary>The resolved column positions (1-based) for an edited Attendance export. 0 means absent.</summary>
+    private readonly record struct EditColumns(int Ref, int Name, int Id, int Division, int Department, int Shift, int Status, int Outsource, int Notes);
 
     /// <summary>The resolved header row and column positions (1-based) for a requirements sheet.</summary>
     private readonly record struct RequirementLayout(int HeaderRow, int DeptColumn, int DayColumn, int NightColumn, int CategoryColumn);

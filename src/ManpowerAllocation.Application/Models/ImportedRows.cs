@@ -9,6 +9,13 @@ namespace ManpowerAllocation.Application.Models;
 /// </summary>
 public sealed record ImportedEmployeeRow
 {
+    /// <summary>
+    /// The employee's database id, when the row carries a "Ref" column (present on workbooks
+    /// downloaded from the app). Null for hand-authored seed sheets. Used by the non-destructive
+    /// edit-apply path to match an edited row back to the exact employee it came from.
+    /// </summary>
+    public int? Ref { get; init; }
+
     /// <summary>Division the sheet belonged to.</summary>
     public Division Division { get; init; }
 

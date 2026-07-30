@@ -21,6 +21,17 @@ public interface IExcelImportParser
     Task<IReadOnlyList<ImportedEmployeeRow>> ParseAttendanceAsync(Stream workbook, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reads employee rows from a workbook downloaded from the app's own Attendance export and
+    /// then edited. Unlike <see cref="ParseAttendanceAsync"/>, division is taken from each row's
+    /// Division column (not the sheet name), the outsource column maps to the supply flag, and a
+    /// Ref column (the employee id) is captured so the edit can be matched back to the exact row.
+    /// </summary>
+    /// <param name="workbook">The uploaded workbook contents.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    /// <returns>The parsed, edited employee rows.</returns>
+    Task<IReadOnlyList<ImportedEmployeeRow>> ParseAttendanceEditsAsync(Stream workbook, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Reads department requirement rows (day/night headcount) from the uploaded workbook.
     /// </summary>
     /// <param name="workbook">The uploaded workbook contents.</param>

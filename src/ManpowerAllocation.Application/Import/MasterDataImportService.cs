@@ -199,6 +199,117 @@ public sealed class MasterDataImportService : IMasterDataImportService
         };
     }
 
+    /// <inheritdoc />
+    public async Task<ImportResult> ApplyAttendanceEditsAsync(Stream workbook, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(workbook);
+        RequireAdmin();
+
+        var rows = await _parser.ParseAttendanceEditsAsync(workbook, cancellationToken);
+
+        var warnings = new List<string>();
+        var updated = 0;
+
+        await _dbContext.ExecuteInTransactionAsync(async ct =>
+        {
+            // Reset accumulators so a transient-failure retry does not double-count.
+            updated = 0;
+            warnings.Clear();
+
+            // Resolve departments in-memory: (division, canonical name) -> department.
+            var departments = await _dbContext.Departments.ToListAsync(ct);
+            var departmentByKey = departments.ToDictionary(d => (d.Division, d.Name), d => d);
+
+            foreach (var row in rows)
+            {
+                // Match the edited row back to an existing employee: Ref (the id column the export
+                // now writes) is authoritative; a unique badge number is the fallback for older files.
+                Employee? employee = null;
+
+                if (row.Ref is int id)
+                {
+                    employee = await _dbContext.Employees.FirstOrDefaultAsync(e => e.Id == id, ct);
+                    if (employee is null)
+                    {
+                        warnings.Add($"'{row.Name}' — Ref {id} matches no current employee; skipped.");
+                        continue;
+                    }
+                }
+                else if (!string.IsNullOrWhiteSpace(row.BadgeNumber))
+                {
+                    var badge = row.BadgeNumber!.Trim();
+                    var matches = await _dbContext.Employees.Where(e => e.BadgeNumber == badge).ToListAsync(ct);
+                    if (matches.Count == 1)
+                    {
+                        employee = matches[0];
+                    }
+                    else if (matches.Count > 1)
+                    {
+                        warnings.Add($"'{row.Name}' — badge {badge} matches {matches.Count} employees; skipped (re-download for a Ref column).");
+                        continue;
+                    }
+                }
+
+                if (employee is null)
+                {
+                    warnings.Add($"'{row.Name}' — no matching employee found; skipped (add new staff via Add Employee).");
+                    continue;
+                }
+
+                // Resolve the target department by name, preferring the employee's current division
+                // then the row's Division column. A rename/move to an unknown department leaves the
+                // department unchanged and warns, rather than guessing or creating one silently.
+                Department? department = null;
+                if (row.DepartmentName.Length > 0)
+                {
+                    if (departmentByKey.TryGetValue((employee.Division, row.DepartmentName), out var byCurrent))
+                    {
+                        department = byCurrent;
+                    }
+                    else if (departmentByKey.TryGetValue((row.Division, row.DepartmentName), out var byRow))
+                    {
+                        department = byRow;
+                    }
+                    else
+                    {
+                        warnings.Add($"'{row.Name}' — department '{row.DepartmentName}' not found; department left unchanged.");
+                    }
+                }
+
+                if (department is not null)
+                {
+                    employee.DepartmentId = department.Id;
+                    employee.Division = department.Division;
+                }
+
+                employee.Name = row.Name.Trim();
+                // Only overwrite the badge when the edited row supplies one, so a blank cell never
+                // wipes an existing badge (and thus its biometric link).
+                if (!string.IsNullOrWhiteSpace(row.BadgeNumber))
+                {
+                    employee.BadgeNumber = row.BadgeNumber!.Trim();
+                }
+                employee.Shift = row.Shift;
+                employee.Status = row.Status;
+                employee.IsSupply = row.IsSupply;
+                employee.Notes = row.Notes;
+                updated++;
+            }
+
+            await _dbContext.SaveChangesAsync(ct);
+
+            var summary = new { Kind = "AttendanceEditApply", EmployeesUpdated = updated, RowsRead = rows.Count, Skipped = warnings.Count };
+            _auditWriter.Add(AuditAction.Update, "MasterDataImport", null, null, summary);
+            await _dbContext.SaveChangesAsync(ct);
+        }, cancellationToken);
+
+        return new ImportResult
+        {
+            EmployeesUpdated = updated,
+            Warnings = warnings
+        };
+    }
+
     /// <summary>
     /// Defence-in-depth authorisation: master-data import is destructive and Admin-only. The
     /// primary enforcement is the endpoint/page authorization policy; this second check ensures

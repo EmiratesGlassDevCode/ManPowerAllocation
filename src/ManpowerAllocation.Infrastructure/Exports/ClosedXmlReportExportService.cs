@@ -98,19 +98,22 @@ public sealed class ClosedXmlReportExportService : IReportExportService
 
         using var wb = new XLWorkbook();
         var ws = wb.AddWorksheet("Attendance");
+        // "Ref" (the employee id) is the stable key the non-destructive edit-apply upload uses to
+        // match an edited row back to the exact employee. Leave it intact when editing offline.
         var row = WriteBrandedHeader(ws, "Attendance",
-            "Name", "ID", "Division", "Department", "Shift", "Available", "Outsource", "Notes");
+            "Ref", "Name", "ID", "Division", "Department", "Shift", "Available", "Outsource", "Notes");
 
         foreach (var e in employees)
         {
-            ws.Cell(row, 1).Value = e.Name;
-            ws.Cell(row, 2).Value = e.BadgeNumber ?? string.Empty;
-            ws.Cell(row, 3).Value = DivisionLabel(e.Division);
-            ws.Cell(row, 4).Value = e.Department?.Name ?? string.Empty;
-            ws.Cell(row, 5).Value = e.Shift.ToString().ToUpperInvariant();
-            ws.Cell(row, 6).Value = AvailabilityLabel(e.Status);
-            ws.Cell(row, 7).Value = e.IsSupply ? "YES" : string.Empty;
-            ws.Cell(row, 8).Value = e.Notes ?? string.Empty;
+            ws.Cell(row, 1).Value = e.Id;
+            ws.Cell(row, 2).Value = e.Name;
+            ws.Cell(row, 3).Value = e.BadgeNumber ?? string.Empty;
+            ws.Cell(row, 4).Value = DivisionLabel(e.Division);
+            ws.Cell(row, 5).Value = e.Department?.Name ?? string.Empty;
+            ws.Cell(row, 6).Value = e.Shift.ToString().ToUpperInvariant();
+            ws.Cell(row, 7).Value = AvailabilityLabel(e.Status);
+            ws.Cell(row, 8).Value = e.IsSupply ? "YES" : string.Empty;
+            ws.Cell(row, 9).Value = e.Notes ?? string.Empty;
             row++;
         }
 

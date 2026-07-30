@@ -12,6 +12,9 @@ public sealed record ImportResult
     /// <summary>Number of employees imported.</summary>
     public int EmployeesImported { get; init; }
 
+    /// <summary>Number of existing employees updated in place by a non-destructive edit-apply.</summary>
+    public int EmployeesUpdated { get; init; }
+
     /// <summary>Number of existing employees removed because the import replaced a division's data.</summary>
     public int EmployeesRemoved { get; init; }
 
