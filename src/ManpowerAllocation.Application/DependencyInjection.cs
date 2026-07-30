@@ -32,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IAttendanceSyncService, AttendanceSyncService>();
         services.AddScoped<IShiftSettingsService, ShiftSettingsService>();
         services.AddScoped<Snapshots.IAllocationSnapshotService, Snapshots.AllocationSnapshotService>();
+        services.AddScoped<Snapshots.IAllocationHistoryService, Snapshots.AllocationHistoryService>();
 
         // Shared holder for the last attendance-sync result shown on the admin screen.
         services.AddSingleton<AttendanceSyncStatus>();

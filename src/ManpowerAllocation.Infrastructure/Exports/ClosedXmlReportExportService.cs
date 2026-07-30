@@ -121,6 +121,113 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         return ToFile(wb, "attendance");
     }
 
+    /// <inheritdoc />
+    public async Task<ExportFile> BuildSnapshotHistoryExcelAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default)
+    {
+        var rows = await LoadSnapshotFactRowsAsync(fromDate, toDate, cancellationToken);
+
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet("History");
+        var row = WriteBrandedHeader(ws, "Daily Report History",
+            "Date", "Shift", "Division", "Department", "Required", "On Roll", "Present",
+            "Outsource", "Total Present", "Absent", "Vacation", "Variance", "Status");
+
+        foreach (var r in rows)
+        {
+            ws.Cell(row, 1).Value = r.Date;
+            ws.Cell(row, 1).Style.DateFormat.Format = "yyyy-mm-dd";
+            ws.Cell(row, 2).Value = r.Shift;
+            ws.Cell(row, 3).Value = r.Division;
+            ws.Cell(row, 4).Value = r.Department;
+            ws.Cell(row, 5).Value = r.Required;
+            ws.Cell(row, 6).Value = r.OnRoll;
+            ws.Cell(row, 7).Value = r.Present;
+            ws.Cell(row, 8).Value = r.SupplyPresent;
+            ws.Cell(row, 9).Value = r.TotalPresent;
+            ws.Cell(row, 10).Value = r.Absent;
+            ws.Cell(row, 11).Value = r.OnVacation;
+            ws.Cell(row, 12).Value = r.Variance;
+            ws.Cell(row, 13).Value = r.Status;
+            row++;
+        }
+
+        ws.Columns().AdjustToContents();
+        return ToFile(wb, "report_history");
+    }
+
+    /// <inheritdoc />
+    public async Task<ExportFile> BuildSnapshotHistoryCsvAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default)
+    {
+        var rows = await LoadSnapshotFactRowsAsync(fromDate, toDate, cancellationToken);
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Date,Shift,Division,Department,Required,OnRoll,Present,Outsource,TotalPresent,Absent,Vacation,Variance,Status");
+        foreach (var r in rows)
+        {
+            sb.Append(r.Date.ToString("yyyy-MM-dd")).Append(',')
+              .Append(Csv(r.Shift)).Append(',')
+              .Append(Csv(r.Division)).Append(',')
+              .Append(Csv(r.Department)).Append(',')
+              .Append(r.Required).Append(',')
+              .Append(r.OnRoll).Append(',')
+              .Append(r.Present).Append(',')
+              .Append(r.SupplyPresent).Append(',')
+              .Append(r.TotalPresent).Append(',')
+              .Append(r.Absent).Append(',')
+              .Append(r.OnVacation).Append(',')
+              .Append(r.Variance).Append(',')
+              .Append(Csv(r.Status)).Append('\n');
+        }
+
+        var stamp = _clock.UtcNow.ToString("yyyyMMdd");
+        var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+        return new ExportFile($"report_history_{stamp}.csv", "text/csv", bytes);
+    }
+
+    /// <summary>Loads the flattened department fact rows for the archived reports in a date range.</summary>
+    private async Task<List<SnapshotFactRow>> LoadSnapshotFactRowsAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken)
+    {
+        var from = fromDate.Date;
+        var to = toDate.Date;
+
+        var snapshots = await _dbContext.AllocationSnapshots
+            .AsNoTracking()
+            .Include(s => s.Departments)
+            .Where(s => s.OperationalDate >= from && s.OperationalDate <= to)
+            .OrderBy(s => s.OperationalDate)
+            .ThenBy(s => s.Shift)
+            .ToListAsync(cancellationToken);
+
+        var rows = new List<SnapshotFactRow>();
+        foreach (var s in snapshots)
+        {
+            foreach (var d in s.Departments.OrderBy(d => d.Division).ThenBy(d => d.DepartmentName))
+            {
+                rows.Add(new SnapshotFactRow(
+                    s.OperationalDate, s.Shift.ToString().ToUpperInvariant(), DivisionLabel(d.Division), d.DepartmentName,
+                    d.Required, d.OnRoll, d.Present, d.SupplyPresent, d.TotalPresent, d.Absent, d.OnVacation, d.Variance, d.Status));
+            }
+        }
+
+        return rows;
+    }
+
+    /// <summary>Escapes a value for CSV (quotes when it contains a comma, quote or newline).</summary>
+    private static string Csv(string value)
+    {
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+        {
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
+
+        return value;
+    }
+
+    private readonly record struct SnapshotFactRow(
+        DateTime Date, string Shift, string Division, string Department,
+        int Required, int OnRoll, int Present, int SupplyPresent, int TotalPresent,
+        int Absent, int OnVacation, int Variance, string Status);
+
     private async Task<List<Department>> LoadDepartmentsAsync(CancellationToken cancellationToken) =>
         await _dbContext.Departments
             .AsNoTracking()

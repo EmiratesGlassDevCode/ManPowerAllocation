@@ -1,0 +1,190 @@
+@page "/history"
+@using ManpowerAllocation.Application.Snapshots
+@using ManpowerAllocation.Web.Common
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
+@inject IAllocationHistoryService History
+@inject DisplayTimeZone Time
+
+<PageTitle>Report History — Manpower Allocation</PageTitle>
+
+<div class="screen-head">
+    <div class="screen-head-block">
+        <div class="breadcrumb">Home / History</div>
+        <h1>Report History</h1>
+        <p class="hint">Archived daily reports, captured automatically at 10:00 (day) and 22:00 (night). Browse any day and export a range for analysis.</p>
+    </div>
+</div>
+
+<div class="toolbar">
+    <label class="native-select-label">From
+        <input type="date" @bind="_from" />
+    </label>
+    <label class="native-select-label">To
+        <input type="date" @bind="_to" />
+    </label>
+    <FluentButton Appearance="Appearance.Accent" @onclick="LoadAsync">Apply</FluentButton>
+
+    <span class="filter-pills">
+        <button type="button" class="pill @(_shift == "all" ? "active" : "")" @onclick='() => _shift = "all"'>All</button>
+        <button type="button" class="pill @(_shift == "day" ? "active" : "")" @onclick='() => _shift = "day"'>Day</button>
+        <button type="button" class="pill @(_shift == "night" ? "active" : "")" @onclick='() => _shift = "night"'>Night</button>
+    </span>
+
+    <span class="toolbar-spacer"></span>
+
+    <a class="link-btn" href="@ExportHref("xlsx")" target="_blank"><span class="exp-ico" style="background:var(--mpa-ok)"></span>Excel</a>
+    <a class="link-btn" href="@ExportHref("csv")" target="_blank"><span class="exp-ico" style="background:var(--mpa-teal)"></span>CSV</a>
+</div>
+
+@{
+    var rows = Filtered();
+}
+
+<div class="kpi-row">
+    <div class="kpi"><div class="kpi-val">@rows.Count</div><div class="kpi-lbl">Reports captured</div></div>
+    <div class="kpi"><div class="kpi-val">@FillPercent(rows)%</div><div class="kpi-lbl">Avg fill vs required</div></div>
+    <div class="kpi"><div class="kpi-val @(rows.Sum(r => r.ShortageDepartmentCount) > 0 ? "sv-red" : "")">@rows.Sum(r => r.ShortageDepartmentCount)</div><div class="kpi-lbl">Shortage incidents</div></div>
+    <div class="kpi"><div class="kpi-val @(rows.Count(r => r.Variance < 0) > 0 ? "sv-red" : "")">@rows.Count(r => r.Variance < 0)</div><div class="kpi-lbl">Shifts under target</div></div>
+</div>
+
+@if (_loading)
+{
+    <p class="hint">Loading…</p>
+}
+else if (rows.Count == 0)
+{
+    <p class="message">No reports captured in this range yet. Snapshots are taken at 10:00 and 22:00.</p>
+}
+else
+{
+    <div class="grid-scroll">
+        <table class="grid">
+            <thead>
+                <tr>
+                    <th>Date</th><th>Shift</th><th class="num">Present</th><th class="num">Required</th>
+                    <th class="num">Variance</th><th class="num">Short depts</th><th>Captured</th><th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in rows)
+                {
+                    <tr>
+                        <td class="strong">@s.OperationalDate.ToString("ddd dd MMM yyyy")</td>
+                        <td><span class="badge @(s.Shift == ShiftType.Day ? "b-day" : "b-night")">@s.Shift</span></td>
+                        <td class="num">@s.TotalPresent</td>
+                        <td class="num">@s.Required</td>
+                        <td class="num strong @(s.Variance < 0 ? "sv-red" : "sv-green")">@Signed(s.Variance)</td>
+                        <td class="num @(s.ShortageDepartmentCount > 0 ? "sv-red" : "")">@s.ShortageDepartmentCount</td>
+                        <td>@Time.Format(s.CapturedAtUtc, "dd MMM HH:mm")</td>
+                        <td><span class="link" @onclick="() => OpenDetailAsync(s.Id)">View →</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_detail is not null)
+{
+    <div class="modal-bg" @onclick="() => _detail = null">
+        <div class="modal wide" @onclick:stopPropagation="true">
+            <h3>@_detail.Summary.OperationalDate.ToString("ddd dd MMM yyyy") · @_detail.Summary.Shift shift</h3>
+            <div class="modal-scroll">
+                <table class="grid">
+                    <thead>
+                        <tr><th>Division</th><th>Department</th><th class="num">Req</th><th class="num">Present</th><th class="num">Absent</th><th class="num">Vac</th><th class="num">OS</th><th class="num">Var</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _detail.Departments)
+                        {
+                            <tr>
+                                <td>@d.Division</td>
+                                <td class="strong">@TextCase.Title(d.DepartmentName)</td>
+                                <td class="num">@d.Required</td>
+                                <td class="num">@d.TotalPresent</td>
+                                <td class="num @(d.Absent > 0 ? "sv-red" : "")">@d.Absent</td>
+                                <td class="num @(d.OnVacation > 0 ? "sv-amber" : "")">@d.OnVacation</td>
+                                <td class="num @(d.SupplyPresent > 0 ? "sv-purple" : "")">@d.SupplyPresent</td>
+                                <td class="num strong @(d.Variance < 0 ? "sv-red" : "sv-green")">@Signed(d.Variance)</td>
+                                <td>@d.Status</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <h4 class="detail-sub">Employees on this shift (@_detail.Employees.Count)</h4>
+                <div class="detail-emps">
+                    @foreach (var e in _detail.Employees)
+                    {
+                        <div class="detail-emp">
+                            <span class="emp-av @(e.IsSupply ? "supply" : "status-" + e.Status.ToString().ToLowerInvariant())">@Avatar.Initials(e.Name)</span>
+                            <span class="detail-emp-name">@TextCase.Title(e.Name)</span>
+                            <span class="detail-emp-dept">@TextCase.Title(e.DepartmentName)</span>
+                            <span class="badge @StatusBadge(e)">@TextCase.Status(e.Status)</span>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button type="button" @onclick="() => _detail = null">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DateTime _from = DateTime.UtcNow.Date.AddDays(-13);
+    private DateTime _to = DateTime.UtcNow.Date;
+    private string _shift = "all";
+    private bool _loading;
+    private IReadOnlyList<SnapshotSummaryDto> _all = Array.Empty<SnapshotSummaryDto>();
+    private SnapshotDetailDto? _detail;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _all = await History.ListAsync(_from, _to);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private List<SnapshotSummaryDto> Filtered() => _shift switch
+    {
+        "day" => _all.Where(s => s.Shift == ShiftType.Day).ToList(),
+        "night" => _all.Where(s => s.Shift == ShiftType.Night).ToList(),
+        _ => _all.ToList()
+    };
+
+    private async Task OpenDetailAsync(long id) => _detail = await History.GetAsync(id);
+
+    private static int FillPercent(IReadOnlyCollection<SnapshotSummaryDto> rows)
+    {
+        var required = rows.Sum(r => r.Required);
+        if (required == 0)
+        {
+            return 0;
+        }
+
+        return (int)Math.Round(100.0 * rows.Sum(r => r.TotalPresent) / required);
+    }
+
+    private static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString();
+
+    private string ExportHref(string format) =>
+        $"api/exports/history?from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}&format={format}";
+
+    private static string StatusBadge(SnapshotEmployeeDto e) => e.IsSupply ? "b-supply" : e.Status switch
+    {
+        AttendanceStatus.Absent => "b-short",
+        AttendanceStatus.OnVacation => "b-vac",
+        _ => "b-optimal"
+    };
+}
