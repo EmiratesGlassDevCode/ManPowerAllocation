@@ -307,6 +307,10 @@ a:hover { text-decoration: underline; }
 .detail-emp-name { font-weight: 600; }
 .detail-emp-dept { color: var(--mpa-fg-3); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grid tbody tr.row-selected { background: var(--mpa-brand-tint); }
+.danger-zone { margin-top: 20px; max-width: 520px; }
+.import-card-head.danger { background: var(--mpa-danger-bg); border-bottom: 1px solid var(--mpa-danger-bd); color: #8B0A11; }
+.import-card-head.danger .ico { background: var(--mpa-danger); }
+:root[data-theme="dark"] .import-card-head.danger { color: #FFB3BE; }
 .btn-link { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: 1px solid var(--mpa-stroke-1); border-radius: var(--mpa-r-md); background: var(--mpa-surface); color: var(--mpa-fg-1); font: 600 13px/1 var(--mpa-font); }
 .btn-link:hover { background: var(--mpa-brand-tint); border-color: var(--mpa-brand); color: var(--mpa-brand); text-decoration: none; }
 

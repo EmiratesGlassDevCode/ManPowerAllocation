@@ -90,6 +90,32 @@
     }
 </div>
 
+<div class="danger-zone">
+    <div class="data-card">
+        <div class="import-card-head danger"><span class="ico"></span>Danger zone — reset all data</div>
+        <div class="import-card-body">
+            <span class="hint">
+                Permanently deletes <b>every department, employee and archived report snapshot</b> so you can
+                re-seed from a fresh master-data file. Role assignments, the audit trail, shift settings and the
+                break-glass account are kept. This cannot be undone. Type <b>RESET</b> to enable the button, then
+                import your master data above.
+            </span>
+            <input type="text" @bind="_resetConfirm" @bind:event="oninput" placeholder="Type RESET to confirm" style="max-width:260px" />
+            <FluentButton Appearance="Appearance.Accent"
+                          Disabled="@(_busy || !string.Equals(_resetConfirm?.Trim(), "RESET", StringComparison.OrdinalIgnoreCase))"
+                          @onclick="ResetAsync">Wipe &amp; reset</FluentButton>
+            @if (_resetResult is not null)
+            {
+                <span class="message ok">
+                    Reset complete — removed @_resetResult.EmployeesRemoved employees,
+                    @_resetResult.DepartmentsRemoved departments and @_resetResult.SnapshotsRemoved snapshots.
+                    Now import your new master data above.
+                </span>
+            }
+        </div>
+    </div>
+</div>
+
 @code {
     private const long MaxUploadBytes = 20 * 1024 * 1024;
 
@@ -97,6 +123,8 @@
     private bool _busy;
     private ImportResult? _result;
     private string? _error;
+    private string? _resetConfirm;
+    private ResetResult? _resetResult;
 
     private Task OnAttendanceSelected(InputFileChangeEventArgs e) =>
         RunImportAsync(stream => ImportService.ImportAttendanceAsync(stream, _replaceExisting), e);
@@ -106,6 +134,27 @@
 
     private Task OnEditsSelected(InputFileChangeEventArgs e) =>
         RunImportAsync(stream => ImportService.ApplyAttendanceEditsAsync(stream), e);
+
+    private async Task ResetAsync()
+    {
+        _error = null;
+        _result = null;
+        _resetResult = null;
+        _busy = true;
+        try
+        {
+            _resetResult = await ImportService.ResetOperationalDataAsync();
+            _resetConfirm = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
 
     private async Task RunImportAsync(Func<Stream, Task<ImportResult>> import, InputFileChangeEventArgs e)
     {

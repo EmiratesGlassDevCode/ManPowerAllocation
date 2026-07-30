@@ -21,3 +21,6 @@ public sealed record ImportResult
     /// <summary>Non-fatal messages describing rows that were skipped or divisions that were left untouched.</summary>
     public IReadOnlyList<string> Warnings { get; init; } = Array.Empty<string>();
 }
+
+/// <summary>The outcome of an operational-data reset (a full wipe before re-seeding).</summary>
+public sealed record ResetResult(int EmployeesRemoved, int DepartmentsRemoved, int SnapshotsRemoved);

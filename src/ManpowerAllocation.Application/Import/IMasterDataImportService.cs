@@ -38,4 +38,13 @@ public interface IMasterDataImportService
     /// <param name="workbook">The uploaded, edited workbook stream.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<ImportResult> ApplyAttendanceEditsAsync(Stream workbook, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes ALL operational data — every employee, department and archived report snapshot — in
+    /// a single transaction, so a fresh master-data set can be imported into an empty slate. Role
+    /// assignments, the audit trail, shift settings and the break-glass account are left intact, and
+    /// the reset itself is written to the audit trail. Admin-only and irreversible.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<ResetResult> ResetOperationalDataAsync(CancellationToken cancellationToken = default);
 }

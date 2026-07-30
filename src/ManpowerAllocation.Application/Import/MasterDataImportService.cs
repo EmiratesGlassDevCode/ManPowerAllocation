@@ -310,6 +310,43 @@ public sealed class MasterDataImportService : IMasterDataImportService
         };
     }
 
+    /// <inheritdoc />
+    public async Task<ResetResult> ResetOperationalDataAsync(CancellationToken cancellationToken = default)
+    {
+        RequireAdmin();
+
+        var employeesRemoved = 0;
+        var departmentsRemoved = 0;
+        var snapshotsRemoved = 0;
+
+        await _dbContext.ExecuteInTransactionAsync(async ct =>
+        {
+            employeesRemoved = await _dbContext.Employees.CountAsync(ct);
+            departmentsRemoved = await _dbContext.Departments.CountAsync(ct);
+            snapshotsRemoved = await _dbContext.AllocationSnapshots.CountAsync(ct);
+
+            // Employees first (they reference departments through a restricted FK), then the now
+            // unreferenced departments, then the snapshots (their per-department and per-employee
+            // detail rows are removed by the database cascade). Roles, audit, shift settings and the
+            // break-glass account are deliberately untouched.
+            await _dbContext.Employees.ExecuteDeleteAsync(ct);
+            await _dbContext.Departments.ExecuteDeleteAsync(ct);
+            await _dbContext.AllocationSnapshots.ExecuteDeleteAsync(ct);
+
+            var summary = new
+            {
+                Kind = "OperationalDataReset",
+                EmployeesRemoved = employeesRemoved,
+                DepartmentsRemoved = departmentsRemoved,
+                SnapshotsRemoved = snapshotsRemoved
+            };
+            _auditWriter.Add(AuditAction.Delete, "MasterDataImport", null, null, summary);
+            await _dbContext.SaveChangesAsync(ct);
+        }, cancellationToken);
+
+        return new ResetResult(employeesRemoved, departmentsRemoved, snapshotsRemoved);
+    }
+
     /// <summary>
     /// Defence-in-depth authorisation: master-data import is destructive and Admin-only. The
     /// primary enforcement is the endpoint/page authorization policy; this second check ensures
