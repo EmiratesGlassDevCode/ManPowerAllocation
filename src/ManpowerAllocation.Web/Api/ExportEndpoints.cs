@@ -36,9 +36,12 @@ public static class ExportEndpoints
         {
             var toDate = to ?? DateTime.UtcNow.Date;
             var fromDate = from ?? toDate.AddDays(-30);
-            var file = string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase)
-                ? await service.BuildSnapshotHistoryCsvAsync(fromDate, toDate, ct)
-                : await service.BuildSnapshotHistoryExcelAsync(fromDate, toDate, ct);
+            var file = (format?.ToLowerInvariant()) switch
+            {
+                "csv" => await service.BuildSnapshotHistoryCsvAsync(fromDate, toDate, ct),
+                "pdf" => await service.BuildSnapshotHistoryPdfAsync(fromDate, toDate, ct),
+                _ => await service.BuildSnapshotHistoryExcelAsync(fromDate, toDate, ct)
+            };
             return Results.File(file.Content, file.ContentType, file.FileName);
         });
     }

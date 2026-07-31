@@ -190,6 +190,45 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         return new ExportFile($"report_history_{stamp}.csv", "text/csv", bytes);
     }
 
+    /// <inheritdoc />
+    public async Task<ExportFile> BuildSnapshotHistoryPdfAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default)
+    {
+        var from = fromDate.Date;
+        var to = toDate.Date;
+
+        var raw = await _dbContext.AllocationSnapshots
+            .AsNoTracking()
+            .Where(s => s.OperationalDate >= from && s.OperationalDate <= to)
+            .OrderBy(s => s.OperationalDate)
+            .ThenBy(s => s.Shift)
+            .Select(s => new { s.OperationalDate, s.Shift, s.TotalPresent, s.Required, s.Variance, s.ShortageDepartmentCount })
+            .ToListAsync(cancellationToken);
+
+        var rows = raw
+            .Select(s => new PdfHistoryReport.Row(
+                s.OperationalDate, s.Shift.ToString(), s.TotalPresent, s.Required, s.Variance, s.ShortageDepartmentCount))
+            .ToList();
+
+        var pdf = PdfHistoryReport.Render(LoadLogo(), from, to, rows);
+        var stamp = _clock.UtcNow.ToString("yyyyMMdd");
+        return new ExportFile($"report_history_{stamp}.pdf", "application/pdf", pdf);
+    }
+
+    /// <summary>Reads the embedded Emirates Glass logo bytes (empty if the resource is missing).</summary>
+    private static byte[] LoadLogo()
+    {
+        var assembly = typeof(ClosedXmlReportExportService).Assembly;
+        using var stream = assembly.GetManifestResourceStream("ManpowerAllocation.Infrastructure.Assets.emirates-glass-logo.png");
+        if (stream is null)
+        {
+            return Array.Empty<byte>();
+        }
+
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        return ms.ToArray();
+    }
+
     /// <summary>Loads the flattened department fact rows for the archived reports in a date range.</summary>
     private async Task<List<SnapshotFactRow>> LoadSnapshotFactRowsAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken)
     {

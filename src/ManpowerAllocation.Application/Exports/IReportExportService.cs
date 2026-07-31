@@ -29,4 +29,13 @@ public interface IReportExportService
     /// <param name="toDate">Inclusive end date.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<ExportFile> BuildSnapshotHistoryCsvAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Builds a branded, laid-out PDF of the archived daily reports in the inclusive range —
+    /// Emirates Glass header, summary tiles, a fill-vs-required chart and a captured-reports table.
+    /// </summary>
+    /// <param name="fromDate">Inclusive start date.</param>
+    /// <param name="toDate">Inclusive end date.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<ExportFile> BuildSnapshotHistoryPdfAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default);
 }
