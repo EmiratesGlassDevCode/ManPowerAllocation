@@ -1,68 +1,110 @@
 @page "/search"
-@using System.Threading
 @using ManpowerAllocation.Application.Employees
 @using ManpowerAllocation.Application.Departments
 @using ManpowerAllocation.Web.Security
-@implements IDisposable
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
 @inject IEmployeeService EmployeeService
 @inject IDepartmentService DepartmentService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
-<PageTitle>Employee Search — Manpower Allocation</PageTitle>
+<PageTitle>Employees — Manpower Allocation</PageTitle>
 
-<h1>Employee Search</h1>
-<p class="hint">Search by name or badge ID across all divisions.</p>
+<h1>Employees</h1>
+<p class="hint">The full roster across all divisions. Search, filter, add, edit and remove people. The badge / ID is what links a person to the biometric attendance feed.</p>
 
 <div class="toolbar">
-    <FluentSearch @bind-Value="_term" @bind-Value:after="OnTermChanged" Immediate="true"
-                  Placeholder="Name or ID…" Style="width:320px" />
+    <FluentSearch @bind-Value="_search" Immediate="true" Placeholder="Name or ID…" Style="width:260px" />
+    <label class="native-select-label">Division
+        <select @bind="_divisionFilter">
+            <option value="">All divisions</option>
+            <option value="@Division.Egl">EGL</option>
+            <option value="@Division.FunctionalSupport">Functional Support</option>
+            <option value="@Division.Brg">BRG</option>
+        </select>
+    </label>
+    <label class="native-select-label">Status
+        <select @bind="_statusFilter">
+            <option value="">Any status</option>
+            <option value="@AttendanceStatus.Present">Present</option>
+            <option value="@AttendanceStatus.Absent">Absent</option>
+            <option value="@AttendanceStatus.OnVacation">On vacation</option>
+            <option value="supply">Outsource only</option>
+            <option value="nobadge">No badge</option>
+        </select>
+    </label>
+    <span class="toolbar-spacer"></span>
     @if (_canEdit)
     {
         <FluentButton Appearance="Appearance.Accent" @onclick="OpenAdd">+ Add employee</FluentButton>
     }
 </div>
 
-@if (!string.IsNullOrEmpty(_addedMessage))
+@if (!string.IsNullOrEmpty(_message))
 {
-    <p class="message ok">@_addedMessage</p>
+    <p class="message ok">@_message</p>
 }
 
-@if (!_searched)
-{
-    <div class="search-idle">Type at least two characters to search all divisions.</div>
+@{
+    var rows = Filtered();
 }
-else if (_results.Count == 0)
+<p class="hint">@rows.Count of @_all.Count employees</p>
+
+@if (_loading)
 {
-    <p class="message error">No matches for that name or ID.</p>
+    <p class="hint">Loading…</p>
+}
+else if (rows.Count == 0)
+{
+    <p class="message">No employees match the current filters.</p>
 }
 else
 {
-    <div class="data-card search-card">
-        <div class="data-grid search-grid head">
-            <div>Name</div><div>ID</div><div>Division</div><div>Department</div><div>Shift</div><div>Status</div><div>Notes</div>
-        </div>
-        @foreach (var e in _results)
-        {
-            <div class="data-grid search-grid row">
-                <div class="data-name">
-                    <span class="emp-av @(e.IsSupply ? "supply" : "status-" + e.Status.ToString().ToLowerInvariant())">@Avatar.Initials(e.Name)</span>
-                    <span>@TextCase.Title(e.Name) @(e.IsSupply ? "(OS)" : string.Empty)</span>
-                </div>
-                <div>@e.BadgeNumber</div>
-                <div>@e.Division</div>
-                <div>@TextCase.Title(e.DepartmentName)</div>
-                <div><span class="badge @(e.Shift == ShiftType.Day ? "b-day" : "b-night")">@e.Shift</span></div>
-                <div><span class="badge @StatusBadgeClass(e)">@TextCase.Status(e.Status)</span></div>
-                <div class="search-notes">@(string.IsNullOrWhiteSpace(e.Notes) ? "—" : e.Notes)</div>
-            </div>
-        }
+    <div class="grid-scroll">
+        <table class="grid">
+            <thead>
+                <tr>
+                    <th>Name</th><th>ID</th><th>Division</th><th>Department</th><th>Shift</th><th>Status</th><th>Notes</th>
+                    @if (_canEdit)
+                    {
+                        <th></th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in rows)
+                {
+                    <tr>
+                        <td class="data-name">
+                            <span class="emp-av @(e.IsSupply ? "supply" : "status-" + e.Status.ToString().ToLowerInvariant())">@Avatar.Initials(e.Name)</span>
+                            <span>@TextCase.Title(e.Name) @(e.IsSupply ? "(OS)" : string.Empty)</span>
+                        </td>
+                        <td class="@(string.IsNullOrWhiteSpace(e.BadgeNumber) ? "sv-red" : "")">@(string.IsNullOrWhiteSpace(e.BadgeNumber) ? "— none —" : e.BadgeNumber)</td>
+                        <td>@DivisionLabel(e.Division)</td>
+                        <td>@TextCase.Title(e.DepartmentName)</td>
+                        <td><span class="badge @(e.Shift == ShiftType.Day ? "b-day" : "b-night")">@e.Shift</span></td>
+                        <td><span class="badge @StatusBadgeClass(e)">@TextCase.Status(e.Status)</span></td>
+                        <td class="emp-notes">@(string.IsNullOrWhiteSpace(e.Notes) ? "—" : e.Notes)</td>
+                        @if (_canEdit)
+                        {
+                            <td class="row-actions">
+                                <button type="button" class="mini-btn" @onclick="() => OpenEdit(e)">Edit</button>
+                                @if (_canDelete)
+                                {
+                                    <button type="button" class="mini-btn danger" @onclick="() => _deleteTarget = e">Delete</button>
+                                }
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
     </div>
 }
 
+@* ── Add employee ─────────────────────────────────────────────────────────── *@
 @if (_showAdd)
 {
-    <div class="modal-bg" @onclick="CloseAdd">
+    <div class="modal-bg" @onclick="() => _showAdd = false">
         <div class="modal" @onclick:stopPropagation="true">
             <h3>Add employee</h3>
             <FluentTextField @bind-Value="_aName" Label="Name" Style="width:100%" />
@@ -106,24 +148,98 @@ else
                 <p class="message error">@_addError</p>
             }
             <div class="modal-foot">
-                <FluentButton Appearance="Appearance.Neutral" @onclick="CloseAdd">Cancel</FluentButton>
-                <FluentButton Appearance="Appearance.Accent" @onclick="SaveAddAsync" Disabled="@_saving">Save</FluentButton>
+                <FluentButton Appearance="Appearance.Neutral" @onclick="() => _showAdd = false">Cancel</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" @onclick="SaveAddAsync" Disabled="@_busy">Save</FluentButton>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Edit employee ────────────────────────────────────────────────────────── *@
+@if (_editTarget is not null)
+{
+    <div class="modal-bg" @onclick="() => _editTarget = null">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>Edit @TextCase.Title(_editTarget.Name)</h3>
+            <FluentTextField @bind-Value="_eName" Label="Name" Style="width:100%" />
+            <FluentTextField @bind-Value="_eBadge" Label="Badge / employee ID" Placeholder="The ID must match the biometric feed" Style="width:100%" />
+            <label class="native-select-label">Department (@DivisionLabel(_editTarget.Division))
+                <select @bind="_eDeptId">
+                    @foreach (var d in _departments.Where(d => d.Division == _editTarget.Division))
+                    {
+                        <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                    }
+                </select>
+            </label>
+            <div class="form-row">
+                <label class="native-select-label">Shift
+                    <select @bind="_eShift">
+                        <option value="@ShiftType.Day">Day</option>
+                        <option value="@ShiftType.Night">Night</option>
+                    </select>
+                </label>
+                <label class="native-select-label">Status
+                    <select @bind="_eStatus">
+                        <option value="@AttendanceStatus.Present">Present</option>
+                        <option value="@AttendanceStatus.Absent">Absent</option>
+                        <option value="@AttendanceStatus.OnVacation">On vacation</option>
+                    </select>
+                </label>
+            </div>
+            <FluentTextField @bind-Value="_eNotes" Label="Notes / designation" Style="width:100%" />
+            @if (!string.IsNullOrEmpty(_editError))
+            {
+                <p class="message error">@_editError</p>
+            }
+            <div class="modal-foot">
+                <FluentButton Appearance="Appearance.Neutral" @onclick="() => _editTarget = null">Cancel</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" @onclick="SaveEditAsync" Disabled="@_busy">Save</FluentButton>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Delete confirm ───────────────────────────────────────────────────────── *@
+@if (_deleteTarget is not null)
+{
+    <div class="modal-bg" @onclick="() => _deleteTarget = null">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>Remove employee?</h3>
+            <div class="modal-scroll">
+                <p>Permanently remove <strong>@TextCase.Title(_deleteTarget.Name)</strong>
+                   (@(string.IsNullOrWhiteSpace(_deleteTarget.BadgeNumber) ? "no badge" : _deleteTarget.BadgeNumber),
+                   @DivisionLabel(_deleteTarget.Division) · @TextCase.Title(_deleteTarget.DepartmentName))?
+                   This cannot be undone and is written to the audit trail.</p>
+                @if (!string.IsNullOrEmpty(_deleteError))
+                {
+                    <p class="message error">@_deleteError</p>
+                }
+            </div>
+            <div class="modal-foot">
+                <FluentButton Appearance="Appearance.Neutral" @onclick="() => _deleteTarget = null">Cancel</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" @onclick="ConfirmDeleteAsync" Disabled="@_busy">Remove</FluentButton>
             </div>
         </div>
     </div>
 }
 
 @code {
-    private string _term = string.Empty;
-    private bool _searched;
-    private IReadOnlyList<EmployeeDto> _results = Array.Empty<EmployeeDto>();
+    private bool _loading = true;
+    private bool _busy;
+    private string? _message;
 
-    private bool _canEdit;
+    private IReadOnlyList<EmployeeDto> _all = Array.Empty<EmployeeDto>();
     private List<DepartmentDto> _departments = new();
+    private bool _canEdit;
+    private bool _canDelete;
 
-    // Add-employee form state.
+    // Filters.
+    private string _search = string.Empty;
+    private string _divisionFilter = string.Empty;
+    private string _statusFilter = string.Empty;
+
+    // Add form.
     private bool _showAdd;
-    private bool _saving;
     private string _aName = string.Empty;
     private string _aBadge = string.Empty;
     private int _aDeptId;
@@ -132,101 +248,96 @@ else
     private bool _aSupply;
     private string _aNotes = string.Empty;
     private string? _addError;
-    private string? _addedMessage;
 
-    // Debounce each keystroke and serialise queries: the EF DbContext is scoped to the whole
-    // circuit, so two overlapping queries on it would throw "a second operation was started on
-    // this context". The gate guarantees one query at a time; the token cancels superseded ones.
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private CancellationTokenSource? _cts;
+    // Edit form.
+    private EmployeeDto? _editTarget;
+    private string _eName = string.Empty;
+    private string _eBadge = string.Empty;
+    private int _eDeptId;
+    private ShiftType _eShift;
+    private AttendanceStatus _eStatus;
+    private string _eNotes = string.Empty;
+    private string? _editError;
 
-    /// <summary>Resolves edit permission and loads the department list for the add form.</summary>
+    // Delete.
+    private EmployeeDto? _deleteTarget;
+    private string? _deleteError;
+
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         _canEdit = HasRole(authState.User, UserRole.User);
+        _canDelete = HasRole(authState.User, UserRole.Admin);
 
-        if (_canEdit)
+        foreach (var division in new[] { Division.Egl, Division.FunctionalSupport, Division.Brg })
         {
-            foreach (var division in new[] { Division.Egl, Division.FunctionalSupport, Division.Brg })
-            {
-                _departments.AddRange(await DepartmentService.GetByDivisionAsync(division));
-            }
+            _departments.AddRange(await DepartmentService.GetByDivisionAsync(division));
         }
+
+        await ReloadAsync();
     }
 
-    private async Task OnTermChanged()
+    private async Task ReloadAsync()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        var cts = _cts = new CancellationTokenSource();
-        var token = cts.Token;
-        var term = _term.Trim();
-
-        if (term.Length < 2)
-        {
-            _searched = false;
-            _results = Array.Empty<EmployeeDto>();
-            return;
-        }
-
+        _loading = true;
         try
         {
-            await Task.Delay(250, token); // debounce rapid typing
-            await _gate.WaitAsync(token);
-            try
-            {
-                var results = await EmployeeService.SearchAsync(term, token);
-                if (!token.IsCancellationRequested)
-                {
-                    _results = results;
-                    _searched = true;
-                }
-            }
-            finally
-            {
-                _gate.Release();
-            }
+            _all = await EmployeeService.GetAllAsync();
         }
-        catch (OperationCanceledException)
+        finally
         {
-            // A newer keystroke superseded this search; ignore.
+            _loading = false;
         }
     }
 
+    private List<EmployeeDto> Filtered()
+    {
+        var term = _search.Trim();
+        IEnumerable<EmployeeDto> query = _all;
+
+        if (term.Length > 0)
+        {
+            query = query.Where(e =>
+                e.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || (e.BadgeNumber?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        if (Enum.TryParse<Division>(_divisionFilter, out var division))
+        {
+            query = query.Where(e => e.Division == division);
+        }
+
+        query = _statusFilter switch
+        {
+            "supply" => query.Where(e => e.IsSupply),
+            "nobadge" => query.Where(e => string.IsNullOrWhiteSpace(e.BadgeNumber)),
+            _ when Enum.TryParse<AttendanceStatus>(_statusFilter, out var status) => query.Where(e => e.Status == status),
+            _ => query
+        };
+
+        return query.ToList();
+    }
+
+    // ── Add ──────────────────────────────────────────────────────────────────
     private void OpenAdd()
     {
         _addError = null;
-        _addedMessage = null;
-        _aName = string.Empty;
-        _aBadge = string.Empty;
+        _message = null;
+        _aName = _aBadge = _aNotes = string.Empty;
         _aDeptId = _departments.Count > 0 ? _departments[0].Id : 0;
         _aShift = ShiftType.Day;
         _aStatus = AttendanceStatus.Present;
         _aSupply = false;
-        _aNotes = string.Empty;
         _showAdd = true;
     }
-
-    private void CloseAdd() => _showAdd = false;
 
     private async Task SaveAddAsync()
     {
         _addError = null;
+        if (string.IsNullOrWhiteSpace(_aName)) { _addError = "Employee name is required."; return; }
+        if (_aDeptId <= 0) { _addError = "A department is required."; return; }
 
-        if (string.IsNullOrWhiteSpace(_aName))
-        {
-            _addError = "Employee name is required.";
-            return;
-        }
-
-        if (_aDeptId <= 0)
-        {
-            _addError = "A department is required.";
-            return;
-        }
-
-        _saving = true;
+        _busy = true;
         try
         {
             var created = await EmployeeService.CreateAsync(new CreateEmployeeRequest
@@ -239,35 +350,86 @@ else
                 IsSupply = _aSupply,
                 Notes = string.IsNullOrWhiteSpace(_aNotes) ? null : _aNotes.Trim()
             });
-
             _showAdd = false;
-            _addedMessage = $"Added {TextCase.Title(created.Name)} to {TextCase.Title(created.DepartmentName)}.";
-
-            // Refresh the current search so the new person appears if they match the active term.
-            if (_searched && _term.Trim().Length >= 2)
-            {
-                await OnTermChanged();
-            }
+            _message = $"Added {TextCase.Title(created.Name)}.";
+            await ReloadAsync();
         }
-        catch (Exception ex)
-        {
-            _addError = ex.Message;
-        }
-        finally
-        {
-            _saving = false;
-        }
+        catch (Exception ex) { _addError = ex.Message; }
+        finally { _busy = false; }
     }
 
-    /// <summary>Cancels any in-flight search when the component is disposed.</summary>
-    public void Dispose()
+    // ── Edit ─────────────────────────────────────────────────────────────────
+    private void OpenEdit(EmployeeDto e)
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _gate.Dispose();
+        _editError = null;
+        _message = null;
+        _editTarget = e;
+        _eName = e.Name;
+        _eBadge = e.BadgeNumber ?? string.Empty;
+        _eDeptId = e.DepartmentId;
+        _eShift = e.Shift;
+        _eStatus = e.Status;
+        _eNotes = e.Notes ?? string.Empty;
     }
 
-    /// <summary>Semantic badge colour for a result row's status (outsource takes priority).</summary>
+    private async Task SaveEditAsync()
+    {
+        if (_editTarget is null) { return; }
+        _editError = null;
+        if (string.IsNullOrWhiteSpace(_eName)) { _editError = "Employee name is required."; return; }
+
+        _busy = true;
+        try
+        {
+            var id = _editTarget.Id;
+
+            await EmployeeService.UpdateAsync(id, new UpdateEmployeeRequest
+            {
+                Name = _eName.Trim(),
+                BadgeNumber = string.IsNullOrWhiteSpace(_eBadge) ? null : _eBadge.Trim(),
+                Notes = string.IsNullOrWhiteSpace(_eNotes) ? null : _eNotes.Trim()
+            });
+
+            if (_eShift != _editTarget.Shift)
+            {
+                await EmployeeService.ChangeShiftAsync(id, new ChangeShiftRequest { Shift = _eShift });
+            }
+            if (_eStatus != _editTarget.Status)
+            {
+                await EmployeeService.ChangeStatusAsync(id, new ChangeStatusRequest { Status = _eStatus });
+            }
+            if (_eDeptId != _editTarget.DepartmentId)
+            {
+                await EmployeeService.MoveAsync(id, new MoveEmployeeRequest { TargetDepartmentId = _eDeptId });
+            }
+
+            _editTarget = null;
+            _message = $"Updated {TextCase.Title(_eName)}.";
+            await ReloadAsync();
+        }
+        catch (Exception ex) { _editError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    // ── Delete ───────────────────────────────────────────────────────────────
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_deleteTarget is null) { return; }
+        _deleteError = null;
+        _busy = true;
+        try
+        {
+            var name = _deleteTarget.Name;
+            await EmployeeService.DeleteAsync(_deleteTarget.Id);
+            _deleteTarget = null;
+            _message = $"Removed {TextCase.Title(name)}.";
+            await ReloadAsync();
+        }
+        catch (Exception ex) { _deleteError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
     private static string StatusBadgeClass(EmployeeDto e) => e.IsSupply ? "b-supply" : e.Status switch
     {
         AttendanceStatus.Absent => "b-short",

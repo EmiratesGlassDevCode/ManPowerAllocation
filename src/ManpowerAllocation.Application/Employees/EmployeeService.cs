@@ -55,6 +55,20 @@ public sealed class EmployeeService : IEmployeeService
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<EmployeeDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Employees
+            .AsNoTracking()
+            .OrderBy(e => e.Division)
+            .ThenBy(e => e.Department!.Name)
+            .ThenBy(e => e.Name)
+            .Select(e => new EmployeeDto(
+                e.Id, e.Name, e.BadgeNumber, e.Division, e.DepartmentId,
+                e.Department!.Name, e.Shift, e.Status, e.IsSupply, e.Notes))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<EmployeeDto>> SearchAsync(string term, CancellationToken cancellationToken = default)
     {
         var trimmed = (term ?? string.Empty).Trim();

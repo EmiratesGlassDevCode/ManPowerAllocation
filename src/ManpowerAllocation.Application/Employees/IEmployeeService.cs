@@ -10,6 +10,10 @@ public interface IEmployeeService
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<IReadOnlyList<EmployeeDto>> GetByDivisionAsync(Division division, CancellationToken cancellationToken = default);
 
+    /// <summary>Returns every employee across all divisions, ordered by division, department then name.</summary>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<IReadOnlyList<EmployeeDto>> GetAllAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Finds employees whose name or badge number contains the search term (case-insensitive).</summary>
     /// <param name="term">The search term.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>

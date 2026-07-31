@@ -307,6 +307,12 @@ a:hover { text-decoration: underline; }
 .detail-emp-name { font-weight: 600; }
 .detail-emp-dept { color: var(--mpa-fg-3); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grid tbody tr.row-selected { background: var(--mpa-brand-tint); }
+.row-actions { white-space: nowrap; text-align: right; }
+.mini-btn { height: 26px; padding: 0 10px; margin-left: 6px; border: 1px solid var(--mpa-stroke-1); border-radius: var(--mpa-r-md); background: var(--mpa-surface); color: var(--mpa-fg-1); font: 600 12px/1 var(--mpa-font); cursor: pointer; }
+.mini-btn:hover { background: var(--mpa-brand-tint); }
+.mini-btn.danger { color: var(--mpa-danger); border-color: var(--mpa-danger-bd); }
+.mini-btn.danger:hover { background: var(--mpa-danger-bg); }
+.emp-notes { color: var(--mpa-fg-3); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grid tfoot .grid-subtotal td { padding: 13px 18px; font: 700 13px/20px var(--mpa-font); border-top: 2px solid var(--mpa-stroke-1); background: var(--mpa-surface-tint); }
 
 /* ALL-CAPS headers across the app (matches the navigation treatment). */
