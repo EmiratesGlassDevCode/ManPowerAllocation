@@ -13,7 +13,9 @@ namespace ManpowerAllocation.Application.Snapshots;
 /// </summary>
 public sealed class AllocationSnapshotService : IAllocationSnapshotService
 {
-    private static readonly Division[] Divisions = { Division.Egl, Division.FunctionalSupport, Division.Brg };
+    // Enumerate every division so a newly added one is captured automatically (matching the
+    // dashboard's Enum.GetValues iteration).
+    private static readonly Division[] Divisions = Enum.GetValues<Division>();
 
     private readonly IApplicationDbContext _dbContext;
     private readonly IDashboardService _dashboard;

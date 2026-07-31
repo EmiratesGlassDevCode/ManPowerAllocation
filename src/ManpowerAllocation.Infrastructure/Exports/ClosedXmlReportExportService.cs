@@ -46,7 +46,7 @@ public sealed class ClosedXmlReportExportService : IReportExportService
             row++;
         }
 
-        ws.Columns().AdjustToContents();
+        ws.Columns().AdjustToContents(1, 60); // bound the scan: sizing from the first rows keeps large exports fast
         return ToFile(wb, "master_requirements");
     }
 
@@ -81,7 +81,7 @@ public sealed class ClosedXmlReportExportService : IReportExportService
             row++;
         }
 
-        ws.Columns().AdjustToContents();
+        ws.Columns().AdjustToContents(1, 60); // bound the scan: sizing from the first rows keeps large exports fast
         return ToFile(wb, "staffing_report");
     }
 
@@ -117,7 +117,7 @@ public sealed class ClosedXmlReportExportService : IReportExportService
             row++;
         }
 
-        ws.Columns().AdjustToContents();
+        ws.Columns().AdjustToContents(1, 60); // bound the scan: sizing from the first rows keeps large exports fast
         return ToFile(wb, "attendance");
     }
 
@@ -151,7 +151,7 @@ public sealed class ClosedXmlReportExportService : IReportExportService
             row++;
         }
 
-        ws.Columns().AdjustToContents();
+        ws.Columns().AdjustToContents(1, 60); // bound the scan: sizing from the first rows keeps large exports fast
         return ToFile(wb, "report_history");
     }
 
@@ -161,7 +161,7 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         var rows = await LoadSnapshotFactRowsAsync(fromDate, toDate, cancellationToken);
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Date,Shift,Division,Department,Required,OnRoll,Present,Outsource,TotalPresent,Absent,Vacation,Variance,Status");
+        sb.Append("Date,Shift,Division,Department,Required,OnRoll,Present,Outsource,TotalPresent,Absent,Vacation,Variance,Status\n");
         foreach (var r in rows)
         {
             sb.Append(r.Date.ToString("yyyy-MM-dd")).Append(',')
@@ -180,7 +180,13 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         }
 
         var stamp = _clock.UtcNow.ToString("yyyyMMdd");
-        var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+        // Prepend a UTF-8 BOM so Excel opens non-ASCII names in the correct encoding.
+        var encoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+        var preamble = encoding.GetPreamble();
+        var body = encoding.GetBytes(sb.ToString());
+        var bytes = new byte[preamble.Length + body.Length];
+        Buffer.BlockCopy(preamble, 0, bytes, 0, preamble.Length);
+        Buffer.BlockCopy(body, 0, bytes, preamble.Length, body.Length);
         return new ExportFile($"report_history_{stamp}.csv", "text/csv", bytes);
     }
 
@@ -212,10 +218,21 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         return rows;
     }
 
-    /// <summary>Escapes a value for CSV (quotes when it contains a comma, quote or newline).</summary>
+    /// <summary>
+    /// Escapes a value for CSV. Quotes when it contains a comma, quote or newline, and neutralises
+    /// spreadsheet formula injection: a value beginning with = + - or @ is prefixed with a single
+    /// quote so Excel treats it as text rather than executing it as a formula.
+    /// </summary>
     private static string Csv(string value)
     {
-        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+        value ??= string.Empty;
+
+        if (value.Length > 0 && (value[0] is '=' or '+' or '-' or '@'))
+        {
+            value = "'" + value;
+        }
+
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
         {
             return "\"" + value.Replace("\"", "\"\"") + "\"";
         }

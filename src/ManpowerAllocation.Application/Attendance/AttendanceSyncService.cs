@@ -125,7 +125,7 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
             if (changed > 0)
             {
                 WriteSummaryAudit(triggeredBy, present, absent, onVacation, changed);
-                await _dbContext.SaveChangesAsync(cancellationToken);
+                await SaveWithConcurrencyRetryAsync(cancellationToken);
             }
 
             return Record(new AttendanceSyncResult
@@ -157,6 +157,29 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
                 Success = false,
                 Error = "The attendance source could not be read."
             });
+        }
+    }
+
+    /// <summary>
+    /// Saves the sync's status changes, tolerating a concurrent user edit. If someone changed an
+    /// employee mid-sync, that one row's conflict would otherwise abort the whole batch (and be
+    /// mis-reported as an attendance-source read failure). Instead we reload the conflicting rows —
+    /// keeping the user's edit — and save the rest.
+    /// </summary>
+    private async Task SaveWithConcurrencyRetryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            foreach (var entry in ex.Entries)
+            {
+                await entry.ReloadAsync(cancellationToken);
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
     }
 

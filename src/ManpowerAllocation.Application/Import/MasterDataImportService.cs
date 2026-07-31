@@ -260,19 +260,22 @@ public sealed class MasterDataImportService : IMasterDataImportService
                 // then the row's Division column. A rename/move to an unknown department leaves the
                 // department unchanged and warns, rather than guessing or creating one silently.
                 Department? department = null;
-                if (row.DepartmentName.Length > 0)
+                // Normalise the row's department name the same way stored names are normalised, so a
+                // valid move is not silently rejected over casing/spacing differences.
+                var deptName = DepartmentName.Normalize(row.DepartmentName);
+                if (deptName.Length > 0)
                 {
-                    if (departmentByKey.TryGetValue((employee.Division, row.DepartmentName), out var byCurrent))
+                    if (departmentByKey.TryGetValue((employee.Division, deptName), out var byCurrent))
                     {
                         department = byCurrent;
                     }
-                    else if (departmentByKey.TryGetValue((row.Division, row.DepartmentName), out var byRow))
+                    else if (departmentByKey.TryGetValue((row.Division, deptName), out var byRow))
                     {
                         department = byRow;
                     }
                     else
                     {
-                        warnings.Add($"'{row.Name}' — department '{row.DepartmentName}' not found; department left unchanged.");
+                        warnings.Add($"'{row.Name}' — department '{deptName}' not found; department left unchanged.");
                     }
                 }
 

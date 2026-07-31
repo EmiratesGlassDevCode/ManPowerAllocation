@@ -72,6 +72,13 @@ public sealed class AllocationSnapshotWorker : BackgroundService
 
         var localNow = ToLocal(clock.UtcNow);
         var today = localNow.Date;
+        var yesterday = today.AddDays(-1);
+
+        // Back-fill yesterday's cut-offs first: if the app was down across a cut-off into the next
+        // day, those snapshots would otherwise be lost forever. Both cut-offs have definitely passed
+        // for yesterday, so capture them if missing (a late capture is far better than a hole).
+        await CaptureIfMissing(snapshots, yesterday, ShiftType.Day, "auto-10:00-late", cancellationToken);
+        await CaptureIfMissing(snapshots, yesterday, ShiftType.Night, "auto-22:00-late", cancellationToken);
 
         if (localNow.TimeOfDay >= DayCutoff)
         {

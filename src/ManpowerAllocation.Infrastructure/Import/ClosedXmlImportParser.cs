@@ -149,7 +149,10 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
             {
                 reference = c;
             }
-            else if (header is "NAME" or "EMPLOYEE" or "EMPLOYEE NAME")
+            // Match "NAME" as a substring (FULL NAME, EMP NAME, …) to stay consistent with the
+            // header-row detection, which also uses Contains("NAME"); an exact-match-only list here
+            // let a recognised header map to no column and silently dropped the whole sheet.
+            else if (header.Contains("NAME", StringComparison.Ordinal) || header is "EMPLOYEE")
             {
                 name = c;
             }
@@ -673,7 +676,7 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
         }
 
         var text = cell.GetString().Trim();
-        if (double.TryParse(text, out var parsed))
+        if (double.TryParse(text, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
         {
             value = (int)Math.Round(parsed);
             return true;

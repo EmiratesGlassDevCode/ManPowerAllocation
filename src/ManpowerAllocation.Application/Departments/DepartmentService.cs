@@ -75,14 +75,22 @@ public sealed class DepartmentService : IDepartmentService
 
         // Insert then audit inside one transaction: the department is saved first so its
         // generated key can be recorded, and the audit row is committed together with it.
-        await _dbContext.ExecuteInTransactionAsync(async ct =>
+        try
         {
-            _dbContext.Departments.Add(department);
-            await _dbContext.SaveChangesAsync(ct);
+            await _dbContext.ExecuteInTransactionAsync(async ct =>
+            {
+                _dbContext.Departments.Add(department);
+                await _dbContext.SaveChangesAsync(ct);
 
-            _auditWriter.Add(AuditAction.Create, nameof(Department), department.Id.ToString(), null, ToDto(department));
-            await _dbContext.SaveChangesAsync(ct);
-        }, cancellationToken);
+                _auditWriter.Add(AuditAction.Create, nameof(Department), department.Id.ToString(), null, ToDto(department));
+                await _dbContext.SaveChangesAsync(ct);
+            }, cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent create of the same (Division, Name) won the unique-index race.
+            throw new BusinessRuleException($"A department named '{name}' already exists in this division.");
+        }
 
         return ToDto(department);
     }

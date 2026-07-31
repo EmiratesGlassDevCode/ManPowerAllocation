@@ -135,14 +135,22 @@ public sealed class RoleService : IRoleService
                 CreatedByObjectId = _currentUser.UserId
             };
 
-            await _dbContext.ExecuteInTransactionAsync(async ct =>
+            try
             {
-                _dbContext.RoleAssignments.Add(created);
-                await _dbContext.SaveChangesAsync(ct);
+                await _dbContext.ExecuteInTransactionAsync(async ct =>
+                {
+                    _dbContext.RoleAssignments.Add(created);
+                    await _dbContext.SaveChangesAsync(ct);
 
-                _auditWriter.Add(AuditAction.Create, nameof(RoleAssignment), created.Id.ToString(), null, ToDto(created));
-                await _dbContext.SaveChangesAsync(ct);
-            }, cancellationToken);
+                    _auditWriter.Add(AuditAction.Create, nameof(RoleAssignment), created.Id.ToString(), null, ToDto(created));
+                    await _dbContext.SaveChangesAsync(ct);
+                }, cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                // A concurrent upsert for the same object id won the unique-index race.
+                throw new BusinessRuleException("That user was just assigned a role by someone else — reload and try again.");
+            }
 
             return ToDto(created);
         }
@@ -154,7 +162,12 @@ public sealed class RoleService : IRoleService
         }
 
         var before = ToDto(existing);
-        existing.DisplayName = request.DisplayName?.Trim();
+        // Only overwrite the display name when one is supplied, so a role-only change does not wipe
+        // a previously stored name.
+        if (!string.IsNullOrWhiteSpace(request.DisplayName))
+        {
+            existing.DisplayName = request.DisplayName.Trim();
+        }
         existing.Role = request.Role;
 
         _auditWriter.Add(AuditAction.Update, nameof(RoleAssignment), existing.Id.ToString(), before, ToDto(existing));
