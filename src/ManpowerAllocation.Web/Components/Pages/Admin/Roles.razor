@@ -28,7 +28,7 @@
 
 @if (!string.IsNullOrEmpty(_message))
 {
-    <p class="message">@_message</p>
+    <p class="message @(_messageIsError ? "error" : "ok")">@_message</p>
 }
 
 <div class="data-card roles-card">
@@ -43,7 +43,14 @@
                 <span>@assignment.DisplayName</span>
             </div>
             <div class="data-mono">@assignment.EntraObjectId</div>
-            <div><span class="badge @RoleBadgeClass(assignment.Role)">@assignment.Role</span></div>
+            <div>
+                <select value="@assignment.Role" @onchange="e => ChangeRoleAsync(assignment, e)">
+                    @foreach (var role in Enum.GetValues<UserRole>())
+                    {
+                        <option value="@role" selected="@(role == assignment.Role)">@role</option>
+                    }
+                </select>
+            </div>
             <div>@assignment.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</div>
             <div><span class="data-remove" @onclick="() => DeleteAsync(assignment.Id)">Remove</span></div>
         </div>
@@ -56,6 +63,7 @@
     private string _displayName = string.Empty;
     private UserRole _role = UserRole.Viewer;
     private string? _message;
+    private bool _messageIsError;
 
     /// <summary>Loads the current assignments.</summary>
     protected override async Task OnInitializedAsync() => await LoadAsync();
@@ -68,14 +76,26 @@
     private async Task SaveAsync()
     {
         _message = null;
+
+        // The Entra object id is a GUID; catch a bad value here with a clear message rather than
+        // letting the save fail opaquely.
+        if (!Guid.TryParse(_objectId?.Trim(), out _))
+        {
+            _messageIsError = true;
+            _message = "Enter a valid Entra object id (a GUID like 00000000-0000-0000-0000-000000000000).";
+            return;
+        }
+
         try
         {
-            await RoleService.UpsertAsync(new UpsertRoleRequest
+            var saved = await RoleService.UpsertAsync(new UpsertRoleRequest
             {
                 EntraObjectId = _objectId,
                 DisplayName = _displayName,
                 Role = _role
             });
+            _messageIsError = false;
+            _message = $"Saved {saved.DisplayName ?? saved.EntraObjectId} as {saved.Role}.";
             _objectId = string.Empty;
             _displayName = string.Empty;
             await LoadAsync();
@@ -83,7 +103,37 @@
         catch (Exception ex)
         {
             // The service messages here are safe, business-level messages.
+            _messageIsError = true;
             _message = ex.Message;
+        }
+    }
+
+    /// <summary>Changes an existing assignment's role in place from the row's dropdown.</summary>
+    private async Task ChangeRoleAsync(RoleAssignmentDto assignment, ChangeEventArgs e)
+    {
+        if (!Enum.TryParse<UserRole>(e.Value?.ToString(), out var newRole) || newRole == assignment.Role)
+        {
+            return;
+        }
+
+        _message = null;
+        try
+        {
+            await RoleService.UpsertAsync(new UpsertRoleRequest
+            {
+                EntraObjectId = assignment.EntraObjectId,
+                DisplayName = assignment.DisplayName,
+                Role = newRole
+            });
+            _messageIsError = false;
+            _message = $"Changed {assignment.DisplayName ?? assignment.EntraObjectId} to {newRole}.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _messageIsError = true;
+            _message = ex.Message;
+            await LoadAsync(); // reset the dropdown to the actual stored role
         }
     }
 
@@ -97,15 +147,8 @@
         }
         catch (Exception ex)
         {
+            _messageIsError = true;
             _message = ex.Message;
         }
     }
-
-    /// <summary>Semantic badge colour for a role: Admin red, User brand, Viewer neutral.</summary>
-    private static string RoleBadgeClass(UserRole role) => role switch
-    {
-        UserRole.Admin => "b-admin",
-        UserRole.User => "b-user",
-        _ => "b-viewer"
-    };
 }
