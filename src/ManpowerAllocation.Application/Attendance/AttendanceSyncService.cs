@@ -90,14 +90,6 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
 
             foreach (var employee in employees)
             {
-                // Off-shift: not this employee's window yet (or any more). Leave the status as-is
-                // and just tally it under its current bucket.
-                if (employee.Shift != liveShift)
-                {
-                    Tally(employee.Status, ref present, ref absent, ref onVacation);
-                    continue;
-                }
-
                 var badge = employee.BadgeNumber?.Trim();
 
                 // A blank badge means the employee cannot be matched against the biometric
@@ -112,7 +104,28 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
 
                 var checkedIn = presentIds.Contains(badge);
 
-                var target = ResolveStatus(checkedIn, employee.Status);
+                AttendanceStatus target;
+                if (checkedIn)
+                {
+                    // A punch always wins: they are physically here now, whatever shift they are
+                    // assigned to. This covers someone rostered to one shift who works the other.
+                    target = AttendanceStatus.Present;
+                }
+                else if (employee.Shift == liveShift)
+                {
+                    // Their own shift is live but there is no punch — absent (a supervisor's
+                    // vacation is preserved).
+                    target = employee.Status == AttendanceStatus.OnVacation
+                        ? AttendanceStatus.OnVacation
+                        : AttendanceStatus.Absent;
+                }
+                else
+                {
+                    // Off-shift and not punched in: keep the last status so a night worker is not
+                    // shown absent during the morning (and a day worker at night).
+                    target = employee.Status;
+                }
+
                 if (target != employee.Status)
                 {
                     employee.Status = target;
@@ -158,20 +171,6 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
                 Error = "The attendance source could not be read."
             });
         }
-    }
-
-    /// <summary>
-    /// Applies the agreed presence rule: a check-in always wins (Present), else a supervisor's
-    /// vacation is preserved, else the employee is Absent.
-    /// </summary>
-    private static AttendanceStatus ResolveStatus(bool checkedIn, AttendanceStatus current)
-    {
-        if (checkedIn)
-        {
-            return AttendanceStatus.Present;
-        }
-
-        return current == AttendanceStatus.OnVacation ? AttendanceStatus.OnVacation : AttendanceStatus.Absent;
     }
 
     /// <summary>Increments the matching status counter.</summary>
