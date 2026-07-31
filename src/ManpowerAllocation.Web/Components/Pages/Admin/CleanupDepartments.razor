@@ -14,6 +14,10 @@
     delete them in one reviewed step. A department that has staff can never be deleted here.
 </p>
 
+@if (!string.IsNullOrEmpty(_error))
+{
+    <p class="message error">@_error</p>
+}
 @if (_result is not null)
 {
     <p class="message ok">
@@ -126,15 +130,23 @@ else
 
     private void Clear() => _selected.Clear();
 
+    private string? _error;
+
     private async Task ConfirmDeleteAsync()
     {
         _deleting = true;
+        _error = null;
         try
         {
             _result = await DepartmentService.DeleteEmptyDepartmentsAsync(_selected.ToList());
             _selected.Clear();
             _confirming = false;
             await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _confirming = false;
+            _error = ex.Message;
         }
         finally
         {

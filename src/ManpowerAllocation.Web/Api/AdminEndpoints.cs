@@ -59,8 +59,8 @@ public static class AdminEndpoints
             });
     }
 
-    /// <summary>Largest workbook the import endpoints accept (15 MB), guarding against oversized uploads.</summary>
-    private const long MaxWorkbookBytes = 15L * 1024 * 1024;
+    /// <summary>Largest workbook the import endpoints accept (20 MB), matching the upload UI's stated limit.</summary>
+    private const long MaxWorkbookBytes = 20L * 1024 * 1024;
 
     /// <summary>Maps the master-data import endpoints.</summary>
     private static void MapImportEndpoints(RouteGroupBuilder admin)

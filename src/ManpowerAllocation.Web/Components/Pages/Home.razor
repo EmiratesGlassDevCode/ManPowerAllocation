@@ -133,12 +133,34 @@ else
     private int FactoryVariance => FactoryPresent - FactoryRequired;
 
     /// <summary>Loads the summary on first render.</summary>
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await GuardedLoadAsync();
 
     private async Task OnShiftChanged(ShiftFilter shift)
     {
         _shift = shift;
-        await LoadAsync();
+        await GuardedLoadAsync();
+    }
+
+    // Serialise loads: the EF context is scoped to the whole circuit, so an overlapping load
+    // (e.g. rapid shift-filter toggling) would reuse it mid-query and crash the circuit.
+    private async Task GuardedLoadAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task LoadAsync()

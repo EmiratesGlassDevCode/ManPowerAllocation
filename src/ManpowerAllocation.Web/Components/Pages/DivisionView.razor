@@ -113,7 +113,7 @@ else
                             @if (_canAdmin)
                             {
                                 <FluentButton Appearance="Appearance.Neutral" @onclick="() => OpenEditDept(dept.DepartmentId)">Edit</FluentButton>
-                                <FluentButton Appearance="Appearance.Neutral" @onclick="() => DeleteDeptAsync(dept.DepartmentId)">Delete</FluentButton>
+                                <FluentButton Appearance="Appearance.Neutral" @onclick="() => _deleteDeptTarget = dept">Delete</FluentButton>
                             }
                         </div>
 
@@ -187,7 +187,24 @@ else
             }
             <div class="modal-foot">
                 <FluentButton Appearance="Appearance.Neutral" @onclick="CloseDeptForm">Cancel</FluentButton>
-                <FluentButton Appearance="Appearance.Accent" @onclick="SaveDeptAsync">Save</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" @onclick="SaveDeptAsync" Disabled="@_busy">Save</FluentButton>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_deleteDeptTarget is not null)
+{
+    <div class="modal-bg" @onclick="() => _deleteDeptTarget = null">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>Delete department?</h3>
+            <div class="modal-scroll">
+                <p>Delete <strong>@TextCase.Title(_deleteDeptTarget.Name)</strong>? A department can only be
+                   removed once it has no employees allocated to it. This is written to the audit trail.</p>
+            </div>
+            <div class="modal-foot">
+                <FluentButton Appearance="Appearance.Neutral" @onclick="() => _deleteDeptTarget = null">Cancel</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" @onclick="ConfirmDeleteDeptAsync" Disabled="@_busy">Delete</FluentButton>
             </div>
         </div>
     </div>
@@ -282,7 +299,9 @@ else
             _canEdit = HasRole(authState.User, UserRole.User);
             _canAdmin = HasRole(authState.User, UserRole.Admin);
 
-            await LoadAsync();
+            _busy = true;
+            try { await LoadAsync(); }
+            finally { _busy = false; }
         }
         else
         {
@@ -292,8 +311,21 @@ else
 
     private async Task OnShiftChanged(ShiftFilter shift)
     {
-        _shift = shift;
-        await LoadAsync();
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _shift = shift;
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task LoadAsync()
@@ -459,19 +491,33 @@ else
     /// instead of letting the exception tear down the Blazor circuit (which would white-screen
     /// the page and lose all state). The view is always reloaded so the UI reflects true state.
     /// </summary>
+    private bool _busy;
+
     private async Task RunActionAsync(Func<Task> action)
     {
+        // Serialise DB work: the EF context is scoped to the whole circuit, so a second overlapping
+        // action would reuse it mid-query and crash the circuit. Drop an action if one is running.
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
         _actionError = null;
         try
         {
-            await action();
+            try { await action(); }
+            catch (Exception ex) { _actionError = ex.Message; }
+            await LoadAsync();
         }
         catch (Exception ex)
         {
-            _actionError = ex.Message;
+            _actionError ??= ex.Message;
         }
-
-        await LoadAsync();
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private void OpenAddDept()
@@ -508,11 +554,12 @@ else
 
     private async Task SaveDeptAsync()
     {
-        if (_division is null)
+        if (_division is null || _busy)
         {
             return;
         }
 
+        _busy = true;
         _formError = null;
         try
         {
@@ -545,18 +592,39 @@ else
         {
             _formError = ex.Message;
         }
+        finally
+        {
+            _busy = false;
+        }
     }
 
-    private async Task DeleteDeptAsync(int departmentId)
+    private DepartmentStats? _deleteDeptTarget;
+
+    private async Task ConfirmDeleteDeptAsync()
     {
+        if (_deleteDeptTarget is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _actionError = null;
+        var id = _deleteDeptTarget.DepartmentId;
         try
         {
-            await DepartmentService.DeleteAsync(departmentId);
+            await DepartmentService.DeleteAsync(id);
+            _deleteDeptTarget = null;
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            _formError = ex.Message;
+            // Surface via _actionError (always rendered), not _formError (only shown in the form modal).
+            _deleteDeptTarget = null;
+            _actionError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 

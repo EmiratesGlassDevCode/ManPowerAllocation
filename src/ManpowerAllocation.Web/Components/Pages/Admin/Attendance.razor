@@ -59,16 +59,28 @@
 {
     <p class="message error">Not completed — @last.Error</p>
 }
+@if (!string.IsNullOrEmpty(_uiError))
+{
+    <p class="message error">@_uiError</p>
+}
 
 @code {
     private bool _busy;
 
+    private string? _uiError;
+
     private async Task SyncNowAsync()
     {
         _busy = true;
+        _uiError = null;
         try
         {
             await AttendanceSyncService.SyncAsync("manual");
+        }
+        catch (Exception)
+        {
+            // Defensive: the sync catches its own errors, but never let one tear down the circuit.
+            _uiError = "The synchronisation could not be started. Please try again.";
         }
         finally
         {

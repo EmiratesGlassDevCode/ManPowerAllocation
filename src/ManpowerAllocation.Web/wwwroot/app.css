@@ -121,6 +121,9 @@ html[data-theme="dark"] { color-scheme: dark; }
 :root[data-theme="dark"] .import-choose { color: var(--mpa-ink); }
 :root[data-theme="dark"] .import-result-title { color: #8CF5C4; }
 :root[data-theme="dark"] .sync-card-head.ok .sync-card-title { color: #8CF5C4; }
+:root[data-theme="dark"] .sync-card-head.warn .sync-card-title { color: var(--mpa-warn); }
+:root[data-theme="dark"] .emp-shift.shift-night { color: var(--mpa-night); }
+:root[data-theme="dark"] .bar { background: var(--mpa-stroke-2); }
 
 /* The theme toggle button in the top bar. */
 .theme-toggle { height: 28px; min-width: 28px; padding: 0 8px; border-radius: var(--mpa-r-md); border: 1px solid #4C87BE; background: transparent; color: #fff; cursor: pointer; font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }

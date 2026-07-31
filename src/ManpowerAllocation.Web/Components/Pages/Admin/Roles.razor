@@ -52,13 +52,48 @@
                 </select>
             </div>
             <div>@assignment.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm")</div>
-            <div><span class="data-remove" @onclick="() => DeleteAsync(assignment.Id)">Remove</span></div>
+            <div><button type="button" class="mini-btn danger" @onclick="() => _removeTarget = assignment">Remove</button></div>
         </div>
     }
 </div>
 
+@if (_removeTarget is not null)
+{
+    <div class="modal-bg" @onclick="() => _removeTarget = null">
+        <div class="modal" @onclick:stopPropagation="true">
+            <h3>Remove role assignment?</h3>
+            <div class="modal-scroll">
+                <p>Remove <strong>@(_removeTarget.DisplayName ?? _removeTarget.EntraObjectId)</strong> (@_removeTarget.Role)?
+                   They will fall back to the default Viewer access on next sign-in. This is written to the audit trail.</p>
+            </div>
+            <div class="modal-foot">
+                <FluentButton Appearance="Appearance.Neutral" @onclick="() => _removeTarget = null">Cancel</FluentButton>
+                <FluentButton Appearance="Appearance.Accent" @onclick="ConfirmRemoveAsync" Disabled="@_busy">Remove</FluentButton>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<RoleAssignmentDto> _assignments = new();
+    private RoleAssignmentDto? _removeTarget;
+    private bool _busy;
+
+    private async Task ConfirmRemoveAsync()
+    {
+        if (_removeTarget is null) { return; }
+        _busy = true;
+        try
+        {
+            await DeleteAsync(_removeTarget.Id);
+            _removeTarget = null;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
     private string _objectId = string.Empty;
     private string _displayName = string.Empty;
     private UserRole _role = UserRole.Viewer;

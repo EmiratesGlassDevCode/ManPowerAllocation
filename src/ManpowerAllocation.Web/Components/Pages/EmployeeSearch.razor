@@ -22,6 +22,27 @@
             <option value="@Division.Brg">BRG</option>
         </select>
     </label>
+    <label class="native-select-label">Department
+        <select @bind="_deptFilter">
+            <option value="">All departments</option>
+            @foreach (var group in _departments.GroupBy(d => d.Division))
+            {
+                <optgroup label="@DivisionLabel(group.Key)">
+                    @foreach (var d in group)
+                    {
+                        <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                    }
+                </optgroup>
+            }
+        </select>
+    </label>
+    <label class="native-select-label">Shift
+        <select @bind="_shiftFilter">
+            <option value="">Any shift</option>
+            <option value="@ShiftType.Day">Day</option>
+            <option value="@ShiftType.Night">Night</option>
+        </select>
+    </label>
     <label class="native-select-label">Status
         <select @bind="_statusFilter">
             <option value="">Any status</option>
@@ -32,6 +53,7 @@
             <option value="nobadge">No badge</option>
         </select>
     </label>
+    <button type="button" class="mini-btn" @onclick="ClearFilters">Clear</button>
     <span class="toolbar-spacer"></span>
     @if (_canEdit)
     {
@@ -236,7 +258,14 @@ else
     // Filters.
     private string _search = string.Empty;
     private string _divisionFilter = string.Empty;
+    private string _deptFilter = string.Empty;
+    private string _shiftFilter = string.Empty;
     private string _statusFilter = string.Empty;
+
+    private void ClearFilters()
+    {
+        _search = _divisionFilter = _deptFilter = _shiftFilter = _statusFilter = string.Empty;
+    }
 
     // Add form.
     private bool _showAdd;
@@ -305,6 +334,16 @@ else
         if (Enum.TryParse<Division>(_divisionFilter, out var division))
         {
             query = query.Where(e => e.Division == division);
+        }
+
+        if (int.TryParse(_deptFilter, out var deptId) && deptId > 0)
+        {
+            query = query.Where(e => e.DepartmentId == deptId);
+        }
+
+        if (Enum.TryParse<ShiftType>(_shiftFilter, out var shift))
+        {
+            query = query.Where(e => e.Shift == shift);
         }
 
         query = _statusFilter switch
