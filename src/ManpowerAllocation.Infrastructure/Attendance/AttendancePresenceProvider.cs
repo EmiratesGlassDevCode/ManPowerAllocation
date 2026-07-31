@@ -31,26 +31,45 @@ public sealed class AttendancePresenceProvider : IPresenceProvider
     /// <inheritdoc />
     public bool IsConfigured => true;
 
+    // Labels the view uses for the shift that ran immediately before the current one. Both the
+    // new ('Previous Shift') and the older ('Previous Night Shift') spellings are accepted so the
+    // app keeps working whichever version of the view is deployed.
+    private static readonly string[] PreviousShiftLabels = { "Previous Shift", "Previous Night Shift" };
+
     /// <inheritdoc />
-    public async Task<IReadOnlySet<string>> GetPresentEmployeeIdsForTodayAsync(CancellationToken cancellationToken = default)
+    public async Task<ShiftPresence> GetPresenceAsync(CancellationToken cancellationToken = default)
     {
         var currentShift = _options.CurrentShiftValue;
 
-        var ids = await _dbContext.AttendanceRecords
+        // Pull both the current-shift rows and the previous-shift rows in one query.
+        var rows = await _dbContext.AttendanceRecords
             .AsNoTracking()
-            .Where(r => r.ShiftLabel == currentShift && r.InTime != null)
-            .Select(r => r.EmployeeId)
+            .Where(r => r.InTime != null
+                        && (r.ShiftLabel == currentShift || PreviousShiftLabels.Contains(r.ShiftLabel)))
+            .Select(r => new { r.EmployeeId, r.ShiftLabel })
             .ToListAsync(cancellationToken);
 
-        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var id in ids)
+        var current = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var previous = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows)
         {
-            if (!string.IsNullOrWhiteSpace(id))
+            if (string.IsNullOrWhiteSpace(row.EmployeeId))
             {
-                present.Add(id.Trim());
+                continue;
+            }
+
+            var id = row.EmployeeId.Trim();
+            if (string.Equals(row.ShiftLabel, currentShift, StringComparison.OrdinalIgnoreCase))
+            {
+                current.Add(id);
+            }
+            else
+            {
+                previous.Add(id);
             }
         }
 
-        return present;
+        return new ShiftPresence(current, previous);
     }
 }

@@ -73,12 +73,9 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
 
         try
         {
-            var presentIds = await _presenceProvider.GetPresentEmployeeIdsForTodayAsync(cancellationToken);
+            var presence = await _presenceProvider.GetPresenceAsync(cancellationToken);
 
-            // The biometric feed only returns punches for the shift that is currently live, so an
-            // employee may only be auto-marked present/absent while their OWN shift is live. This
-            // stops a night worker being shown absent in the morning (and a day worker at night):
-            // off-shift employees keep their last status until their shift window opens.
+            // Which shift is live right now (factory-local time, with the grace window).
             var liveShift = await ResolveLiveShiftAsync(cancellationToken);
 
             // Outsource/supply workers are not in the biometric system, so their status is left alone.
@@ -102,29 +99,19 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
                     continue;
                 }
 
-                var checkedIn = presentIds.Contains(badge);
+                // Evaluate each employee against THEIR OWN shift's most recent window: the live
+                // window if their shift is running now, otherwise the previous window (the last time
+                // their shift ran). This makes the board cumulative — a night worker shows last
+                // night's result through the morning, a day worker shows today's result at night —
+                // instead of being blanked to absent whenever the other shift is syncing.
+                var relevant = employee.Shift == liveShift ? presence.CurrentShift : presence.PreviousShift;
+                var checkedIn = relevant.Contains(badge);
 
-                AttendanceStatus target;
-                if (checkedIn)
-                {
-                    // A punch always wins: they are physically here now, whatever shift they are
-                    // assigned to. This covers someone rostered to one shift who works the other.
-                    target = AttendanceStatus.Present;
-                }
-                else if (employee.Shift == liveShift)
-                {
-                    // Their own shift is live but there is no punch — absent (a supervisor's
-                    // vacation is preserved).
-                    target = employee.Status == AttendanceStatus.OnVacation
+                var target = checkedIn
+                    ? AttendanceStatus.Present
+                    : employee.Status == AttendanceStatus.OnVacation
                         ? AttendanceStatus.OnVacation
                         : AttendanceStatus.Absent;
-                }
-                else
-                {
-                    // Off-shift and not punched in: keep the last status so a night worker is not
-                    // shown absent during the morning (and a day worker at night).
-                    target = employee.Status;
-                }
 
                 if (target != employee.Status)
                 {

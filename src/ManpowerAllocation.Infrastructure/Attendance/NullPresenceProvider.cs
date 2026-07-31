@@ -13,6 +13,6 @@ public sealed class NullPresenceProvider : IPresenceProvider
     public bool IsConfigured => false;
 
     /// <inheritdoc />
-    public Task<IReadOnlySet<string>> GetPresentEmployeeIdsForTodayAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlySet<string>>(new HashSet<string>());
+    public Task<ShiftPresence> GetPresenceAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(ShiftPresence.Empty);
 }
