@@ -34,18 +34,21 @@ public sealed class AttendancePresenceProvider : IPresenceProvider
     // Labels the view uses for the shift that ran immediately before the current one. Both the
     // new ('Previous Shift') and the older ('Previous Night Shift') spellings are accepted so the
     // app keeps working whichever version of the view is deployed.
-    private static readonly string[] PreviousShiftLabels = { "Previous Shift", "Previous Night Shift" };
+    private static readonly HashSet<string> PreviousShiftLabels =
+        new(StringComparer.OrdinalIgnoreCase) { "Previous Shift", "Previous Night Shift" };
 
     /// <inheritdoc />
     public async Task<ShiftPresence> GetPresenceAsync(CancellationToken cancellationToken = default)
     {
         var currentShift = _options.CurrentShiftValue;
 
-        // Pull both the current-shift rows and the previous-shift rows in one query.
+        // Pull every checked-in row (the view is already scoped to a rolling ~30h window, so this is
+        // a small result set) with the same simple predicate that has always translated cleanly,
+        // then bucket by shift label in memory. Doing the label split client-side avoids any
+        // provider-specific translation pitfalls with an IN-list over the label column.
         var rows = await _dbContext.AttendanceRecords
             .AsNoTracking()
-            .Where(r => r.InTime != null
-                        && (r.ShiftLabel == currentShift || PreviousShiftLabels.Contains(r.ShiftLabel)))
+            .Where(r => r.InTime != null)
             .Select(r => new { r.EmployeeId, r.ShiftLabel })
             .ToListAsync(cancellationToken);
 
@@ -64,7 +67,7 @@ public sealed class AttendancePresenceProvider : IPresenceProvider
             {
                 current.Add(id);
             }
-            else
+            else if (row.ShiftLabel is not null && PreviousShiftLabels.Contains(row.ShiftLabel))
             {
                 previous.Add(id);
             }
