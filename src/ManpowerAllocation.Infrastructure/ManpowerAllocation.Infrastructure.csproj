@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\emirates-glass-logo.png" />
+    <EmbeddedResource Include="Assets\LiberationSans-Regular.ttf" />
+    <EmbeddedResource Include="Assets\LiberationSans-Bold.ttf" />
   </ItemGroup>
 
   <ItemGroup>

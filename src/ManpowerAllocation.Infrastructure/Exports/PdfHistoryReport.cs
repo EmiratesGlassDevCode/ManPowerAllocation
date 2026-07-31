@@ -26,30 +26,38 @@ internal static class PdfHistoryReport
     /// <summary>A single captured snapshot summarised for the report.</summary>
     internal sealed record Row(DateTime Date, string Shift, int Present, int Required, int Variance, int ShortDepts);
 
+    private const string FontFamily = "Liberation Sans";
+
     static PdfHistoryReport()
     {
-        // Resolve fonts from the installed Windows fonts (the deployment target). This avoids
-        // shipping font files and works across PDFsharp 6.x without version-specific helpers.
-        try { GlobalFontSettings.FontResolver ??= new WindowsFontResolver(); }
-        catch { /* already set, or non-Windows */ }
+        // Serve the report's fonts from fonts embedded in this assembly, so PDF generation never
+        // depends on which fonts happen to be installed on the server.
+        try { GlobalFontSettings.FontResolver ??= new EmbeddedFontResolver(); }
+        catch { /* already set */ }
     }
 
-    /// <summary>Resolves the small set of faces this report uses to the installed Windows fonts.</summary>
-    private sealed class WindowsFontResolver : IFontResolver
+    /// <summary>Resolves this report's faces to the embedded Liberation Sans TTFs.</summary>
+    private sealed class EmbeddedFontResolver : IFontResolver
     {
-        public byte[]? GetFont(string faceName) => File.Exists(faceName) ? File.ReadAllBytes(faceName) : null;
+        private const string Regular = "ManpowerAllocation.Infrastructure.Assets.LiberationSans-Regular.ttf";
+        private const string Bold = "ManpowerAllocation.Infrastructure.Assets.LiberationSans-Bold.ttf";
 
         public FontResolverInfo? ResolveTypeface(string familyName, bool bold, bool italic)
+            => new FontResolverInfo(bold ? "libsans-bold" : "libsans-regular");
+
+        public byte[]? GetFont(string faceName)
         {
-            var dir = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
-            var path = Path.Combine(dir, bold ? "arialbd.ttf" : "arial.ttf");
-            if (!File.Exists(path))
+            var resource = faceName == "libsans-bold" ? Bold : Regular;
+            var assembly = typeof(PdfHistoryReport).Assembly;
+            using var stream = assembly.GetManifestResourceStream(resource);
+            if (stream is null)
             {
-                var regular = Path.Combine(dir, "arial.ttf");
-                path = File.Exists(regular) ? regular : path;
+                return null;
             }
 
-            return new FontResolverInfo(path);
+            using var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            return ms.ToArray();
         }
     }
 
@@ -227,7 +235,7 @@ internal static class PdfHistoryReport
         return ms.ToArray();
     }
 
-    private static XFont Font(double size, XFontStyleEx style) => new("Arial", size, style);
+    private static XFont Font(double size, XFontStyleEx style) => new(FontFamily, size, style);
 
     private static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString();
 }
