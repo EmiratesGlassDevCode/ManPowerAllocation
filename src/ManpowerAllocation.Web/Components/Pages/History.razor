@@ -78,7 +78,11 @@ else
                         <td class="num strong @(s.Variance < 0 ? "sv-red" : "sv-green")">@Signed(s.Variance)</td>
                         <td class="num @(s.ShortageDepartmentCount > 0 ? "sv-red" : "")">@s.ShortageDepartmentCount</td>
                         <td>@Time.Format(s.CapturedAtUtc, "dd MMM HH:mm")</td>
-                        <td><span class="link" @onclick="() => OpenDetailAsync(s.Id)">View →</span></td>
+                        <td class="row-actions">
+                            <a class="mini-btn" href="api/exports/snapshot?id=@s.Id&format=pdf" target="_blank" title="Management PDF report">PDF</a>
+                            <a class="mini-btn" href="api/exports/snapshot?id=@s.Id&format=xlsx" target="_blank" title="Excel">XLS</a>
+                            <span class="link" @onclick="() => OpenDetailAsync(s.Id)">View →</span>
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -90,7 +94,13 @@ else
 {
     <div class="modal-bg" @onclick="() => _detail = null">
         <div class="modal wide" @onclick:stopPropagation="true">
-            <h3>@_detail.Summary.OperationalDate.ToString("ddd dd MMM yyyy") · @_detail.Summary.Shift shift</h3>
+            <div class="modal-head-row">
+                <h3>@_detail.Summary.OperationalDate.ToString("ddd dd MMM yyyy") · @_detail.Summary.Shift shift</h3>
+                <div class="modal-head-actions">
+                    <a class="link-btn" href="api/exports/snapshot?id=@_detail.Summary.Id&format=pdf" target="_blank"><span class="exp-ico" style="background:var(--mpa-danger)"></span>PDF report</a>
+                    <a class="link-btn" href="api/exports/snapshot?id=@_detail.Summary.Id&format=xlsx" target="_blank"><span class="exp-ico" style="background:var(--mpa-ok)"></span>Excel</a>
+                </div>
+            </div>
             <div class="modal-scroll">
                 <table class="grid">
                     <thead>

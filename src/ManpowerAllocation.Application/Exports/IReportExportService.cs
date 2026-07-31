@@ -38,4 +38,18 @@ public interface IReportExportService
     /// <param name="toDate">Inclusive end date.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<ExportFile> BuildSnapshotHistoryPdfAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Builds a branded, dashboard-style management PDF for a single captured daily report:
+    /// Emirates Glass banner, KPI tiles, a workforce-composition donut, a per-division fill chart
+    /// and a colour-coded department table.
+    /// </summary>
+    /// <param name="snapshotId">The captured snapshot id.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<ExportFile> BuildDailyReportPdfAsync(long snapshotId, CancellationToken cancellationToken = default);
+
+    /// <summary>Builds a simple, single-sheet Excel workbook for one captured daily report.</summary>
+    /// <param name="snapshotId">The captured snapshot id.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<ExportFile> BuildDailyReportExcelAsync(long snapshotId, CancellationToken cancellationToken = default);
 }

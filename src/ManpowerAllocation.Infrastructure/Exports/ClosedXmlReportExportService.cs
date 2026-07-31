@@ -214,8 +214,128 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         return new ExportFile($"report_history_{stamp}.pdf", "application/pdf", pdf);
     }
 
+    /// <inheritdoc />
+    public async Task<ExportFile> BuildDailyReportPdfAsync(long snapshotId, CancellationToken cancellationToken = default)
+    {
+        var snapshot = await LoadSnapshotWithDepartmentsAsync(snapshotId, cancellationToken);
+
+        var divisions = snapshot.Departments
+            .GroupBy(d => d.Division)
+            .OrderBy(g => g.Key)
+            .Select(g => new PdfDailyReport.DivisionRow(DivisionLabel(g.Key), g.Sum(d => d.Required), g.Sum(d => d.TotalPresent)))
+            .ToList();
+
+        var deptRows = snapshot.Departments
+            .OrderBy(d => d.Division)
+            .ThenByDescending(d => d.Required)
+            .ThenBy(d => d.DepartmentName)
+            .Select(d => new PdfDailyReport.DeptRow(
+                DivisionLabel(d.Division), d.DepartmentName, d.Required, d.TotalPresent,
+                d.Absent, d.OnVacation, d.SupplyPresent, d.Variance, d.Status))
+            .ToList();
+
+        var model = new PdfDailyReport.Model(
+            snapshot.OperationalDate, snapshot.Shift.ToString(), snapshot.CapturedAtUtc,
+            snapshot.Required, snapshot.OnRoll, snapshot.Present, snapshot.Absent, snapshot.OnVacation,
+            snapshot.SupplyPresent, snapshot.TotalPresent, snapshot.Variance, snapshot.ShortageDepartmentCount,
+            divisions, deptRows);
+
+        var pdf = PdfDailyReport.Render(LoadLogo(), model);
+        return new ExportFile($"daily_report_{snapshot.OperationalDate:yyyyMMdd}_{snapshot.Shift}.pdf", "application/pdf", pdf);
+    }
+
+    /// <inheritdoc />
+    public async Task<ExportFile> BuildDailyReportExcelAsync(long snapshotId, CancellationToken cancellationToken = default)
+    {
+        var snapshot = await LoadSnapshotWithDepartmentsAsync(snapshotId, cancellationToken);
+
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet("Daily Report");
+        var title = $"Daily Report — {snapshot.OperationalDate:dd MMM yyyy} · {snapshot.Shift} Shift";
+
+        // Summary block above the department table.
+        var titleCell = ws.Cell(1, 1);
+        titleCell.Value = "EMIRATES GLASS";
+        titleCell.Style.Font.Bold = true;
+        titleCell.Style.Font.FontSize = 16;
+        titleCell.Style.Font.FontColor = XLColor.FromHtml("#B8935A");
+        ws.Range(1, 1, 1, 11).Merge();
+
+        var subtitle = ws.Cell(2, 1);
+        subtitle.Value = $"Manpower Allocation · {title} — generated {_clock.UtcNow:yyyy-MM-dd HH:mm} UTC";
+        subtitle.Style.Font.Bold = true;
+        subtitle.Style.Font.FontColor = XLColor.FromHtml("#12446B");
+        ws.Range(2, 1, 2, 11).Merge();
+
+        var fill = snapshot.Required > 0 ? (int)Math.Round(100.0 * snapshot.TotalPresent / snapshot.Required) : 0;
+        var summary = new (string Label, int Value)[]
+        {
+            ("Required", snapshot.Required),
+            ("Total Present", snapshot.TotalPresent),
+            ("Absent", snapshot.Absent),
+            ("On Vacation", snapshot.OnVacation),
+            ("Supply (OS)", snapshot.SupplyPresent),
+            ("Variance", snapshot.Variance),
+            ("Fill %", fill),
+            ("Short departments", snapshot.ShortageDepartmentCount),
+        };
+        for (var i = 0; i < summary.Length; i++)
+        {
+            var col = i + 1;
+            var lbl = ws.Cell(4, col);
+            lbl.Value = summary[i].Label;
+            lbl.Style.Font.Bold = true;
+            lbl.Style.Font.FontColor = XLColor.White;
+            lbl.Style.Fill.BackgroundColor = XLColor.FromHtml("#12446B");
+            ws.Cell(5, col).Value = summary[i].Value;
+        }
+
+        // Department table.
+        const int headerRow = 7;
+        var headers = new[] { "Division", "Department", "Required", "On Roll", "Present", "Outsource", "Total Present", "Absent", "Vacation", "Variance", "Status" };
+        for (var i = 0; i < headers.Length; i++)
+        {
+            var cell = ws.Cell(headerRow, i + 1);
+            cell.Value = headers[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#12446B");
+        }
+
+        var row = headerRow + 1;
+        foreach (var d in snapshot.Departments.OrderBy(d => d.Division).ThenByDescending(d => d.Required).ThenBy(d => d.DepartmentName))
+        {
+            ws.Cell(row, 1).Value = DivisionLabel(d.Division);
+            ws.Cell(row, 2).Value = d.DepartmentName;
+            ws.Cell(row, 3).Value = d.Required;
+            ws.Cell(row, 4).Value = d.OnRoll;
+            ws.Cell(row, 5).Value = d.Present;
+            ws.Cell(row, 6).Value = d.SupplyPresent;
+            ws.Cell(row, 7).Value = d.TotalPresent;
+            ws.Cell(row, 8).Value = d.Absent;
+            ws.Cell(row, 9).Value = d.OnVacation;
+            ws.Cell(row, 10).Value = d.Variance;
+            ws.Cell(row, 11).Value = d.Status;
+            row++;
+        }
+
+        ws.Columns().AdjustToContents(1, 60);
+        return ToFile(wb, $"daily_report_{snapshot.OperationalDate:yyyyMMdd}_{snapshot.Shift}");
+    }
+
+    /// <summary>Loads a single captured snapshot with its department rows, or throws if absent.</summary>
+    private async Task<AllocationSnapshot> LoadSnapshotWithDepartmentsAsync(long snapshotId, CancellationToken cancellationToken)
+    {
+        var snapshot = await _dbContext.AllocationSnapshots
+            .AsNoTracking()
+            .Include(s => s.Departments)
+            .FirstOrDefaultAsync(s => s.Id == snapshotId, cancellationToken);
+
+        return snapshot ?? throw new Application.Common.NotFoundException("Daily report", snapshotId);
+    }
+
     /// <summary>Reads the embedded Emirates Glass logo bytes (empty if the resource is missing).</summary>
-    private static byte[] LoadLogo() => PdfHistoryReport.ReadEmbedded("emirates-glass-logo.png");
+    private static byte[] LoadLogo() => EmbeddedPdfFonts.ReadEmbedded("emirates-glass-logo.png");
 
     /// <summary>Loads the flattened department fact rows for the archived reports in a date range.</summary>
     private async Task<List<SnapshotFactRow>> LoadSnapshotFactRowsAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken)

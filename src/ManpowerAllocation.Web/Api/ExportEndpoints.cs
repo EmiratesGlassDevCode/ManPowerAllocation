@@ -58,5 +58,26 @@ public static class ExportEndpoints
                     "text/plain; charset=utf-8");
             }
         });
+
+        // A single captured daily report. ?id=<snapshotId>&format=pdf|xlsx — the PDF is the branded
+        // management dashboard; xlsx is a simple single-sheet workbook.
+        exports.MapGet("/snapshot", async (IReportExportService service, long id, string? format, CancellationToken ct) =>
+        {
+            var fmt = format?.ToLowerInvariant();
+            try
+            {
+                var file = fmt == "xlsx" || fmt == "excel"
+                    ? await service.BuildDailyReportExcelAsync(id, ct)
+                    : await service.BuildDailyReportPdfAsync(id, ct);
+                return Results.File(file.Content, file.ContentType, file.FileName);
+            }
+            catch (Exception ex) when (fmt != "xlsx" && fmt != "excel")
+            {
+                // TEMPORARY DIAGNOSTIC (PDF path only) — see note above.
+                return Results.Text(
+                    "Daily report PDF generation failed. Full diagnostic detail follows:\n\n" + ex,
+                    "text/plain; charset=utf-8");
+            }
+        });
     }
 }

@@ -1,5 +1,4 @@
 using PdfSharp.Drawing;
-using PdfSharp.Fonts;
 using PdfSharp.Pdf;
 
 namespace ManpowerAllocation.Infrastructure.Exports;
@@ -26,69 +25,9 @@ internal static class PdfHistoryReport
     /// <summary>A single captured snapshot summarised for the report.</summary>
     internal sealed record Row(DateTime Date, string Shift, int Present, int Required, int Variance, int ShortDepts);
 
-    private const string FontFamily = "Liberation Sans";
-
-    static PdfHistoryReport()
-    {
-        // Serve the report's fonts from fonts embedded in this assembly, so PDF generation never
-        // depends on which fonts happen to be installed on the server.
-        //
-        // Force-set (NOT ??=): PDFsharp 6.x may lazily install a platform font resolver, and on
-        // Windows Server that resolver cannot resolve "Liberation Sans" and throws — the exact
-        // 500 seen in the field. Assigning unconditionally guarantees our resolver wins. The
-        // static constructor runs once per process, before any XFont is created, so the setter
-        // is still in its assignable window; the catch only guards a redundant re-assignment.
-        try { GlobalFontSettings.FontResolver = new EmbeddedFontResolver(); }
-        catch { /* a resolver is already installed for this process — it is ours */ }
-    }
-
-    /// <summary>Resolves this report's faces to the embedded Liberation Sans TTFs.</summary>
-    private sealed class EmbeddedFontResolver : IFontResolver
-    {
-        public FontResolverInfo? ResolveTypeface(string familyName, bool bold, bool italic)
-            => new FontResolverInfo(bold ? "libsans-bold" : "libsans-regular");
-
-        public byte[]? GetFont(string faceName)
-        {
-            var file = faceName == "libsans-bold" ? "LiberationSans-Bold.ttf" : "LiberationSans-Regular.ttf";
-            var bytes = ReadEmbedded(file);
-            if (bytes.Length == 0)
-            {
-                // Make a missing embedded font an unambiguous, actionable error instead of a
-                // cryptic PDFsharp parse failure. Lists what actually shipped in the assembly.
-                var available = string.Join(", ", typeof(PdfHistoryReport).Assembly.GetManifestResourceNames());
-                throw new InvalidOperationException(
-                    $"Embedded report font '{file}' was not found in the assembly. Embedded resources present: [{available}].");
-            }
-
-            return bytes;
-        }
-    }
-
-    /// <summary>Reads an embedded asset by matching the resource name suffix (prefix-agnostic).</summary>
-    internal static byte[] ReadEmbedded(string fileName)
-    {
-        var assembly = typeof(PdfHistoryReport).Assembly;
-        var name = Array.Find(assembly.GetManifestResourceNames(),
-            n => n.EndsWith(fileName, StringComparison.OrdinalIgnoreCase));
-        if (name is null)
-        {
-            return Array.Empty<byte>();
-        }
-
-        using var stream = assembly.GetManifestResourceStream(name);
-        if (stream is null)
-        {
-            return Array.Empty<byte>();
-        }
-
-        using var ms = new MemoryStream();
-        stream.CopyTo(ms);
-        return ms.ToArray();
-    }
-
     public static byte[] Render(byte[] logo, DateTime from, DateTime to, IReadOnlyList<Row> rows)
     {
+        EmbeddedPdfFonts.Ensure();
         var doc = new PdfDocument();
         doc.Info.Title = "Daily Report History";
         doc.Info.Author = "Emirates Glass — Manpower Allocation";
@@ -265,7 +204,7 @@ internal static class PdfHistoryReport
         return ms.ToArray();
     }
 
-    private static XFont Font(double size, XFontStyleEx style) => new(FontFamily, size, style);
+    private static XFont Font(double size, XFontStyleEx style) => EmbeddedPdfFonts.Font(size, style);
 
     private static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString();
 }
