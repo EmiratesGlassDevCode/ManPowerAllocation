@@ -39,26 +39,33 @@ internal static class PdfHistoryReport
     /// <summary>Resolves this report's faces to the embedded Liberation Sans TTFs.</summary>
     private sealed class EmbeddedFontResolver : IFontResolver
     {
-        private const string Regular = "ManpowerAllocation.Infrastructure.Assets.LiberationSans-Regular.ttf";
-        private const string Bold = "ManpowerAllocation.Infrastructure.Assets.LiberationSans-Bold.ttf";
-
         public FontResolverInfo? ResolveTypeface(string familyName, bool bold, bool italic)
             => new FontResolverInfo(bold ? "libsans-bold" : "libsans-regular");
 
         public byte[]? GetFont(string faceName)
-        {
-            var resource = faceName == "libsans-bold" ? Bold : Regular;
-            var assembly = typeof(PdfHistoryReport).Assembly;
-            using var stream = assembly.GetManifestResourceStream(resource);
-            if (stream is null)
-            {
-                return null;
-            }
+            => ReadEmbedded(faceName == "libsans-bold" ? "LiberationSans-Bold.ttf" : "LiberationSans-Regular.ttf");
+    }
 
-            using var ms = new MemoryStream();
-            stream.CopyTo(ms);
-            return ms.ToArray();
+    /// <summary>Reads an embedded asset by matching the resource name suffix (prefix-agnostic).</summary>
+    internal static byte[] ReadEmbedded(string fileName)
+    {
+        var assembly = typeof(PdfHistoryReport).Assembly;
+        var name = Array.Find(assembly.GetManifestResourceNames(),
+            n => n.EndsWith(fileName, StringComparison.OrdinalIgnoreCase));
+        if (name is null)
+        {
+            return Array.Empty<byte>();
         }
+
+        using var stream = assembly.GetManifestResourceStream(name);
+        if (stream is null)
+        {
+            return Array.Empty<byte>();
+        }
+
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        return ms.ToArray();
     }
 
     public static byte[] Render(byte[] logo, DateTime from, DateTime to, IReadOnlyList<Row> rows)

@@ -11,9 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Assets\emirates-glass-logo.png" />
-    <EmbeddedResource Include="Assets\LiberationSans-Regular.ttf" />
-    <EmbeddedResource Include="Assets\LiberationSans-Bold.ttf" />
+    <!-- Forward slashes so the resources embed on Linux CI builds too (backslashes only work on Windows). -->
+    <EmbeddedResource Include="Assets/emirates-glass-logo.png" />
+    <EmbeddedResource Include="Assets/LiberationSans-Regular.ttf" />
+    <EmbeddedResource Include="Assets/LiberationSans-Bold.ttf" />
   </ItemGroup>
 
   <ItemGroup>

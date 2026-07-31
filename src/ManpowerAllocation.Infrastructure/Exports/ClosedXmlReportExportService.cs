@@ -215,19 +215,7 @@ public sealed class ClosedXmlReportExportService : IReportExportService
     }
 
     /// <summary>Reads the embedded Emirates Glass logo bytes (empty if the resource is missing).</summary>
-    private static byte[] LoadLogo()
-    {
-        var assembly = typeof(ClosedXmlReportExportService).Assembly;
-        using var stream = assembly.GetManifestResourceStream("ManpowerAllocation.Infrastructure.Assets.emirates-glass-logo.png");
-        if (stream is null)
-        {
-            return Array.Empty<byte>();
-        }
-
-        using var ms = new MemoryStream();
-        stream.CopyTo(ms);
-        return ms.ToArray();
-    }
+    private static byte[] LoadLogo() => PdfHistoryReport.ReadEmbedded("emirates-glass-logo.png");
 
     /// <summary>Loads the flattened department fact rows for the archived reports in a date range.</summary>
     private async Task<List<SnapshotFactRow>> LoadSnapshotFactRowsAsync(DateTime fromDate, DateTime toDate, CancellationToken cancellationToken)
