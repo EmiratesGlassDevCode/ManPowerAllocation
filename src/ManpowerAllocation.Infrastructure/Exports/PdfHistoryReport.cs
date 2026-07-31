@@ -28,9 +28,29 @@ internal static class PdfHistoryReport
 
     static PdfHistoryReport()
     {
-        // Use installed system fonts under Windows (the deployment target) so standard families
-        // such as Arial resolve without shipping font files.
-        try { GlobalFontSettings.UseWindowsFontsUnderWindows = true; } catch { /* non-Windows build/test */ }
+        // Resolve fonts from the installed Windows fonts (the deployment target). This avoids
+        // shipping font files and works across PDFsharp 6.x without version-specific helpers.
+        try { GlobalFontSettings.FontResolver ??= new WindowsFontResolver(); }
+        catch { /* already set, or non-Windows */ }
+    }
+
+    /// <summary>Resolves the small set of faces this report uses to the installed Windows fonts.</summary>
+    private sealed class WindowsFontResolver : IFontResolver
+    {
+        public byte[]? GetFont(string faceName) => File.Exists(faceName) ? File.ReadAllBytes(faceName) : null;
+
+        public FontResolverInfo? ResolveTypeface(string familyName, bool bold, bool italic)
+        {
+            var dir = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+            var path = Path.Combine(dir, bold ? "arialbd.ttf" : "arial.ttf");
+            if (!File.Exists(path))
+            {
+                var regular = Path.Combine(dir, "arial.ttf");
+                path = File.Exists(regular) ? regular : path;
+            }
+
+            return new FontResolverInfo(path);
+        }
     }
 
     public static byte[] Render(byte[] logo, DateTime from, DateTime to, IReadOnlyList<Row> rows)
@@ -57,7 +77,8 @@ internal static class PdfHistoryReport
         // ── Header: logo + title + brand rule ────────────────────────────────
         try
         {
-            using var img = XImage.FromStream(() => new MemoryStream(logo));
+            using var logoStream = new MemoryStream(logo);
+            using var img = XImage.FromStream(logoStream);
             var logoH = 34.0;
             var logoW = logoH * img.PixelWidth / Math.Max(1, img.PixelHeight);
             gfx.DrawImage(img, Margin, y, logoW, logoH);
