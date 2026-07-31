@@ -244,18 +244,22 @@ internal static class PdfHistoryReport
             y += 16;
         }
 
+        // Release the live XGraphics for the current (last) page before the footer pass —
+        // PDFsharp permits only one XGraphics per page, and the footer loop opens a fresh one
+        // for every page, including this one.
+        gfx.Dispose();
+
         // ── Footer on every page ─────────────────────────────────────────────
         for (var p = 0; p < doc.PageCount; p++)
         {
-            using var fg = XGraphics.FromPdfPage(doc.Pages[p]);
             var fp = doc.Pages[p];
+            using var fg = XGraphics.FromPdfPage(fp);
             fg.DrawString($"Generated {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", footFont, new XSolidBrush(Muted),
                 new XRect(Margin, fp.Height.Point - 28, fp.Width.Point - 2 * Margin, 12), XStringFormats.CenterLeft);
             fg.DrawString($"Page {p + 1} of {doc.PageCount}", footFont, new XSolidBrush(Muted),
                 new XRect(Margin, fp.Height.Point - 28, fp.Width.Point - 2 * Margin, 12), XStringFormats.CenterRight);
         }
 
-        gfx.Dispose();
         using var ms = new MemoryStream();
         doc.Save(ms);
         return ms.ToArray();
