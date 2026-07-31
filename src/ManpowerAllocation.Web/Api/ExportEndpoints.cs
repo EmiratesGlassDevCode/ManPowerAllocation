@@ -36,13 +36,27 @@ public static class ExportEndpoints
         {
             var toDate = to ?? DateTime.UtcNow.Date;
             var fromDate = from ?? toDate.AddDays(-30);
-            var file = (format?.ToLowerInvariant()) switch
+            var fmt = format?.ToLowerInvariant();
+            try
             {
-                "csv" => await service.BuildSnapshotHistoryCsvAsync(fromDate, toDate, ct),
-                "pdf" => await service.BuildSnapshotHistoryPdfAsync(fromDate, toDate, ct),
-                _ => await service.BuildSnapshotHistoryExcelAsync(fromDate, toDate, ct)
-            };
-            return Results.File(file.Content, file.ContentType, file.FileName);
+                var file = fmt switch
+                {
+                    "csv" => await service.BuildSnapshotHistoryCsvAsync(fromDate, toDate, ct),
+                    "pdf" => await service.BuildSnapshotHistoryPdfAsync(fromDate, toDate, ct),
+                    _ => await service.BuildSnapshotHistoryExcelAsync(fromDate, toDate, ct)
+                };
+                return Results.File(file.Content, file.ContentType, file.FileName);
+            }
+            catch (Exception ex) when (fmt == "pdf")
+            {
+                // TEMPORARY DIAGNOSTIC: the global handler masks all failures as a generic 500,
+                // which hid the real PDF-generation cause during troubleshooting. Surface the full
+                // detail for the PDF path only, so the exact error is visible in the browser.
+                // Remove this catch once the PDF export is confirmed working in production.
+                return Results.Text(
+                    "PDF generation failed. Full diagnostic detail follows:\n\n" + ex,
+                    "text/plain; charset=utf-8");
+            }
         });
     }
 }

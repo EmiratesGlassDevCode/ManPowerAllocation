@@ -32,8 +32,14 @@ internal static class PdfHistoryReport
     {
         // Serve the report's fonts from fonts embedded in this assembly, so PDF generation never
         // depends on which fonts happen to be installed on the server.
-        try { GlobalFontSettings.FontResolver ??= new EmbeddedFontResolver(); }
-        catch { /* already set */ }
+        //
+        // Force-set (NOT ??=): PDFsharp 6.x may lazily install a platform font resolver, and on
+        // Windows Server that resolver cannot resolve "Liberation Sans" and throws — the exact
+        // 500 seen in the field. Assigning unconditionally guarantees our resolver wins. The
+        // static constructor runs once per process, before any XFont is created, so the setter
+        // is still in its assignable window; the catch only guards a redundant re-assignment.
+        try { GlobalFontSettings.FontResolver = new EmbeddedFontResolver(); }
+        catch { /* a resolver is already installed for this process — it is ours */ }
     }
 
     /// <summary>Resolves this report's faces to the embedded Liberation Sans TTFs.</summary>
@@ -43,7 +49,20 @@ internal static class PdfHistoryReport
             => new FontResolverInfo(bold ? "libsans-bold" : "libsans-regular");
 
         public byte[]? GetFont(string faceName)
-            => ReadEmbedded(faceName == "libsans-bold" ? "LiberationSans-Bold.ttf" : "LiberationSans-Regular.ttf");
+        {
+            var file = faceName == "libsans-bold" ? "LiberationSans-Bold.ttf" : "LiberationSans-Regular.ttf";
+            var bytes = ReadEmbedded(file);
+            if (bytes.Length == 0)
+            {
+                // Make a missing embedded font an unambiguous, actionable error instead of a
+                // cryptic PDFsharp parse failure. Lists what actually shipped in the assembly.
+                var available = string.Join(", ", typeof(PdfHistoryReport).Assembly.GetManifestResourceNames());
+                throw new InvalidOperationException(
+                    $"Embedded report font '{file}' was not found in the assembly. Embedded resources present: [{available}].");
+            }
+
+            return bytes;
+        }
     }
 
     /// <summary>Reads an embedded asset by matching the resource name suffix (prefix-agnostic).</summary>
