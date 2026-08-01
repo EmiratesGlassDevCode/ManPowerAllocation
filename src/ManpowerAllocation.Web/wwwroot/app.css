@@ -568,6 +568,27 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
 .count-pill.zero { background: var(--mpa-ok-bg); color: var(--mpa-ok); border: 1px solid var(--mpa-ok-bd); }
 .count-pill.some { background: var(--mpa-warn-bg); color: var(--mpa-warn); border: 1px solid var(--mpa-warn-bd); }
 .recon-more { padding: 10px 16px; font: 400 12px/18px var(--mpa-font); color: var(--mpa-fg-3); border-top: 1px solid var(--mpa-stroke-3); }
+.recon-cap { padding: 10px 16px 0; font: 400 12px/18px var(--mpa-font); color: var(--mpa-fg-3); }
+
+/* Plain-language reconciliation story (common-person view) */
+.recon-story { margin: 4px 16px 8px; border: 1px solid var(--mpa-stroke-2); border-radius: var(--mpa-r-md); overflow: hidden; }
+.rs-lead { padding: 12px 16px; background: var(--mpa-surface-tint); border-bottom: 1px solid var(--mpa-stroke-2); font: 400 14px/21px var(--mpa-font); color: var(--mpa-fg-1); }
+.rs-items { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); }
+@media (max-width: 900px) { .rs-items { grid-template-columns: 1fr; } }
+.rs-item { padding: 14px 16px; border-right: 1px solid var(--mpa-stroke-2); display: flex; flex-direction: column; gap: 6px; }
+.rs-item:last-child { border-right: 0; }
+.rs-item.ok { background: var(--mpa-ok-bg); }
+.rs-item.bad { background: var(--mpa-danger-bg); }
+.rs-item.info { background: var(--mpa-supply-bg); }
+.rs-top { display: flex; align-items: baseline; gap: 10px; }
+.rs-num { font: 700 30px/1 var(--mpa-font); font-variant-numeric: tabular-nums; }
+.rs-tag { font: 700 11px/16px var(--mpa-font); text-transform: uppercase; letter-spacing: .04em; }
+.rs-text { font: 400 13px/19px var(--mpa-font); color: var(--mpa-fg-1); }
+.rs-do { font: 400 12px/18px var(--mpa-font); color: var(--mpa-fg-2); border-top: 1px dashed var(--mpa-stroke-2); padding-top: 6px; }
+.rs-item.ok .rs-num, .rs-item.ok .rs-tag { color: var(--mpa-ok); }
+.rs-item.bad .rs-num, .rs-item.bad .rs-tag { color: var(--mpa-danger); }
+.rs-item.info .rs-num, .rs-item.info .rs-tag { color: var(--mpa-supply); }
+.recon-allclear { margin: 4px 16px 8px; padding: 14px 16px; border-radius: var(--mpa-r-md); background: var(--mpa-ok-bg); border: 1px solid var(--mpa-ok-bd); color: var(--mpa-ok); font: 600 14px/20px var(--mpa-font); display: flex; align-items: center; gap: 10px; }
 
 /* ── Shift settings ───────────────────────────────────────────────────────── */
 .shift-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px,1fr)); gap: 12px; align-items: start; }

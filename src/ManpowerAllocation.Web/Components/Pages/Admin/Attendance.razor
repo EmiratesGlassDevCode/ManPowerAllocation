@@ -95,6 +95,43 @@
     }
     else
     {
+        @* Plain-language reconciliation story, on top of the technical cross-check below. *@
+        @if (_recon.UnmatchedIdCount == 0 && _recon.EmployeesWithoutBadgeCount == 0)
+        {
+            <div class="recon-allclear">
+                <span>✓</span>
+                <span>Everyone who clocked in is on the employee list, and every employee has a badge. Nothing to reconcile.</span>
+            </div>
+        }
+        else
+        {
+            <div class="recon-story">
+                <div class="rs-lead">
+                    In plain terms — the fingerprint machine recently recorded <b>@_recon.BiometricIdCount</b>
+                    @(_recon.BiometricIdCount == 1 ? "person" : "people") clocking in. Here is how they line up
+                    against the employee list.
+                </div>
+                <div class="rs-items">
+                    <div class="rs-item ok">
+                        <div class="rs-top"><span class="rs-num">@_recon.MatchedIdCount</span><span class="rs-tag">Counted</span></div>
+                        <div class="rs-text">Clocked in and matched to an employee — counted on the boards.</div>
+                    </div>
+                    <div class="rs-item bad">
+                        <div class="rs-top"><span class="rs-num">@_recon.UnmatchedIdCount</span><span class="rs-tag">Not counted</span></div>
+                        <div class="rs-text">Clocked in, but their badge number isn't in the employee list — so they're on the floor but not counted anywhere.</div>
+                        @if (_recon.UnmatchedIdCount > 0)
+                        {
+                            <div class="rs-do">Usually a new joiner not added yet, a wrong badge number, or someone who left. Add them or fix the badge to count them.</div>
+                        }
+                    </div>
+                    <div class="rs-item info">
+                        <div class="rs-top"><span class="rs-num">@_recon.EmployeesWithoutBadgeCount</span><span class="rs-tag">Can't be seen</span></div>
+                        <div class="rs-text">Employees with no badge number — the machine can never detect them, so they stay absent until a badge is added.</div>
+                    </div>
+                </div>
+            </div>
+        }
+
         <div class="verify-body">
             <div class="verify-col">
                 <div class="verify-col-title">Data pulled from the biometric view</div>
@@ -171,15 +208,16 @@
             <div class="recon-lists">
                 <details class="recon-detail">
                     <summary>
-                        Unmatched biometric IDs — punches with no employee
+                        People who clocked in but aren't in the employee list
                         <span class="count-pill @(_recon.UnmatchedIdCount == 0 ? "zero" : "some")">@_recon.UnmatchedIdCount</span>
                     </summary>
                     @if (_recon.UnmatchedIdCount == 0)
                     {
-                        <div class="recon-empty">Every biometric ID that punched matches a roster badge. Nothing to reconcile.</div>
+                        <div class="recon-empty">Every badge that clocked in matches an employee. Nothing to reconcile.</div>
                     }
                     else
                     {
+                        <div class="recon-cap">The machine saw these badge numbers, but no employee has them — add the person or correct their badge so they get counted. "Punches" is how many times that badge clocked in.</div>
                         <div class="grid-scroll">
                             <table class="grid">
                                 <thead><tr><th>Biometric ID</th><th>Shift label</th><th>Last seen</th><th class="num">Punches</th></tr></thead>
@@ -205,7 +243,7 @@
 
                 <details class="recon-detail">
                     <summary>
-                        Employees with no badge — cannot be matched
+                        Employees with no badge number
                         <span class="count-pill @(_recon.EmployeesWithoutBadgeCount == 0 ? "zero" : "some")">@_recon.EmployeesWithoutBadgeCount</span>
                     </summary>
                     @if (_recon.EmployeesWithoutBadgeCount == 0)
@@ -214,6 +252,7 @@
                     }
                     else
                     {
+                        <div class="recon-cap">The fingerprint machine can't detect these people, so they always show as absent. Add a badge number to include them.</div>
                         <div class="grid-scroll">
                             <table class="grid">
                                 <thead><tr><th>Ref</th><th>Name</th><th>Division</th><th>Department</th><th>Shift</th></tr></thead>
