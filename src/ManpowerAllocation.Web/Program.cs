@@ -10,7 +10,10 @@ using ManpowerAllocation.Infrastructure;
 using ManpowerAllocation.Infrastructure.Persistence;
 using ManpowerAllocation.Web.Api;
 using ManpowerAllocation.Web.Components;
+using ManpowerAllocation.Web.Health;
 using ManpowerAllocation.Web.Security;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authentication;
@@ -261,6 +264,15 @@ if (!string.IsNullOrWhiteSpace(dataProtectionKeyPath))
     dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyPath));
 }
 
+// ── Health checks ───────────────────────────────────────────────────────────────────────
+// A liveness probe (process is up) and a readiness probe (database reachable, biometric feed and
+// snapshot worker healthy) for load balancers and monitoring. The readiness checks are tagged so
+// the liveness endpoint can exclude them.
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready" })
+    .AddCheck<AttendanceSourceHealthCheck>("attendance", tags: new[] { "ready" })
+    .AddCheck<SnapshotWorkerHealthCheck>("snapshot-worker", tags: new[] { "ready" });
+
 // ── Blazor Server + Fluent UI ───────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddFluentUIComponents();
@@ -297,6 +309,15 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 // Endpoints.
+// Health probes are anonymous (load balancers cannot authenticate) and carry no sensitive detail.
+// Liveness ignores all checks — it only proves the process answers; readiness runs the tagged checks.
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = WriteHealthResponse
+}).AllowAnonymous();
+
 app.MapControllers();
 app.MapApiEndpoints();
 app.MapBreakGlassAuthEndpoints();
@@ -310,6 +331,25 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 
 app.Run();
+
+// Writes a compact, non-sensitive JSON summary of the readiness report. Only the check name, its
+// status and the (author-controlled, generic) description are exposed — never exception detail.
+static Task WriteHealthResponse(HttpContext httpContext, HealthReport report)
+{
+    httpContext.Response.ContentType = "application/json";
+    var payload = new
+    {
+        status = report.Status.ToString(),
+        totalDurationMs = report.TotalDuration.TotalMilliseconds,
+        checks = report.Entries.Select(entry => new
+        {
+            name = entry.Key,
+            status = entry.Value.Status.ToString(),
+            description = entry.Value.Description
+        })
+    };
+    return httpContext.Response.WriteAsJsonAsync(payload);
+}
 
 // Rate-limit partition key: the authenticated principal where possible, else the client IP.
 static string ResolveRateLimitKey(HttpContext httpContext)

@@ -1,8 +1,10 @@
 @page "/admin/attendance"
 @using ManpowerAllocation.Application.Attendance
+@using ManpowerAllocation.Application.Reconciliation
 @using ManpowerAllocation.Web.Security
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
 @inject IAttendanceSyncService AttendanceSyncService
+@inject IReconciliationService Reconciliation
 @inject AttendanceSyncStatus SyncStatus
 @inject DisplayTimeZone Time
 
@@ -11,7 +13,8 @@
 <h1>Attendance Synchronisation</h1>
 <p class="hint">
     Presence is sourced from the biometric attendance view; a background job refreshes it
-    automatically.
+    automatically. The verification panel below reads the view live so you can confirm data was
+    pulled and the counts reconcile against the roster.
 </p>
 
 @{
@@ -64,10 +67,197 @@
     <p class="message error">@_uiError</p>
 }
 
-@code {
-    private bool _busy;
+@* ── Sync verification: proof of a real pull + roster cross-check ─────────────── *@
+<div class="data-card" style="margin-top:16px">
+    <div class="verify-head">
+        <span class="title">Sync verification</span>
+        @if (_recon is not null)
+        {
+            <span class="verdict @PullVerdictClass"><span class="vdot"></span>@PullVerdictText</span>
+            <span class="verdict @(_recon.StatusCountsBalance ? "ok" : "bad")"><span class="vdot"></span>@(_recon.StatusCountsBalance ? "Counts balance" : "Count mismatch")</span>
+        }
+        <FluentButton Appearance="Appearance.Stealth" @onclick="RefreshReconAsync" Disabled="@_reconBusy">
+            @(_reconBusy ? "Refreshing…" : "Refresh")
+        </FluentButton>
+        <a class="link-btn" href="api/exports/reconciliation" target="_blank"><span class="exp-ico" style="background:var(--mpa-ok)"></span>Export Excel</a>
+    </div>
 
+    @if (_recon is null)
+    {
+        <div class="recon-empty">@(_reconBusy ? "Reading the biometric view…" : "No verification data yet.")</div>
+    }
+    else if (!_recon.SourceConfigured)
+    {
+        <div class="recon-empty">
+            No attendance source is configured, so nothing is pulled and every employee keeps their
+            last status. Configure the <code>AttendanceDatabase</code> connection to enable the biometric feed.
+        </div>
+    }
+    else
+    {
+        <div class="verify-body">
+            <div class="verify-col">
+                <div class="verify-col-title">Data pulled from the biometric view</div>
+                <div class="kv-rows">
+                    <div class="kv-line"><span class="kv-k">Distinct biometric IDs pulled</span><span class="kv-v">@_recon.BiometricIdCount</span></div>
+                    <div class="kv-line"><span class="kv-k">Total punches behind them</span><span class="kv-v">@_recon.BiometricPunchCount</span></div>
+                    <div class="kv-line"><span class="kv-k">Checked in — current shift</span><span class="kv-v">@_recon.CurrentShiftCheckedIn</span></div>
+                    <div class="kv-line"><span class="kv-k">Checked in — previous shift</span><span class="kv-v">@_recon.PreviousShiftCheckedIn</span></div>
+                    <div class="kv-line"><span class="kv-k">Most recent punch</span><span class="kv-v">@(_recon.MostRecentPunch is { } p ? Time.Format(p, "yyyy-MM-dd HH:mm") : "—")</span></div>
+                    <div class="kv-line">
+                        <span class="kv-k">Matched to a roster badge</span>
+                        <span class="kv-v ok">@_recon.MatchedIdCount</span>
+                    </div>
+                    <div class="kv-line">
+                        <span class="kv-k">Unmatched — no employee</span>
+                        <span class="kv-v @(_recon.UnmatchedIdCount > 0 ? "bad" : "ok")">@_recon.UnmatchedIdCount</span>
+                    </div>
+                </div>
+
+                <div class="verify-col-title">Pulled IDs — matched vs unmatched</div>
+                <div class="mini-bars">
+                    <div class="mini-bar">
+                        <span class="mb-label">Matched</span>
+                        <span class="mb-track"><span class="mb-fill" style="width:@Pct(_recon.MatchedIdCount, _recon.BiometricIdCount)%;background:var(--mpa-ok)"></span></span>
+                        <span class="mb-val">@_recon.MatchedIdCount</span>
+                    </div>
+                    <div class="mini-bar">
+                        <span class="mb-label">Unmatched</span>
+                        <span class="mb-track"><span class="mb-fill" style="width:@Pct(_recon.UnmatchedIdCount, _recon.BiometricIdCount)%;background:var(--mpa-danger)"></span></span>
+                        <span class="mb-val">@_recon.UnmatchedIdCount</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="verify-col">
+                <div class="verify-col-title">Roster — computed status</div>
+                <div class="kv-rows">
+                    <div class="kv-line"><span class="kv-k">Employees on roster</span><span class="kv-v">@_recon.RosterEmployeeCount <span class="kv-sub">(@_recon.RosterOwnCount own · @_recon.RosterSupplyCount outsource)</span></span></div>
+                    <div class="kv-line"><span class="kv-k">Distinct roster badges</span><span class="kv-v">@_recon.RosterBadgeCount</span></div>
+                    <div class="kv-line"><span class="kv-k">Marked Present</span><span class="kv-v ok">@_recon.RosterPresent</span></div>
+                    <div class="kv-line"><span class="kv-k">Marked Absent</span><span class="kv-v bad">@_recon.RosterAbsent</span></div>
+                    <div class="kv-line"><span class="kv-k">Marked On Vacation</span><span class="kv-v warn">@_recon.RosterOnVacation</span></div>
+                    <div class="kv-line">
+                        <span class="kv-k">Present + Absent + Vacation</span>
+                        <span class="kv-v @(_recon.StatusCountsBalance ? "ok" : "bad")">
+                            @(_recon.RosterPresent + _recon.RosterAbsent + _recon.RosterOnVacation)
+                            <span class="kv-sub">of @_recon.RosterEmployeeCount</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="verify-col-title">Roster composition</div>
+                <div class="mini-bars">
+                    <div class="mini-bar">
+                        <span class="mb-label">Present</span>
+                        <span class="mb-track"><span class="mb-fill" style="width:@Pct(_recon.RosterPresent, _recon.RosterEmployeeCount)%;background:var(--mpa-ok)"></span></span>
+                        <span class="mb-val">@_recon.RosterPresent</span>
+                    </div>
+                    <div class="mini-bar">
+                        <span class="mb-label">Absent</span>
+                        <span class="mb-track"><span class="mb-fill" style="width:@Pct(_recon.RosterAbsent, _recon.RosterEmployeeCount)%;background:var(--mpa-danger)"></span></span>
+                        <span class="mb-val">@_recon.RosterAbsent</span>
+                    </div>
+                    <div class="mini-bar">
+                        <span class="mb-label">On vacation</span>
+                        <span class="mb-track"><span class="mb-fill" style="width:@Pct(_recon.RosterOnVacation, _recon.RosterEmployeeCount)%;background:var(--mpa-warn)"></span></span>
+                        <span class="mb-val">@_recon.RosterOnVacation</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="padding:0 16px 16px">
+            <div class="recon-lists">
+                <details class="recon-detail">
+                    <summary>
+                        Unmatched biometric IDs — punches with no employee
+                        <span class="count-pill @(_recon.UnmatchedIdCount == 0 ? "zero" : "some")">@_recon.UnmatchedIdCount</span>
+                    </summary>
+                    @if (_recon.UnmatchedIdCount == 0)
+                    {
+                        <div class="recon-empty">Every biometric ID that punched matches a roster badge. Nothing to reconcile.</div>
+                    }
+                    else
+                    {
+                        <div class="grid-scroll">
+                            <table class="grid">
+                                <thead><tr><th>Biometric ID</th><th>Shift label</th><th>Last seen</th><th class="num">Punches</th></tr></thead>
+                                <tbody>
+                                    @foreach (var u in _recon.UnmatchedBiometricIds.Take(RowCap))
+                                    {
+                                        <tr>
+                                            <td class="strong">@u.BiometricId</td>
+                                            <td>@(string.IsNullOrWhiteSpace(u.ShiftLabel) ? "—" : u.ShiftLabel)</td>
+                                            <td>@(u.LastSeen is { } ls ? Time.Format(ls, "yyyy-MM-dd HH:mm") : "—")</td>
+                                            <td class="num">@u.PunchCount</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (_recon.UnmatchedIdCount > RowCap)
+                        {
+                            <div class="recon-more">Showing the first @RowCap of @_recon.UnmatchedIdCount. Use <b>Export Excel</b> for the full list.</div>
+                        }
+                    }
+                </details>
+
+                <details class="recon-detail">
+                    <summary>
+                        Employees with no badge — cannot be matched
+                        <span class="count-pill @(_recon.EmployeesWithoutBadgeCount == 0 ? "zero" : "some")">@_recon.EmployeesWithoutBadgeCount</span>
+                    </summary>
+                    @if (_recon.EmployeesWithoutBadgeCount == 0)
+                    {
+                        <div class="recon-empty">Every non-outsource employee has a badge. Nothing to reconcile.</div>
+                    }
+                    else
+                    {
+                        <div class="grid-scroll">
+                            <table class="grid">
+                                <thead><tr><th>Ref</th><th>Name</th><th>Division</th><th>Department</th><th>Shift</th></tr></thead>
+                                <tbody>
+                                    @foreach (var e in _recon.EmployeesWithoutBadge.Take(RowCap))
+                                    {
+                                        <tr>
+                                            <td>@e.EmployeeId</td>
+                                            <td class="strong">@e.Name</td>
+                                            <td>@DivisionLabel(e.Division)</td>
+                                            <td>@e.DepartmentName</td>
+                                            <td>@e.Shift.ToString().ToUpperInvariant()</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (_recon.EmployeesWithoutBadgeCount > RowCap)
+                        {
+                            <div class="recon-more">Showing the first @RowCap of @_recon.EmployeesWithoutBadgeCount. Use <b>Export Excel</b> for the full list.</div>
+                        }
+                    }
+                </details>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private const int RowCap = 100;
+
+    private bool _busy;
+    private bool _reconBusy;
     private string? _uiError;
+    private ReconciliationReport? _recon;
+
+    /// <summary>Loads the verification report once the interactive circuit is established.</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await RefreshReconAsync();
+        }
+    }
 
     private async Task SyncNowAsync()
     {
@@ -76,6 +266,8 @@
         try
         {
             await AttendanceSyncService.SyncAsync("manual");
+            // Re-read the view so the verification panel reflects the run that just completed.
+            await RefreshReconAsync();
         }
         catch (Exception)
         {
@@ -87,4 +279,46 @@
             _busy = false;
         }
     }
+
+    private async Task RefreshReconAsync()
+    {
+        _reconBusy = true;
+        StateHasChanged();
+        try
+        {
+            _recon = await Reconciliation.BuildAsync();
+        }
+        catch (Exception)
+        {
+            // A verification read failure must never break the sync page; leave the last report.
+            _uiError = "The biometric view could not be read for verification.";
+        }
+        finally
+        {
+            _reconBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Whole-number percentage of <paramref name="part"/> over <paramref name="whole"/>, clamped to [0,100].</summary>
+    private static int Pct(int part, int whole) =>
+        whole <= 0 ? 0 : Math.Clamp((int)Math.Round(100.0 * part / whole), 0, 100);
+
+    private string PullVerdictClass =>
+        _recon is null ? "warn"
+        : !_recon.SourceConfigured ? "bad"
+        : _recon.BiometricIdCount > 0 ? "ok" : "warn";
+
+    private string PullVerdictText =>
+        _recon is null ? "No pull yet"
+        : !_recon.SourceConfigured ? "No source"
+        : _recon.BiometricIdCount > 0 ? "Data pulled" : "Nothing in window";
+
+    private static string DivisionLabel(ManpowerAllocation.Domain.Enums.Division division) => division switch
+    {
+        ManpowerAllocation.Domain.Enums.Division.Egl => "EGL",
+        ManpowerAllocation.Domain.Enums.Division.FunctionalSupport => "Functional Support",
+        ManpowerAllocation.Domain.Enums.Division.Brg => "BRG",
+        _ => division.ToString()
+    };
 }

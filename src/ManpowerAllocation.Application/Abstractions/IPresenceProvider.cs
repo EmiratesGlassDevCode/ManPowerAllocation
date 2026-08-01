@@ -18,7 +18,27 @@ public interface IPresenceProvider
     /// <summary>Returns the present identifiers for the current and previous shift windows.</summary>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<ShiftPresence> GetPresenceAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns every distinct identifier the biometric source currently exposes in its window, with
+    /// light metadata, so the roster can be reconciled against who is actually punching. Unlike
+    /// <see cref="GetPresenceAsync"/> this is neither bucketed by shift nor filtered to "present" —
+    /// it is the raw distinct set of identifiers the view holds, used to prove a real pull happened
+    /// and to find punches that match no employee badge.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<IReadOnlyList<BiometricIdentity>> GetRecentIdentitiesAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// One distinct identifier observed in the biometric attendance source, aggregated across every row
+/// that carried it in the current window.
+/// </summary>
+/// <param name="BadgeNumber">The identifier as recorded by the attendance system (maps to <c>Employee.BadgeNumber</c>).</param>
+/// <param name="ShiftLabel">The shift label on the most recent row for this identifier, if any.</param>
+/// <param name="LastSeen">The most recent check-in time recorded for this identifier, as stored by the view.</param>
+/// <param name="PunchCount">How many rows in the window carried this identifier.</param>
+public sealed record BiometricIdentity(string BadgeNumber, string? ShiftLabel, DateTime? LastSeen, int PunchCount);
 
 /// <summary>
 /// Present employee identifiers bucketed by shift window. Identifiers are trimmed; membership tests

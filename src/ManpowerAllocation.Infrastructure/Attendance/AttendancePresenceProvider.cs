@@ -75,4 +75,61 @@ public sealed class AttendancePresenceProvider : IPresenceProvider
 
         return new ShiftPresence(current, previous);
     }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<BiometricIdentity>> GetRecentIdentitiesAsync(CancellationToken cancellationToken = default)
+    {
+        // Same small, rolling result set as the presence read, but here every row is kept (not just
+        // the live shift) and aggregated per identifier so the sync page can prove what the view
+        // actually returned and reconcile it against the roster.
+        var rows = await _dbContext.AttendanceRecords
+            .AsNoTracking()
+            .Select(r => new { r.EmployeeId, r.ShiftLabel, r.InTime })
+            .ToListAsync(cancellationToken);
+
+        var byId = new Dictionary<string, Accumulator>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrWhiteSpace(row.EmployeeId))
+            {
+                continue;
+            }
+
+            var id = row.EmployeeId.Trim();
+            if (!byId.TryGetValue(id, out var acc))
+            {
+                acc = new Accumulator();
+                byId[id] = acc;
+            }
+
+            acc.PunchCount++;
+
+            // Keep the shift label from the most recent punch so the row reflects where this person
+            // last showed up.
+            if (row.InTime is { } inTime && (acc.LastSeen is null || inTime >= acc.LastSeen))
+            {
+                acc.LastSeen = inTime;
+                acc.ShiftLabel = row.ShiftLabel;
+            }
+            else if (acc.ShiftLabel is null)
+            {
+                acc.ShiftLabel = row.ShiftLabel;
+            }
+        }
+
+        return byId
+            .Select(kv => new BiometricIdentity(kv.Key, kv.Value.ShiftLabel, kv.Value.LastSeen, kv.Value.PunchCount))
+            .OrderByDescending(b => b.LastSeen ?? DateTime.MinValue)
+            .ThenBy(b => b.BadgeNumber, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>Mutable per-identifier tally used while aggregating the view rows.</summary>
+    private sealed class Accumulator
+    {
+        public string? ShiftLabel { get; set; }
+        public DateTime? LastSeen { get; set; }
+        public int PunchCount { get; set; }
+    }
 }

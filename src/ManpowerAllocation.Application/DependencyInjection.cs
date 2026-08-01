@@ -30,12 +30,16 @@ public static class DependencyInjection
         services.AddScoped<IMasterDataImportService, MasterDataImportService>();
         services.AddScoped<IAuditReadService, AuditReadService>();
         services.AddScoped<IAttendanceSyncService, AttendanceSyncService>();
+        services.AddScoped<Reconciliation.IReconciliationService, Reconciliation.ReconciliationService>();
         services.AddScoped<IShiftSettingsService, ShiftSettingsService>();
         services.AddScoped<Snapshots.IAllocationSnapshotService, Snapshots.AllocationSnapshotService>();
         services.AddScoped<Snapshots.IAllocationHistoryService, Snapshots.AllocationHistoryService>();
 
         // Shared holder for the last attendance-sync result shown on the admin screen.
         services.AddSingleton<AttendanceSyncStatus>();
+
+        // Liveness of the daily-snapshot worker, for the health endpoint and the nav footer.
+        services.AddSingleton<Snapshots.SnapshotHeartbeat>();
 
         // Registers every AbstractValidator in this assembly (Create/Update department,
         // employee status/shift/move, role upsert, and so on).

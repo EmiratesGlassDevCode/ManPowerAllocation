@@ -1,8 +1,10 @@
 @using ManpowerAllocation.Web.Security
 @using ManpowerAllocation.Application.Attendance
 @using ManpowerAllocation.Application.Departments
+@using ManpowerAllocation.Application.Snapshots
 @using Microsoft.Extensions.DependencyInjection
 @inject AttendanceSyncStatus SyncStatus
+@inject SnapshotHeartbeat SnapshotHeartbeat
 @inject DisplayTimeZone Time
 @inject IServiceScopeFactory ScopeFactory
 
@@ -37,6 +39,7 @@
         <div class="sync-foot @(_healthy ? string.Empty : "bad")">
             <div class="sync-title">Attendance sync</div>
             <div class="sync-line">@_footLine</div>
+            <div class="sync-line">@_snapshotLine</div>
         </div>
     </div>
 </nav>
@@ -44,6 +47,7 @@
 @code {
     private bool _healthy;
     private string _footLine = "Waiting for first sync";
+    private string _snapshotLine = "Daily report: awaiting first capture";
     private readonly Dictionary<Division, int> _counts = new();
 
     /// <summary>Loads the department count per division once for the nav count pills.</summary>
@@ -91,5 +95,12 @@
             _healthy = false;
             _footLine = $"Last run {Time.Format(run.RanAtUtc, "HH:mm")} · feed unavailable";
         }
+
+        var lastCapture = SnapshotHeartbeat.LastCaptureUtc;
+        _snapshotLine = lastCapture is { } captured
+            ? $"Daily report: last captured {Time.Format(captured, "MMM d HH:mm")}"
+            : SnapshotHeartbeat.LastPollUtc is null
+                ? "Daily report: awaiting first capture"
+                : "Daily report: none captured yet today";
     }
 }

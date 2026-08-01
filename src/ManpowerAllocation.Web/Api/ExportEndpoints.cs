@@ -1,4 +1,5 @@
 using ManpowerAllocation.Application.Exports;
+using ManpowerAllocation.Application.Reconciliation;
 using ManpowerAllocation.Web.Security;
 
 namespace ManpowerAllocation.Web.Api;
@@ -58,6 +59,15 @@ public static class ExportEndpoints
                     "text/plain; charset=utf-8");
             }
         });
+
+        // Biometric reconciliation workbook (verification summary + unmatched IDs + no-badge list).
+        // Admin-only: it exposes roster gaps and raw biometric identifiers.
+        exports.MapGet("/reconciliation", async (IReconciliationService reconciliation, IReportExportService service, CancellationToken ct) =>
+        {
+            var report = await reconciliation.BuildAsync(ct);
+            var file = await service.BuildReconciliationExcelAsync(report, ct);
+            return Results.File(file.Content, file.ContentType, file.FileName);
+        }).RequireAuthorization(AuthorizationPolicies.RequireAdmin);
 
         // A single captured daily report. ?id=<snapshotId>&format=pdf|xlsx — the PDF is the branded
         // management dashboard; xlsx is a simple single-sheet workbook.

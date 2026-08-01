@@ -52,4 +52,15 @@ public interface IReportExportService
     /// <param name="snapshotId">The captured snapshot id.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<ExportFile> BuildDailyReportExcelAsync(long snapshotId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Builds a two-sheet Excel workbook of the biometric reconciliation: unmatched biometric
+    /// identifiers (punches with no employee) and employees with no badge (unmatchable), preceded by
+    /// a verification summary of the pulled-vs-roster counts.
+    /// </summary>
+    /// <param name="report">The reconciliation report to render.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<ExportFile> BuildReconciliationExcelAsync(
+        ManpowerAllocation.Application.Reconciliation.ReconciliationReport report,
+        CancellationToken cancellationToken = default);
 }

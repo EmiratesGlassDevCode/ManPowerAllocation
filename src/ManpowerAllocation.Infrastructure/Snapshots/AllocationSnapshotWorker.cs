@@ -25,19 +25,23 @@ public sealed class AllocationSnapshotWorker : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly AttendanceOptions _options;
+    private readonly SnapshotHeartbeat _heartbeat;
     private readonly ILogger<AllocationSnapshotWorker> _logger;
 
     /// <summary>Initialises the worker.</summary>
     /// <param name="scopeFactory">Factory used to create a scope per poll for scoped services.</param>
     /// <param name="options">Attendance options, used only for the factory time zone.</param>
+    /// <param name="heartbeat">Shared liveness record updated on every poll and capture.</param>
     /// <param name="logger">Logger for non-sensitive diagnostics.</param>
     public AllocationSnapshotWorker(
         IServiceScopeFactory scopeFactory,
         IOptions<AttendanceOptions> options,
+        SnapshotHeartbeat heartbeat,
         ILogger<AllocationSnapshotWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _heartbeat = heartbeat;
         _logger = logger;
     }
 
@@ -70,28 +74,33 @@ public sealed class AllocationSnapshotWorker : BackgroundService
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
         var snapshots = scope.ServiceProvider.GetRequiredService<IAllocationSnapshotService>();
 
-        var localNow = ToLocal(clock.UtcNow);
+        var utcNow = clock.UtcNow;
+        var localNow = ToLocal(utcNow);
         var today = localNow.Date;
         var yesterday = today.AddDays(-1);
 
         // Back-fill yesterday's cut-offs first: if the app was down across a cut-off into the next
         // day, those snapshots would otherwise be lost forever. Both cut-offs have definitely passed
         // for yesterday, so capture them if missing (a late capture is far better than a hole).
-        await CaptureIfMissing(snapshots, yesterday, ShiftType.Day, "auto-10:00-late", cancellationToken);
-        await CaptureIfMissing(snapshots, yesterday, ShiftType.Night, "auto-22:00-late", cancellationToken);
+        await CaptureIfMissing(snapshots, yesterday, ShiftType.Day, "auto-10:00-late", utcNow, cancellationToken);
+        await CaptureIfMissing(snapshots, yesterday, ShiftType.Night, "auto-22:00-late", utcNow, cancellationToken);
 
         if (localNow.TimeOfDay >= DayCutoff)
         {
-            await CaptureIfMissing(snapshots, today, ShiftType.Day, "auto-10:00", cancellationToken);
+            await CaptureIfMissing(snapshots, today, ShiftType.Day, "auto-10:00", utcNow, cancellationToken);
         }
 
         if (localNow.TimeOfDay >= NightCutoff)
         {
-            await CaptureIfMissing(snapshots, today, ShiftType.Night, "auto-22:00", cancellationToken);
+            await CaptureIfMissing(snapshots, today, ShiftType.Night, "auto-22:00", utcNow, cancellationToken);
         }
+
+        // The poll completed without throwing — record liveness so the health endpoint and UI can
+        // tell the worker is still ticking even between cut-offs.
+        _heartbeat.MarkPoll(utcNow);
     }
 
-    private async Task CaptureIfMissing(IAllocationSnapshotService snapshots, DateTime date, ShiftType shift, string source, CancellationToken cancellationToken)
+    private async Task CaptureIfMissing(IAllocationSnapshotService snapshots, DateTime date, ShiftType shift, string source, DateTime utcNow, CancellationToken cancellationToken)
     {
         if (await snapshots.ExistsAsync(date, shift, cancellationToken))
         {
@@ -99,6 +108,7 @@ public sealed class AllocationSnapshotWorker : BackgroundService
         }
 
         await snapshots.CaptureAsync(shift, date, source, cancellationToken);
+        _heartbeat.MarkCapture(utcNow, date, shift);
         _logger.LogInformation("Captured {Shift} shift snapshot for {Date:yyyy-MM-dd} ({Source}).", shift, date, source);
     }
 

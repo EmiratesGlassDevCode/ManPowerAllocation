@@ -2,6 +2,7 @@ using ClosedXML.Excel;
 using ManpowerAllocation.Application.Abstractions;
 using ManpowerAllocation.Application.Dashboard;
 using ManpowerAllocation.Application.Exports;
+using ManpowerAllocation.Application.Reconciliation;
 using ManpowerAllocation.Domain.Entities;
 using ManpowerAllocation.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -391,6 +392,72 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         DateTime Date, string Shift, string Division, string Department,
         int Required, int OnRoll, int Present, int SupplyPresent, int TotalPresent,
         int Absent, int OnVacation, int Variance, string Status);
+
+    /// <inheritdoc />
+    public Task<ExportFile> BuildReconciliationExcelAsync(ReconciliationReport report, CancellationToken cancellationToken = default)
+    {
+        using var wb = new XLWorkbook();
+
+        // Sheet 1 — verification summary: what the view returned vs what the roster holds.
+        var summary = wb.AddWorksheet("Verification");
+        var srow = WriteBrandedHeader(summary, "Biometric Reconciliation — Verification", "Metric", "Value");
+        // XLCellValue has implicit conversions from string and int, so callers pass either directly.
+        void Metric(string label, XLCellValue value)
+        {
+            summary.Cell(srow, 1).Value = label;
+            summary.Cell(srow, 2).Value = value;
+            srow++;
+        }
+
+        Metric("Attendance source configured", report.SourceConfigured ? "Yes" : "No");
+        Metric("Distinct biometric IDs pulled", report.BiometricIdCount);
+        Metric("Total punches behind those IDs", report.BiometricPunchCount);
+        Metric("Checked in — current shift", report.CurrentShiftCheckedIn);
+        Metric("Checked in — previous shift", report.PreviousShiftCheckedIn);
+        Metric("Most recent punch", report.MostRecentPunch?.ToString("yyyy-MM-dd HH:mm") ?? "—");
+        Metric("Matched to a roster badge", report.MatchedIdCount);
+        Metric("Unmatched biometric IDs", report.UnmatchedIdCount);
+        Metric("Employees on roster", report.RosterEmployeeCount);
+        Metric("— of which outsource/supply", report.RosterSupplyCount);
+        Metric("Distinct roster badges", report.RosterBadgeCount);
+        Metric("Roster marked Present", report.RosterPresent);
+        Metric("Roster marked Absent", report.RosterAbsent);
+        Metric("Roster marked On Vacation", report.RosterOnVacation);
+        Metric("Employees with no badge (unmatchable)", report.EmployeesWithoutBadgeCount);
+        Metric("Status counts balance to roster", report.StatusCountsBalance ? "Yes" : "No");
+        summary.Columns().AdjustToContents(1, 60);
+
+        // Sheet 2 — unmatched biometric identifiers (punches with no employee).
+        var unmatched = wb.AddWorksheet("Unmatched IDs");
+        var urow = WriteBrandedHeader(unmatched, "Unmatched Biometric IDs",
+            "Biometric ID", "Shift Label", "Last Seen", "Punches");
+        foreach (var u in report.UnmatchedBiometricIds)
+        {
+            unmatched.Cell(urow, 1).Value = u.BiometricId;
+            unmatched.Cell(urow, 2).Value = u.ShiftLabel ?? string.Empty;
+            unmatched.Cell(urow, 3).Value = u.LastSeen?.ToString("yyyy-MM-dd HH:mm") ?? string.Empty;
+            unmatched.Cell(urow, 4).Value = u.PunchCount;
+            urow++;
+        }
+        unmatched.Columns().AdjustToContents(1, 60);
+
+        // Sheet 3 — employees with no badge (can never be matched).
+        var noBadge = wb.AddWorksheet("No Badge");
+        var nrow = WriteBrandedHeader(noBadge, "Employees Without a Badge",
+            "Ref", "Name", "Division", "Department", "Shift");
+        foreach (var e in report.EmployeesWithoutBadge)
+        {
+            noBadge.Cell(nrow, 1).Value = e.EmployeeId;
+            noBadge.Cell(nrow, 2).Value = e.Name;
+            noBadge.Cell(nrow, 3).Value = DivisionLabel(e.Division);
+            noBadge.Cell(nrow, 4).Value = e.DepartmentName;
+            noBadge.Cell(nrow, 5).Value = e.Shift.ToString().ToUpperInvariant();
+            nrow++;
+        }
+        noBadge.Columns().AdjustToContents(1, 60);
+
+        return Task.FromResult(ToFile(wb, "biometric_reconciliation"));
+    }
 
     private async Task<List<Department>> LoadDepartmentsAsync(CancellationToken cancellationToken) =>
         await _dbContext.Departments

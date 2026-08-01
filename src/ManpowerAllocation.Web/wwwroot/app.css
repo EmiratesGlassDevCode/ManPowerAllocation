@@ -522,6 +522,53 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
 .rule-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none; }
 .rule-row span { font: 400 14px/20px var(--mpa-font); }
 
+/* ── Sync verification (biometric pull vs roster) ──────────────────────────── */
+.verify-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--mpa-surface-tint); border-bottom: 1px solid var(--mpa-stroke-2); }
+.verify-head .title { font: 600 16px/22px var(--mpa-font); flex: 1; }
+.verify-body { padding: 16px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 18px; align-items: start; }
+.verify-body .verify-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.verify-col-title { font: 600 13px/18px var(--mpa-font); text-transform: uppercase; letter-spacing: .04em; color: var(--mpa-fg-2); }
+@media (max-width: 900px) { .verify-body { grid-template-columns: 1fr; } }
+
+/* Verdict chips (pull healthy / calculations balance) */
+.verdict { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: var(--mpa-r-md); font: 600 12px/16px var(--mpa-font); border: 1px solid transparent; }
+.verdict .vdot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.verdict.ok { background: var(--mpa-ok-bg); color: var(--mpa-ok); border-color: var(--mpa-ok-bd); }
+.verdict.ok .vdot { background: var(--mpa-ok); }
+.verdict.warn { background: var(--mpa-warn-bg); color: var(--mpa-warn); border-color: var(--mpa-warn-bd); }
+.verdict.warn .vdot { background: var(--mpa-warn); }
+.verdict.bad { background: var(--mpa-danger-bg); color: var(--mpa-danger); border-color: var(--mpa-danger-bd); }
+.verdict.bad .vdot { background: var(--mpa-danger); }
+
+/* Key/value cross-check rows */
+.kv-rows { display: flex; flex-direction: column; }
+.kv-line { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--mpa-stroke-3); }
+.kv-line:last-child { border-bottom: 0; }
+.kv-line .kv-k { font: 400 13px/18px var(--mpa-font); color: var(--mpa-fg-2); flex: 1; }
+.kv-line .kv-v { font: 600 14px/18px var(--mpa-font); font-variant-numeric: tabular-nums; }
+.kv-line .kv-sub { font: 400 12px/16px var(--mpa-font); color: var(--mpa-fg-3); }
+.kv-v.ok { color: var(--mpa-ok); } .kv-v.bad { color: var(--mpa-danger); } .kv-v.warn { color: var(--mpa-warn); }
+
+/* Horizontal proportion bars */
+.mini-bars { display: flex; flex-direction: column; gap: 10px; }
+.mini-bar { display: grid; grid-template-columns: 130px 1fr 44px; align-items: center; gap: 10px; }
+.mini-bar .mb-label { font: 400 13px/18px var(--mpa-font); color: var(--mpa-fg-2); }
+.mini-bar .mb-track { height: 16px; background: var(--mpa-surface-tint); border: 1px solid var(--mpa-stroke-3); border-radius: 8px; overflow: hidden; }
+.mini-bar .mb-fill { height: 100%; border-radius: 8px 0 0 8px; min-width: 2px; }
+.mini-bar .mb-val { text-align: right; font: 600 13px/18px var(--mpa-font); font-variant-numeric: tabular-nums; }
+
+/* Reconciliation lists */
+.recon-lists { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.recon-detail { border: 1px solid var(--mpa-stroke-2); border-radius: var(--mpa-r-md); background: var(--mpa-surface); overflow: hidden; }
+.recon-detail > summary { list-style: none; cursor: pointer; padding: 12px 16px; display: flex; align-items: center; gap: 10px; font: 600 14px/20px var(--mpa-font); background: var(--mpa-surface-tint); }
+.recon-detail > summary::-webkit-details-marker { display: none; }
+.recon-detail > summary .count-pill { margin-left: auto; }
+.recon-empty { padding: 14px 16px; font: 400 13px/20px var(--mpa-font); color: var(--mpa-fg-3); }
+.count-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 8px; border-radius: 10px; font: 700 11px/1 var(--mpa-font); }
+.count-pill.zero { background: var(--mpa-ok-bg); color: var(--mpa-ok); border: 1px solid var(--mpa-ok-bd); }
+.count-pill.some { background: var(--mpa-warn-bg); color: var(--mpa-warn); border: 1px solid var(--mpa-warn-bd); }
+.recon-more { padding: 10px 16px; font: 400 12px/18px var(--mpa-font); color: var(--mpa-fg-3); border-top: 1px solid var(--mpa-stroke-3); }
+
 /* ── Shift settings ───────────────────────────────────────────────────────── */
 .shift-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px,1fr)); gap: 12px; align-items: start; }
 .shift-band { display: flex; height: 34px; border-radius: var(--mpa-r-md); overflow: hidden; border: 1px solid var(--mpa-stroke-2); }
