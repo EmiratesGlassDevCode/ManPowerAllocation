@@ -38,6 +38,13 @@ else
     else
     {
         var t = _dashboard.Totals;
+        @if (_shift == ShiftFilter.All)
+        {
+            <p class="hint">
+                “All” combines day and night over a 24-hour cycle, so <b>Absent</b> includes the shift
+                that isn’t on the floor now. For shift-accurate absence, choose <b>Day</b> or <b>Night</b>.
+            </p>
+        }
         <div class="kpi-row">
             <div class="kpi k-blue"><div class="kpi-lbl">Present</div><div class="kpi-val">@t.TotalPresent</div><div class="kpi-sub">on floor now</div></div>
             <div class="kpi k-neutral"><div class="kpi-lbl">Required</div><div class="kpi-val">@t.Required</div><div class="kpi-sub">planned</div></div>
@@ -255,6 +262,7 @@ else
     private Division? _division;
     private string _label = string.Empty;
     private ShiftFilter _shift = ShiftFilter.All;
+    private bool _shiftInitialised;
     private DivisionDashboard? _dashboard;
     private List<DepartmentDto> _departments = new();
     private List<EmployeeDto> _employees = new();
@@ -298,6 +306,15 @@ else
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             _canEdit = HasRole(authState.User, UserRole.User);
             _canAdmin = HasRole(authState.User, UserRole.Admin);
+
+            // Open on the shift running now, not a day+night pool that would count the off-shift
+            // as absent. Resolved once so a manual shift choice survives in-page interactions.
+            if (!_shiftInitialised)
+            {
+                try { _shift = await DashboardService.GetLiveShiftAsync(); }
+                catch { _shift = ShiftFilter.Day; }
+                _shiftInitialised = true;
+            }
 
             _busy = true;
             try { await LoadAsync(); }

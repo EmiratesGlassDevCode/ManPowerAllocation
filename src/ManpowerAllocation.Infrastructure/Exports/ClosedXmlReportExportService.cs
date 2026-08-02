@@ -59,27 +59,34 @@ public sealed class ClosedXmlReportExportService : IReportExportService
 
         using var wb = new XLWorkbook();
         var ws = wb.AddWorksheet("Report");
+        // Present / Absent / Vacation are reported PER SHIFT, not pooled across day and night: an
+        // employee works one shift only, so summing both shifts' statuses would count the shift that
+        // isn't running as "absent" and overstate absenteeism. Each department therefore gets one row
+        // per shift, each measured against that shift's own requirement.
         var row = WriteBrandedHeader(ws, "Staffing Report",
-            "Division", "Department", "Day Req", "Night Req", "Total Req",
+            "Division", "Department", "Shift", "Required",
             "Present", "Outsource", "Total Present", "Absent", "Vacation", "Status");
 
         foreach (var d in departments)
         {
             var members = employeesByDepartment.TryGetValue(d.Id, out var list) ? list : new List<Employee>();
-            var stats = StaffingCalculator.ComputeDepartmentStats(d, members, ShiftFilter.All);
 
-            ws.Cell(row, 1).Value = DivisionLabel(d.Division);
-            ws.Cell(row, 2).Value = d.Name;
-            ws.Cell(row, 3).Value = d.RequiredDay;
-            ws.Cell(row, 4).Value = d.RequiredNight;
-            ws.Cell(row, 5).Value = stats.Required;
-            ws.Cell(row, 6).Value = stats.Present;
-            ws.Cell(row, 7).Value = stats.SupplyPresent;
-            ws.Cell(row, 8).Value = stats.TotalPresent;
-            ws.Cell(row, 9).Value = stats.Absent;
-            ws.Cell(row, 10).Value = stats.OnVacation;
-            ws.Cell(row, 11).Value = stats.Status.ToString();
-            row++;
+            foreach (var (shiftFilter, shiftLabel) in new[] { (ShiftFilter.Day, "DAY"), (ShiftFilter.Night, "NIGHT") })
+            {
+                var stats = StaffingCalculator.ComputeDepartmentStats(d, members, shiftFilter);
+
+                ws.Cell(row, 1).Value = DivisionLabel(d.Division);
+                ws.Cell(row, 2).Value = d.Name;
+                ws.Cell(row, 3).Value = shiftLabel;
+                ws.Cell(row, 4).Value = stats.Required;
+                ws.Cell(row, 5).Value = stats.Present;
+                ws.Cell(row, 6).Value = stats.SupplyPresent;
+                ws.Cell(row, 7).Value = stats.TotalPresent;
+                ws.Cell(row, 8).Value = stats.Absent;
+                ws.Cell(row, 9).Value = stats.OnVacation;
+                ws.Cell(row, 10).Value = stats.Status.ToString();
+                row++;
+            }
         }
 
         ws.Columns().AdjustToContents(1, 60); // bound the scan: sizing from the first rows keeps large exports fast

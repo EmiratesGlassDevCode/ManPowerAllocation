@@ -13,12 +13,15 @@ namespace ManpowerAllocation.Application.Dashboard;
 public sealed class DashboardService : IDashboardService
 {
     private readonly IApplicationDbContext _dbContext;
+    private readonly IFactoryClock _factoryClock;
 
     /// <summary>Initialises the service.</summary>
     /// <param name="dbContext">The application persistence context.</param>
-    public DashboardService(IApplicationDbContext dbContext)
+    /// <param name="factoryClock">Local (factory) clock used to resolve the live shift.</param>
+    public DashboardService(IApplicationDbContext dbContext, IFactoryClock factoryClock)
     {
         _dbContext = dbContext;
+        _factoryClock = factoryClock;
     }
 
     /// <inheritdoc />
@@ -63,6 +66,27 @@ public sealed class DashboardService : IDashboardService
 
         var factoryTotal = CombineFactoryTotal(perDivision);
         return new FactorySummary(perDivision, factoryTotal);
+    }
+
+    /// <inheritdoc />
+    public async Task<ShiftFilter> GetLiveShiftAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await _dbContext.ShiftSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == ShiftSetting.SingletonId, cancellationToken);
+
+        var dayStart = settings?.DayShiftStart ?? new TimeSpan(7, 0, 0);
+        var nightStart = settings?.NightShiftStart ?? new TimeSpan(19, 0, 0);
+
+        var now = _factoryClock.LocalNow.TimeOfDay;
+
+        // Day runs from dayStart until nightStart; the remainder of the 24h cycle is night. The
+        // comparison handles a night start that wraps past midnight relative to the day start.
+        var dayLive = dayStart <= nightStart
+            ? now >= dayStart && now < nightStart
+            : now >= dayStart || now < nightStart;
+
+        return dayLive ? ShiftFilter.Day : ShiftFilter.Night;
     }
 
     /// <summary>

@@ -21,4 +21,12 @@ public interface IDashboardService
     /// <param name="shift">The active shift filter.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<FactorySummary> GetFactorySummaryAsync(ShiftFilter shift, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the shift filter for the shift running now in factory-local time, using the
+    /// configured day/night start times. Dashboards open on this so the default view reflects the
+    /// shift actually on the floor — never a day+night pool that would count the off-shift as absent.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<ShiftFilter> GetLiveShiftAsync(CancellationToken cancellationToken = default);
 }

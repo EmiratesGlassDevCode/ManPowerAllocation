@@ -73,6 +73,15 @@ else
         </div>
     </div>
 
+    @if (_shift == ShiftFilter.All)
+    {
+        <p class="hint" style="margin-top:8px">
+            “All” adds day and night together over a 24-hour cycle, so its <b>Absent</b> figure includes
+            the shift that isn’t currently on the floor. For shift-accurate absence, choose <b>Day</b> or
+            <b>Night</b> (the page opens on the live shift by default).
+        </p>
+    }
+
     <div class="sum-panel">
         <div class="sum-panel-head"><span class="ico"></span><span class="sum-panel-title">Division breakdown</span></div>
         <div class="sum-panel-body grid-scroll">
@@ -135,7 +144,15 @@ else
     /// <summary>Loads the summary on first render.</summary>
     private bool _busy;
 
-    protected override async Task OnInitializedAsync() => await GuardedLoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Open on the shift running now rather than a day+night pool: a combined view counts the
+        // off-shift as absent and overstates absenteeism. The All/Day/Night toggle is still available.
+        try { _shift = await DashboardService.GetLiveShiftAsync(); }
+        catch { _shift = ShiftFilter.Day; }
+
+        await GuardedLoadAsync();
+    }
 
     private async Task OnShiftChanged(ShiftFilter shift)
     {
@@ -241,7 +258,7 @@ else
     {
         ShiftFilter.Day => "Day shift",
         ShiftFilter.Night => "Night shift",
-        _ => "All shifts"
+        _ => "All shifts · day + night (24h)"
     };
 
     /// <summary>Renders a surplus with an explicit "+" so it isn't ambiguous next to a shortage.</summary>
