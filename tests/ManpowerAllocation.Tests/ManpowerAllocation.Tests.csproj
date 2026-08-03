@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Automated tests for the domain and application rules (Stage B2). Uses the EF Core InMemory
+    provider for services that depend on IApplicationDbContext; the pure StaffingCalculator needs
+    no context at all. Security/role gating that requires a live host + identity provider is
+    exercised as documented manual UAT scenarios, not here.
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CA1707;CA2007</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ManpowerAllocation.Application\ManpowerAllocation.Application.csproj" />
+    <ProjectReference Include="..\..\src\ManpowerAllocation.Infrastructure\ManpowerAllocation.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ManpowerAllocation.Domain\ManpowerAllocation.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
