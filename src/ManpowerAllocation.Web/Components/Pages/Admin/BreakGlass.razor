@@ -8,14 +8,17 @@
 <PageTitle>Break-glass Status — Manpower Allocation</PageTitle>
 
 <h1>Emergency Break-glass Account</h1>
-<p class="hint">Read-only status of the emergency account used when Entra ID is unreachable.</p>
+<p class="hint">Set the emergency secret here once. Enabling the account in an emergency is still a
+    deliberate database action — it cannot be switched on from any screen.</p>
 
 <div class="callout-danger">
-    <span class="callout-danger-title">Disabled by default — database change required to enable</span>
+    <span class="callout-danger-title">Secret set here · enabling still requires a database change</span>
     <span class="callout-danger-body">
-        This account exists only for when Entra ID is unreachable. It cannot be enabled from any
-        screen. On enable and on every login the IT Head is alerted; it auto-disables four hours
-        after enabling, and every action in a break-glass session is flagged in the audit trail.
+        This account exists only for when Entra ID is unreachable. The secret below is hashed and
+        stored outside the database. To activate in an emergency, IT sets <code>IsEnabled = 1</code>
+        on the break-glass row in the database; on enable and on every login the IT Head is alerted;
+        it auto-disables four hours after enabling, and every action in a break-glass session is
+        flagged in the audit trail.
     </span>
 </div>
 
@@ -31,19 +34,85 @@ else
             <span class="status-pill @(_status.IsEnabled ? "danger" : "ok")">@(_status.IsEnabled ? "ENABLED" : "Disabled")</span>
         </div>
         <div class="kv-row"><div class="k">Currently enabled</div><div class="v">@(_status.IsEnabled ? "Yes" : "No")</div></div>
+        <div class="kv-row"><div class="k">Emergency secret</div><div class="v">@(_status.SecretConfigured ? $"Configured{(_status.SecretSetAtUtc is {} s ? $" · set {Time.Format(s, "yyyy-MM-dd HH:mm")} {Time.Name}" : string.Empty)}" : "Not set — set one below")</div></div>
         <div class="kv-row"><div class="k">Enabled at (@Time.Name)</div><div class="v">@Time.Format(_status.EnabledAtUtc, "yyyy-MM-dd HH:mm:ss")</div></div>
         <div class="kv-row"><div class="k">Auto-disables at (@Time.Name)</div><div class="v">@Time.Format(_status.AutoDisableAtUtc, "yyyy-MM-dd HH:mm:ss")</div></div>
         <div class="kv-row"><div class="k">Last login (@Time.Name)</div><div class="v">@Time.Format(_status.LastLoginAtUtc, "yyyy-MM-dd HH:mm:ss")</div></div>
         <div class="kv-row"><div class="k">Enable reason</div><div class="v">@_status.EnableReason</div></div>
     </div>
+
+    <div class="data-card" style="margin-top:16px">
+        <div class="kv-card-head">
+            <span class="title">@(_status.SecretConfigured ? "Rotate emergency secret" : "Set emergency secret")</span>
+        </div>
+        <div style="padding:16px; display:flex; flex-direction:column; gap:12px; max-width:520px">
+            <p class="hint" style="margin:0">
+                Choose a strong secret (at least 12 characters) and store it in your team password
+                vault. Only its hash is saved on the server — the secret itself is never stored and
+                cannot be shown again. Setting a new value replaces the old one immediately.
+            </p>
+            <FluentTextField @bind-Value="_secret" TextFieldType="TextFieldType.Password" Placeholder="New emergency secret" Style="width:100%" />
+            <FluentTextField @bind-Value="_confirm" TextFieldType="TextFieldType.Password" Placeholder="Confirm secret" Style="width:100%" />
+            <div>
+                <FluentButton Appearance="Appearance.Accent" @onclick="SaveSecretAsync" Disabled="@_saving">
+                    @(_saving ? "Saving…" : _status.SecretConfigured ? "Rotate secret" : "Set secret")
+                </FluentButton>
+            </div>
+            @if (!string.IsNullOrEmpty(_msg)) { <p class="message ok">@_msg</p> }
+            @if (!string.IsNullOrEmpty(_err)) { <p class="message error">@_err</p> }
+        </div>
+    </div>
 }
 
 @code {
     private BreakGlassStatusDto? _status;
+    private string _secret = string.Empty;
+    private string _confirm = string.Empty;
+    private bool _saving;
+    private string? _msg;
+    private string? _err;
 
     /// <summary>Loads the current break-glass status.</summary>
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _status = await BreakGlassService.GetStatusAsync();
+
+    private async Task SaveSecretAsync()
     {
-        _status = await BreakGlassService.GetStatusAsync();
+        _msg = null;
+        _err = null;
+
+        if (string.IsNullOrWhiteSpace(_secret) || _secret.Length < 12)
+        {
+            _err = "The secret must be at least 12 characters.";
+            return;
+        }
+        if (!string.Equals(_secret, _confirm, StringComparison.Ordinal))
+        {
+            _err = "The two entries do not match.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await BreakGlassService.SetSecretAsync(_secret);
+            _secret = string.Empty;
+            _confirm = string.Empty;
+            _msg = "Emergency secret saved. Keep it in your password vault — it cannot be shown again.";
+            await LoadAsync();
+        }
+        catch (ArgumentException ex)
+        {
+            _err = ex.Message;
+        }
+        catch (Exception)
+        {
+            _err = "The secret could not be saved. Check the server's write permissions and try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 }

@@ -20,25 +20,36 @@ public sealed class BreakGlassService : IBreakGlassService
     private readonly IApplicationDbContext _dbContext;
     private readonly IClock _clock;
     private readonly IAlertService _alertService;
+    private readonly IBreakGlassSecretStore _secretStore;
+    private readonly ICurrentUser _currentUser;
     private readonly BreakGlassOptions _options;
     private readonly ILogger<BreakGlassService> _logger;
+
+    // The emergency secret must be at least this long when set from the UI.
+    private const int MinimumSecretLength = 12;
 
     /// <summary>Initialises the service.</summary>
     /// <param name="dbContext">The application persistence context.</param>
     /// <param name="clock">Clock used for timestamps and the auto-disable window.</param>
     /// <param name="alertService">Service used to alert the IT Head.</param>
-    /// <param name="options">Break-glass configuration (secret hash lives here, not in the database).</param>
+    /// <param name="secretStore">Store for the emergency secret hash (outside the database).</param>
+    /// <param name="currentUser">The current actor, used to attribute a secret change in the audit trail.</param>
+    /// <param name="options">Break-glass configuration (window, alert recipient, store path).</param>
     /// <param name="logger">Logger for structured, non-sensitive diagnostics.</param>
     public BreakGlassService(
         IApplicationDbContext dbContext,
         IClock clock,
         IAlertService alertService,
+        IBreakGlassSecretStore secretStore,
+        ICurrentUser currentUser,
         IOptions<BreakGlassOptions> options,
         ILogger<BreakGlassService> logger)
     {
         _dbContext = dbContext;
         _clock = clock;
         _alertService = alertService;
+        _secretStore = secretStore;
+        _currentUser = currentUser;
         _options = options.Value;
         _logger = logger;
     }
@@ -46,10 +57,12 @@ public sealed class BreakGlassService : IBreakGlassService
     /// <inheritdoc />
     public async Task<BreakGlassStatusDto> GetStatusAsync(CancellationToken cancellationToken = default)
     {
+        var secret = await _secretStore.GetAsync(cancellationToken);
+
         var account = await _dbContext.BreakGlassAccounts.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
         if (account is null)
         {
-            return new BreakGlassStatusDto(false, null, null, null, null);
+            return new BreakGlassStatusDto(false, null, null, null, null, secret is not null, secret?.SetAtUtc);
         }
 
         var autoDisableAt = account.EnabledAtUtc?.AddHours(_options.AutoDisableAfterHours);
@@ -58,7 +71,40 @@ public sealed class BreakGlassService : IBreakGlassService
             account.EnabledAtUtc,
             autoDisableAt,
             account.LastLoginAtUtc,
-            account.EnableReason);
+            account.EnableReason,
+            secret is not null,
+            secret?.SetAtUtc);
+    }
+
+    /// <inheritdoc />
+    public async Task SetSecretAsync(string plainSecret, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(plainSecret) || plainSecret.Length < MinimumSecretLength)
+        {
+            throw new ArgumentException(
+                $"The emergency secret must be at least {MinimumSecretLength} characters.", nameof(plainSecret));
+        }
+
+        await _secretStore.SetAsync(plainSecret, cancellationToken);
+
+        // Audit the change under the acting administrator — never log or store the secret itself.
+        var now = _clock.UtcNow;
+        _dbContext.AuditLogEntries.Add(new AuditLogEntry
+        {
+            UserId = _currentUser.IsAuthenticated ? _currentUser.UserId : "system",
+            UserDisplayName = _currentUser.DisplayName,
+            TimestampUtc = now,
+            Action = AuditAction.Update,
+            EntityName = "BreakGlassSecret",
+            RecordId = null,
+            OldValue = null,
+            NewValue = "Emergency break-glass secret set/rotated.",
+            IsBreakGlassSession = _currentUser.IsBreakGlassSession
+        });
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogWarning("Break-glass emergency secret was set/rotated by {Actor}.",
+            _currentUser.IsAuthenticated ? _currentUser.UserId : "system");
     }
 
     /// <inheritdoc />
@@ -75,10 +121,13 @@ public sealed class BreakGlassService : IBreakGlassService
             return false;
         }
 
-        // Verify against the configured hash — never against anything stored in the database.
-        if (!BreakGlassSecretHasher.Verify(password, _options.SecretHashBase64, _options.SaltBase64, _options.Iterations))
+        // Verify against the stored hash (app-set file, else configuration) — never against anything
+        // in the database. A missing secret fails closed: the account cannot be logged into.
+        var secret = await _secretStore.GetAsync(cancellationToken);
+        if (secret is null
+            || !BreakGlassSecretHasher.Verify(password, secret.SecretHashBase64, secret.SaltBase64, secret.Iterations))
         {
-            _logger.LogWarning("Rejected break-glass login attempt: secret did not match.");
+            _logger.LogWarning("Rejected break-glass login attempt: secret missing or did not match.");
             return false;
         }
 

@@ -13,6 +13,16 @@ public interface IBreakGlassService
     Task<BreakGlassStatusDto> GetStatusAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Sets (or rotates) the emergency secret. This is the one-time administrator action that makes
+    /// break-glass usable without touching configuration files; afterwards an emergency needs only a
+    /// manual database enable and later disable. The secret is hashed and stored outside the database;
+    /// the change is audited. Requires the Admin role (enforced by the calling page/endpoint).
+    /// </summary>
+    /// <param name="plainSecret">The new emergency secret (validated for a minimum length).</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task SetSecretAsync(string plainSecret, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Verifies an emergency login. Succeeds only when the account is enabled, still within its
     /// four-hour window, and the supplied secret matches the hash held in protected configuration
     /// (never in the database). On success the login time is recorded and an alert is sent to the

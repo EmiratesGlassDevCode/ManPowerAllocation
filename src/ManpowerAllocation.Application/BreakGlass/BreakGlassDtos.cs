@@ -10,4 +10,6 @@ public sealed record BreakGlassStatusDto(
     DateTime? EnabledAtUtc,
     DateTime? AutoDisableAtUtc,
     DateTime? LastLoginAtUtc,
-    string? EnableReason);
+    string? EnableReason,
+    bool SecretConfigured,
+    DateTime? SecretSetAtUtc);

@@ -28,4 +28,11 @@ public sealed class BreakGlassOptions
 
     /// <summary>Email address of the IT Head who receives break-glass alerts.</summary>
     public string? ItHeadEmail { get; set; }
+
+    /// <summary>
+    /// Optional absolute path to the file where the app-set secret hash is stored. When empty, a
+    /// default under the content root's <c>App_Data</c> folder is used. The app-pool identity must
+    /// be able to read and write this location. Only a hash is ever written here — never the secret.
+    /// </summary>
+    public string? SecretStorePath { get; set; }
 }

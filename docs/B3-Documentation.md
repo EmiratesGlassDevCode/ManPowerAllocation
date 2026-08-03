@@ -318,7 +318,7 @@ fallback policy (health endpoints are the only anonymous surface).
 | 4 | Default Viewer provisioned on first login; no auto-downgrade | ✅ | `OnTokenValidated` → `RoleService.EnsureDefaultViewerAsync` |
 | 5 | Server-side role enforcement on pages **and** endpoints | ✅ | `[Authorize(Policy=…)]` + `RequireAuthorization` |
 | 6 | Break-glass disabled by default; time-boxed auto-disable; enforced on live sessions | ✅ | `BreakGlassService`, `OnValidatePrincipal`, `BreakGlassLifecycleWorker` |
-| 7 | Break-glass secret stored as hash in configuration, never in DB | ✅ | `BreakGlassOptions`, `BreakGlassSecretHasher` |
+| 7 | Break-glass secret stored as a PBKDF2 hash **outside the database** (app-set protected file, or configuration fallback); never in the DB | ✅ | `IBreakGlassSecretStore` / `FileBreakGlassSecretStore`, `BreakGlassSecretHasher` |
 | 8 | Break-glass sessions flagged in the audit trail | ✅ | `AuditLogEntry.IsBreakGlassSession` |
 | 9 | HSTS (preload) + HTTPS redirect | ✅ | `Program.cs` |
 | 10 | Security headers on every response | ✅ | `SecurityHeadersMiddleware` |
@@ -387,7 +387,8 @@ AzureAd:Instance/TenantId/ClientId/ClientSecret/CallbackPath
 DataProtection:KeyPath               = <folder writable by the app-pool identity>
 Attendance:Enabled / SyncIntervalMinutes / TimeZoneId / ViewSchema / ViewName /
            EmployeeIdColumn / InTimeColumn / OutTimeColumn / ShiftLabelColumn / CurrentShiftValue
-BreakGlass:<secret hash + window settings>
+BreakGlass:SecretStorePath           = <writable folder/file for the app-set secret hash; default App_Data>
+BreakGlass:AutoDisableAfterHours / ItHeadEmail  (+ optional SecretHashBase64/SaltBase64/Iterations fallback)
 Alerts:<SMTP/Teams settings>   (optional)
 ```
 
@@ -404,29 +405,19 @@ Alerts:<SMTP/Teams settings>   (optional)
 The emergency account has **two independent gates**, neither of which is a GUI action. The
 `/admin/break-glass` screen is **read-only status** — it cannot enable the account by design.
 
-**One-time setup — the secret ("key"), in configuration only (never the DB):**
-The verifier uses PBKDF2 / SHA-256 / 210,000 iterations / 32-byte key. Generate the hash + salt
-offline (same parameters as `BreakGlassSecretHasher.Derive`) and place them in the protected
-`BreakGlass` configuration section (User-Secrets or Key Vault preferred). Example generator:
-```csharp
-using System.Security.Cryptography; using System.Text;
-string secret = "CHOOSE-A-STRONG-EMERGENCY-SECRET"; int iterations = 210_000;
-byte[] salt = RandomNumberGenerator.GetBytes(16);
-byte[] hash = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(secret), salt, iterations, HashAlgorithmName.SHA256, 32);
-Console.WriteLine(Convert.ToBase64String(salt));   // -> SaltBase64
-Console.WriteLine(Convert.ToBase64String(hash));   // -> SecretHashBase64
-```
-```json
-"BreakGlass": {
-  "UserName": "breakglass",
-  "SecretHashBase64": "<generated>",
-  "SaltBase64": "<generated>",
-  "Iterations": 210000,
-  "AutoDisableAfterHours": 4,
-  "ItHeadEmail": "ithead@example.com"
-}
-```
-Keep the plain secret in a password vault (it is what you type at login); only the hash is stored.
+**One-time setup — set the secret in the app (Admin, audited):**
+An administrator opens **Admin → Break-glass Status** and uses **Set / rotate emergency secret**:
+enter a strong secret (≥ 12 chars), confirm, save. The app derives a PBKDF2/SHA-256 hash and stores
+it **outside the database** — in a protected file on the server (`BreakGlass:SecretStorePath`, default
+`App_Data/break-glass-secret.json`). The plain secret is never stored; the change is audited. Keep the
+plain secret in your team password vault (it is what you type at login). Rotating simply overwrites it.
+
+The app-pool identity must be able to read/write `BreakGlass:SecretStorePath`.
+
+*Optional fallback:* a hash can still be supplied through the `BreakGlass` configuration section
+(`SecretHashBase64` / `SaltBase64` / `Iterations`, e.g. via Key Vault); it is used only when no
+app-set file exists. Configuration values can be generated offline with the same parameters
+(PBKDF2 / SHA-256 / 210,000 iterations / 32-byte key).
 
 **Enable (emergency) — manual DB change:**
 ```sql
@@ -482,7 +473,8 @@ Excel, or a date range as Excel/CSV/PDF. `[SCREENSHOT: History]`
 - **Master Data Import** — upload the requirements/attendance spreadsheet.
 - **Role Assignments** — grant Viewer/User/Admin.
 - **Shift Settings** — set day/night start times.
-- **Break-glass Status** — emergency access control.
+- **Break-glass Status** — set the one-time emergency secret (Set / rotate); view status. Enabling
+  the account for use remains a deliberate database action by IT/DBA, not a screen action.
 - **Audit Trail** — review who changed what.
 `[SCREENSHOT: Admin menu]`
 
