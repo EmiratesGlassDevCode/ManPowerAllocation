@@ -358,7 +358,7 @@ fallback policy (health endpoints are the only anonymous surface).
 | S-02 | Security | User vs Admin | 403 on Admin-only DELETE | Manual — pending |
 | S-03 | Security | Unauthenticated API | 401/redirect | Manual — pending |
 | S-04 | Security | Audit accuracy | Audit rows with correct action + old/new JSON | Manual — pending |
-| S-05 | Security | Break-glass default off | Disabled by default; enabling requires reason; use flagged | Manual — pending |
+| S-05 | Security | Break-glass default off | Disabled by default; **enable is DB-only (no GUI/API)**; secret hash in config only; use flagged in audit | Manual — pending |
 
 **Automated test breakdown (22 total, all passing):** StaffingCalculator (6) — per-shift vs pooled
 absence, OFF/Short/Excess, roll-up; AttendanceSyncService (7) — presence rule, vacation preserved,
@@ -400,10 +400,50 @@ Alerts:<SMTP/Teams settings>   (optional)
 5. Verify `GET /health/ready` returns Healthy; sign in via Entra ID.
 
 ### 7.5 Enable / disable break-glass (emergency access)
-- **Enable:** an Admin enables it from **Admin → Break-glass Status**, supplying a reason. It
-  auto-disables after the configured window and every use is audited (`IsBreakGlassSession=true`).
-- **Disable:** disable from the same screen; live break-glass sessions are rejected immediately on
-  their next request. It is **disabled by default** after any deployment.
+
+The emergency account has **two independent gates**, neither of which is a GUI action. The
+`/admin/break-glass` screen is **read-only status** — it cannot enable the account by design.
+
+**One-time setup — the secret ("key"), in configuration only (never the DB):**
+The verifier uses PBKDF2 / SHA-256 / 210,000 iterations / 32-byte key. Generate the hash + salt
+offline (same parameters as `BreakGlassSecretHasher.Derive`) and place them in the protected
+`BreakGlass` configuration section (User-Secrets or Key Vault preferred). Example generator:
+```csharp
+using System.Security.Cryptography; using System.Text;
+string secret = "CHOOSE-A-STRONG-EMERGENCY-SECRET"; int iterations = 210_000;
+byte[] salt = RandomNumberGenerator.GetBytes(16);
+byte[] hash = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(secret), salt, iterations, HashAlgorithmName.SHA256, 32);
+Console.WriteLine(Convert.ToBase64String(salt));   // -> SaltBase64
+Console.WriteLine(Convert.ToBase64String(hash));   // -> SecretHashBase64
+```
+```json
+"BreakGlass": {
+  "UserName": "breakglass",
+  "SecretHashBase64": "<generated>",
+  "SaltBase64": "<generated>",
+  "Iterations": 210000,
+  "AutoDisableAfterHours": 4,
+  "ItHeadEmail": "ithead@example.com"
+}
+```
+Keep the plain secret in a password vault (it is what you type at login); only the hash is stored.
+
+**Enable (emergency) — manual DB change:**
+```sql
+UPDATE dbo.BreakGlassAccounts
+SET    IsEnabled = 1, EnableReason = 'Entra ID outage - <reason>', EnabledAtUtc = NULL
+WHERE  UserName = 'breakglass';
+```
+Leaving `EnabledAtUtc` NULL lets the app stamp it and start the four-hour countdown on first use.
+Then browse to **`/break-glass`** and sign in with the username + secret. The lifecycle worker
+alerts the IT Head, and every action is flagged in the audit trail (`IsBreakGlassSession = true`).
+
+**Disable:** auto-disables four hours after activation (enforced at login and by
+`BreakGlassLifecycleWorker`). To end early:
+```sql
+UPDATE dbo.BreakGlassAccounts SET IsEnabled = 0, DisabledAtUtc = SYSUTCDATETIME(), EnabledAtUtc = NULL WHERE UserName = 'breakglass';
+```
+It is **disabled by default** after any deployment (the seed row is created disabled).
 
 ### 7.6 Rollback
 - Re-deploy the previous package. Migrations are additive; coordinate any schema rollback with DBA.
