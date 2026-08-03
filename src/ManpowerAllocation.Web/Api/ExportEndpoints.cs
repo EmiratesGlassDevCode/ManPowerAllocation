@@ -38,26 +38,13 @@ public static class ExportEndpoints
             var toDate = to ?? DateTime.UtcNow.Date;
             var fromDate = from ?? toDate.AddDays(-30);
             var fmt = format?.ToLowerInvariant();
-            try
+            var file = fmt switch
             {
-                var file = fmt switch
-                {
-                    "csv" => await service.BuildSnapshotHistoryCsvAsync(fromDate, toDate, ct),
-                    "pdf" => await service.BuildSnapshotHistoryPdfAsync(fromDate, toDate, ct),
-                    _ => await service.BuildSnapshotHistoryExcelAsync(fromDate, toDate, ct)
-                };
-                return Results.File(file.Content, file.ContentType, file.FileName);
-            }
-            catch (Exception ex) when (fmt == "pdf")
-            {
-                // TEMPORARY DIAGNOSTIC: the global handler masks all failures as a generic 500,
-                // which hid the real PDF-generation cause during troubleshooting. Surface the full
-                // detail for the PDF path only, so the exact error is visible in the browser.
-                // Remove this catch once the PDF export is confirmed working in production.
-                return Results.Text(
-                    "PDF generation failed. Full diagnostic detail follows:\n\n" + ex,
-                    "text/plain; charset=utf-8");
-            }
+                "csv" => await service.BuildSnapshotHistoryCsvAsync(fromDate, toDate, ct),
+                "pdf" => await service.BuildSnapshotHistoryPdfAsync(fromDate, toDate, ct),
+                _ => await service.BuildSnapshotHistoryExcelAsync(fromDate, toDate, ct)
+            };
+            return Results.File(file.Content, file.ContentType, file.FileName);
         });
 
         // Biometric reconciliation workbook (verification summary + unmatched IDs + no-badge list).
@@ -74,20 +61,10 @@ public static class ExportEndpoints
         exports.MapGet("/snapshot", async (IReportExportService service, long id, string? format, CancellationToken ct) =>
         {
             var fmt = format?.ToLowerInvariant();
-            try
-            {
-                var file = fmt == "xlsx" || fmt == "excel"
-                    ? await service.BuildDailyReportExcelAsync(id, ct)
-                    : await service.BuildDailyReportPdfAsync(id, ct);
-                return Results.File(file.Content, file.ContentType, file.FileName);
-            }
-            catch (Exception ex) when (fmt != "xlsx" && fmt != "excel")
-            {
-                // TEMPORARY DIAGNOSTIC (PDF path only) — see note above.
-                return Results.Text(
-                    "Daily report PDF generation failed. Full diagnostic detail follows:\n\n" + ex,
-                    "text/plain; charset=utf-8");
-            }
+            var file = fmt == "xlsx" || fmt == "excel"
+                ? await service.BuildDailyReportExcelAsync(id, ct)
+                : await service.BuildDailyReportPdfAsync(id, ct);
+            return Results.File(file.Content, file.ContentType, file.FileName);
         });
     }
 }

@@ -336,30 +336,35 @@ fallback policy (health endpoints are the only anonymous surface).
 
 ## 6. UAT Test Cases
 
-> **Status note (honest):** Stage B2 (automated execution) has **not been run** — this repository
-> currently has **no automated test project**, and the authoring environment cannot run the app.
-> The scenarios below are **designed** with expected results; the "Result" column is **Pending
-> execution**. Running Stage B2 will populate real pass/fail. Do not treat these as executed results.
+> **Status:** Stage B2 executed. **22 automated tests pass in CI** (workflow `CI`, commit
+> `294158e` — `Failed: 0, Passed: 22`). Rows below are marked **Automated ✅** where an
+> automated test covers the rule; the remainder are **Manual** — they require a live host + real
+> Entra ID (role gating, unauthenticated 401) or DB-enforced concurrency, which cannot run
+> headless, and are pending business-owner UAT on a deployed environment. No results are fabricated.
 
-| ID | Category | Scenario | Steps | Expected result | Result |
-|---|---|---|---|---|---|
-| F-01 | Functional | View factory summary | Sign in as Viewer → open Home | Summary loads for the live shift; per-division present/required shown | Pending |
-| F-02 | Functional | Edit employee status | As User, set an employee Absent | Status persists; audit Update row with old/new value | Pending |
-| F-03 | Functional | Attendance sync updates presence | Trigger manual sync with punches present | Punched employees → Present; summary reflects it | Pending |
-| F-04 | Functional | Daily report capture | Wait past a cut-off / re-run worker | Snapshot exists for date+shift; visible in History | Pending |
-| F-05 | Functional | Staffing report export is per-shift | Download `/api/exports/report` | Day and Night rows per department; absence not pooled | Pending |
-| E-01 | Edge | Invalid input | POST employee with blank name | 400 with generic validation error; nothing saved | Pending |
-| E-02 | Edge | Malformed import file | Upload a non-xlsx to import | Rejected gracefully; no partial write | Pending |
-| E-03 | Edge | Concurrent edit | Two users edit same employee | Second save hits concurrency; reload+retry, no lost update | Pending |
-| E-04 | Edge | Dependency unavailable | Attendance DB briefly unreachable | Sync logs failure, app keeps serving last-known state; health `/ready` = Degraded | Pending |
-| E-05 | Edge | Unconfigured attendance source | Remove `AttendanceDatabase` | Sync no-ops; no employee wrongly marked absent | Pending |
-| S-01 | Security | Viewer restrictions | As Viewer, attempt admin action | Denied (UI hidden + endpoint 403) | Pending |
-| S-02 | Security | User vs Admin | As User, DELETE a department | 403 (Admin only) | Pending |
-| S-03 | Security | Unauthenticated API | Call `/api/employees` with no session | 401/redirect | Pending |
-| S-04 | Security | Audit accuracy | Create/update/delete an employee | Audit rows with correct action + old/new JSON | Pending |
-| S-05 | Security | Break-glass default off | Inspect break-glass status | Disabled by default; enabling requires reason; use flagged in audit | Pending |
+| ID | Category | Scenario | Expected result | Result |
+|---|---|---|---|---|
+| F-01 | Functional | View factory summary | Summary loads for the live shift; per-division present/required shown | Automated ✅ (live-shift + division roll-up); UI render Manual |
+| F-02 | Functional | Edit employee status | Status persists; audit Update row with old/new value | Manual — pending |
+| F-03 | Functional | Attendance sync updates presence | Punched employees → Present | **Automated ✅** |
+| F-04 | Functional | Daily report capture | Snapshot exists for date+shift; visible in History | Manual — pending |
+| F-05 | Functional | Staffing report per-shift | Day and Night measured separately; absence not pooled | **Automated ✅** (calculator) |
+| E-01 | Edge | Invalid input | 400 generic validation error; nothing saved | Manual — pending |
+| E-02 | Edge | Malformed import file | Rejected gracefully; no partial write | Manual — pending |
+| E-03 | Edge | Concurrent edit | Second save reload+retry; no lost update | Manual (InMemory cannot enforce RowVersion) |
+| E-04 | Edge | Dependency unavailable | App serves last-known state; sync reports failure | **Automated ✅** (no-op path); health Degraded Manual |
+| E-05 | Edge | Unconfigured attendance source | Sync no-ops; nobody wrongly marked absent | **Automated ✅** |
+| S-01 | Security | Viewer restrictions | Denied (UI hidden + endpoint 403) | Manual — pending |
+| S-02 | Security | User vs Admin | 403 on Admin-only DELETE | Manual — pending |
+| S-03 | Security | Unauthenticated API | 401/redirect | Manual — pending |
+| S-04 | Security | Audit accuracy | Audit rows with correct action + old/new JSON | Manual — pending |
+| S-05 | Security | Break-glass default off | Disabled by default; enabling requires reason; use flagged | Manual — pending |
 
-(15 scenarios across the three categories; ≥10 required.)
+**Automated test breakdown (22 total, all passing):** StaffingCalculator (6) — per-shift vs pooled
+absence, OFF/Short/Excess, roll-up; AttendanceSyncService (7) — presence rule, vacation preserved,
+blank badge / supply untouched, cumulative previous-shift, unconfigured no-op; ReconciliationService
+(4) — matched/unmatched, no-badge list, status balance, unconfigured; DashboardService (5) —
+live-shift resolution (4 cases) + per-shift division roll-up.
 
 ---
 
@@ -447,8 +452,8 @@ Excel, or a date range as Excel/CSV/PDF. `[SCREENSHOT: History]`
 
 | # | Item | Impact | Workaround / Plan |
 |---|---|---|---|
-| 1 | **No automated test project** | CI compiles but does not execute tests; Stage B2 results are pending | Add a test project (Stage B2) and gate it in CI |
-| 2 | **Temporary PDF diagnostics** left in `ExportEndpoints` (raw error surfaced for the PDF path only) | Diagnostic detail visible on PDF export failure | Remove once PDF exports confirmed in production |
+| 1 | Automated test coverage is domain/application only | UI, validation, import, and role-gating are not yet automated (covered by manual UAT) | Added xUnit project (22 tests, CI-gated); extend with WebApplicationFactory integration tests for auth/role gating |
+| 2 | ~~Temporary PDF diagnostics in `ExportEndpoints`~~ | Resolved | **Removed** — PDF export confirmed working; failures now return the generic handler response |
 | 3 | **Off-shift attendance depends on the external view exposing "Previous Shift" rows** | If `dbo.MPA` only returns current-shift punches, off-shift workers can be marked absent at source | Reporting is now per-shift (mitigates report inflation); confirm the view returns previous-shift rows for full accuracy |
 | 4 | **Unmatched biometric IDs / roster gaps** (~83 seen) | People punch who aren't in the roster; not counted | Use the reconciliation report to add them or fix badge numbers (data task) |
 | 5 | **Authoring environment cannot build .NET** | Local `dotnet build` unavailable; verification is via GitHub Actions CI | CI (build) + Publish workflows are the compile/verify gate |
