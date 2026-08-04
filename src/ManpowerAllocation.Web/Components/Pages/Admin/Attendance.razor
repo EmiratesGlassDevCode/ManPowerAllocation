@@ -140,7 +140,7 @@
                     <div class="kv-line"><span class="kv-k">Total punches behind them</span><span class="kv-v">@_recon.BiometricPunchCount</span></div>
                     <div class="kv-line"><span class="kv-k">Checked in — current shift</span><span class="kv-v">@_recon.CurrentShiftCheckedIn</span></div>
                     <div class="kv-line"><span class="kv-k">Checked in — previous shift</span><span class="kv-v">@_recon.PreviousShiftCheckedIn</span></div>
-                    <div class="kv-line"><span class="kv-k">Most recent punch</span><span class="kv-v">@(_recon.MostRecentPunch is { } p ? Time.Format(p, "yyyy-MM-dd HH:mm") : "—")</span></div>
+                    <div class="kv-line"><span class="kv-k">Most recent punch <span class="kv-sub">(device local)</span></span><span class="kv-v">@RawPunch(_recon.MostRecentPunch)</span></div>
                     <div class="kv-line">
                         <span class="kv-k">Matched to a roster badge</span>
                         <span class="kv-v ok">@_recon.MatchedIdCount</span>
@@ -217,17 +217,17 @@
                     }
                     else
                     {
-                        <div class="recon-cap">The machine saw these badge numbers, but no employee has them — add the person or correct their badge so they get counted. "Punches" is how many times that badge clocked in.</div>
+                        <div class="recon-cap">The machine saw these badge numbers, but no employee has them — add the person or correct their badge so they get counted. "Punches" is how many times that badge clocked in. "Last seen" is the exact time recorded by the biometric device (local time), shown as pulled.</div>
                         <div class="grid-scroll">
                             <table class="grid">
-                                <thead><tr><th>Biometric ID</th><th>Shift label</th><th>Last seen</th><th class="num">Punches</th></tr></thead>
+                                <thead><tr><th>Biometric ID</th><th>Shift label</th><th>Last seen (device local)</th><th class="num">Punches</th></tr></thead>
                                 <tbody>
                                     @foreach (var u in _recon.UnmatchedBiometricIds.Take(RowCap))
                                     {
                                         <tr>
                                             <td class="strong">@u.BiometricId</td>
                                             <td>@(string.IsNullOrWhiteSpace(u.ShiftLabel) ? "—" : u.ShiftLabel)</td>
-                                            <td>@(u.LastSeen is { } ls ? Time.Format(ls, "yyyy-MM-dd HH:mm") : "—")</td>
+                                            <td>@RawPunch(u.LastSeen)</td>
                                             <td class="num">@u.PunchCount</td>
                                         </tr>
                                     }
@@ -338,6 +338,14 @@
             StateHasChanged();
         }
     }
+
+    /// <summary>
+    /// Formats a biometric punch time EXACTLY as pulled from the attendance view — the value is
+    /// already the device's local (factory) wall-clock time, so it must NOT be run through the
+    /// UTC→display-zone converter (which would shift it by the time-zone offset).
+    /// </summary>
+    private static string RawPunch(DateTime? punchLocal) =>
+        punchLocal is { } v ? v.ToString("yyyy-MM-dd HH:mm") : "—";
 
     /// <summary>Whole-number percentage of <paramref name="part"/> over <paramref name="whole"/>, clamped to [0,100].</summary>
     private static int Pct(int part, int whole) =>
