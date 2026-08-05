@@ -32,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IAttendanceSyncService, AttendanceSyncService>();
         services.AddScoped<Reconciliation.IReconciliationService, Reconciliation.ReconciliationService>();
         services.AddScoped<IShiftSettingsService, ShiftSettingsService>();
+        services.AddScoped<Shifts.IShiftScheduleService, Shifts.ShiftScheduleService>();
         services.AddScoped<Snapshots.IAllocationSnapshotService, Snapshots.AllocationSnapshotService>();
         services.AddScoped<Snapshots.IAllocationHistoryService, Snapshots.AllocationHistoryService>();
 

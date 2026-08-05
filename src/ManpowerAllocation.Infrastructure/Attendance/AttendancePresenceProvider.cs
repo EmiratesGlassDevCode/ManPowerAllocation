@@ -125,6 +125,23 @@ public sealed class AttendancePresenceProvider : IPresenceProvider
             .ToList();
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<BiometricPunch>> GetRecentPunchesAsync(CancellationToken cancellationToken = default)
+    {
+        // Every checked-in row in the view's rolling window, as raw (badge, check-in time). The app
+        // classifies these into shifts per employee, so the view's own ShiftLabel is not needed here.
+        var rows = await _dbContext.AttendanceRecords
+            .AsNoTracking()
+            .Where(r => r.InTime != null)
+            .Select(r => new { r.EmployeeId, r.InTime })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Where(r => !string.IsNullOrWhiteSpace(r.EmployeeId))
+            .Select(r => new BiometricPunch(r.EmployeeId.Trim(), r.InTime!.Value))
+            .ToList();
+    }
+
     /// <summary>Mutable per-identifier tally used while aggregating the view rows.</summary>
     private sealed class Accumulator
     {

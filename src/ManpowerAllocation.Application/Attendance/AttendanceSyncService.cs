@@ -4,7 +4,6 @@ using ManpowerAllocation.Domain.Entities;
 using ManpowerAllocation.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace ManpowerAllocation.Application.Attendance;
 
@@ -23,20 +22,23 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
+    // Fallback schedule used only when a department has no schedule row (should not happen once the
+    // schedules are seeded): 07:00 day start with a one-hour grace.
+    private static readonly TimeSpan DefaultDayStart = new(7, 0, 0);
+    private const int DefaultGraceMinutes = 60;
+
     private readonly IApplicationDbContext _dbContext;
     private readonly IPresenceProvider _presenceProvider;
     private readonly IClock _clock;
     private readonly IFactoryClock _factoryClock;
-    private readonly ShiftWindowOptions _shiftWindow;
     private readonly AttendanceSyncStatus _status;
     private readonly ILogger<AttendanceSyncService> _logger;
 
     /// <summary>Initialises the service.</summary>
     /// <param name="dbContext">The governed application persistence context.</param>
-    /// <param name="presenceProvider">Provider of today's present employee identifiers.</param>
+    /// <param name="presenceProvider">Provider of raw biometric check-in punches.</param>
     /// <param name="clock">Clock used for the run timestamp.</param>
-    /// <param name="factoryClock">Local (factory) clock used to decide which shift is currently live.</param>
-    /// <param name="shiftWindow">Grace-window tuning for scoping presence to a shift.</param>
+    /// <param name="factoryClock">Local (factory) clock used to resolve each employee's shift window.</param>
     /// <param name="status">Shared holder for the most recent run result.</param>
     /// <param name="logger">Logger used to record the real cause of a failed run.</param>
     public AttendanceSyncService(
@@ -44,7 +46,6 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
         IPresenceProvider presenceProvider,
         IClock clock,
         IFactoryClock factoryClock,
-        IOptions<ShiftWindowOptions> shiftWindow,
         AttendanceSyncStatus status,
         ILogger<AttendanceSyncService> logger)
     {
@@ -52,7 +53,6 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
         _presenceProvider = presenceProvider;
         _clock = clock;
         _factoryClock = factoryClock;
-        _shiftWindow = shiftWindow.Value;
         _status = status;
         _logger = logger;
     }
@@ -73,10 +73,22 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
 
         try
         {
-            var presence = await _presenceProvider.GetPresenceAsync(cancellationToken);
+            // Raw check-in punches, grouped by badge. Presence is decided per employee against
+            // their own department schedule, so different departments (e.g. 06:00–18:00 vs
+            // 07:00–19:00) are each evaluated against their own windows.
+            var punches = await _presenceProvider.GetRecentPunchesAsync(cancellationToken);
+            var punchesByBadge = punches
+                .Where(p => !string.IsNullOrWhiteSpace(p.BadgeNumber))
+                .GroupBy(p => p.BadgeNumber.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Select(p => p.InTime).ToList(), StringComparer.OrdinalIgnoreCase);
 
-            // Which shift is live right now (factory-local time, with the grace window).
-            var liveShift = await ResolveLiveShiftAsync(cancellationToken);
+            var localNow = _factoryClock.LocalNow;
+
+            // Load the schedules and departments once so each employee can be mapped to its window.
+            var scheduleById = (await _dbContext.ShiftSchedules.AsNoTracking().ToListAsync(cancellationToken))
+                .ToDictionary(s => s.Id);
+            var departmentById = (await _dbContext.Departments.AsNoTracking().ToListAsync(cancellationToken))
+                .ToDictionary(d => d.Id);
 
             // Outsource/supply workers are not in the biometric system, so their status is left alone.
             var employees = await _dbContext.Employees
@@ -99,13 +111,20 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
                     continue;
                 }
 
-                // Evaluate each employee against THEIR OWN shift's most recent window: the live
-                // window if their shift is running now, otherwise the previous window (the last time
-                // their shift ran). This makes the board cumulative — a night worker shows last
-                // night's result through the morning, a day worker shows today's result at night —
-                // instead of being blanked to absent whenever the other shift is syncing.
-                var relevant = employee.Shift == liveShift ? presence.CurrentShift : presence.PreviousShift;
-                var checkedIn = relevant.Contains(badge);
+                // Resolve this employee's schedule (day start + grace) from their department.
+                var dayStart = DefaultDayStart;
+                var grace = DefaultGraceMinutes;
+                if (departmentById.TryGetValue(employee.DepartmentId, out var department)
+                    && scheduleById.TryGetValue(department.ShiftScheduleId, out var schedule))
+                {
+                    dayStart = schedule.DayStart;
+                    grace = schedule.GraceMinutes;
+                }
+
+                // Present when any of this badge's check-ins falls inside their shift's window (the
+                // live occurrence, or the most recent past one — keeping the board cumulative).
+                var times = punchesByBadge.TryGetValue(badge, out var list) ? list : Enumerable.Empty<DateTime>();
+                var checkedIn = ShiftWindowResolver.IsPresent(times, dayStart, grace, employee.Shift, localNow);
 
                 var target = checkedIn
                     ? AttendanceStatus.Present
@@ -192,44 +211,6 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
             case AttendanceStatus.OnVacation: onVacation++; break;
             default: absent++; break;
         }
-    }
-
-    /// <summary>
-    /// Determines which shift is live in factory-local time, opening each shift's window
-    /// <see cref="ShiftWindowOptions.GraceMinutes"/> before its official start so early comers count.
-    /// </summary>
-    private async Task<ShiftType> ResolveLiveShiftAsync(CancellationToken cancellationToken)
-    {
-        var settings = await _dbContext.ShiftSettings
-            .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == ShiftSetting.SingletonId, cancellationToken);
-
-        var dayStart = settings?.DayShiftStart ?? new TimeSpan(7, 0, 0);
-        var nightStart = settings?.NightShiftStart ?? new TimeSpan(19, 0, 0);
-        var grace = TimeSpan.FromMinutes(Math.Max(0, _shiftWindow.GraceMinutes));
-
-        var now = _factoryClock.LocalNow.TimeOfDay;
-        var dayFrom = WrapToDay(dayStart - grace);
-        var nightFrom = WrapToDay(nightStart - grace);
-
-        // Day is live from dayFrom until nightFrom; the rest of the 24h cycle is night.
-        bool dayLive = dayFrom <= nightFrom
-            ? now >= dayFrom && now < nightFrom
-            : now >= dayFrom || now < nightFrom;
-
-        return dayLive ? ShiftType.Day : ShiftType.Night;
-    }
-
-    /// <summary>Normalises a possibly-negative time-of-day into the [0,24h) range.</summary>
-    private static TimeSpan WrapToDay(TimeSpan value)
-    {
-        var ticks = value.Ticks % TimeSpan.TicksPerDay;
-        if (ticks < 0)
-        {
-            ticks += TimeSpan.TicksPerDay;
-        }
-
-        return TimeSpan.FromTicks(ticks);
     }
 
     /// <summary>Writes a single summary audit entry describing the run.</summary>

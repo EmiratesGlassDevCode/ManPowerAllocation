@@ -35,6 +35,15 @@ public sealed class Department
     /// </summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// The shift schedule this department follows (defines its day/night windows and grace). Defaults
+    /// to schedule 1 for new and existing departments; an administrator reassigns it as needed.
+    /// </summary>
+    public int ShiftScheduleId { get; set; } = 1;
+
+    /// <summary>Navigation to the owning shift schedule.</summary>
+    public ShiftSchedule? ShiftSchedule { get; set; }
+
     /// <summary>Employees whose current department is this one.</summary>
     public ICollection<Employee> Employees { get; set; } = new List<Employee>();
 

@@ -28,7 +28,21 @@ public interface IPresenceProvider
     /// </summary>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<IReadOnlyList<BiometricIdentity>> GetRecentIdentitiesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns every raw check-in punch in the source's window (badge + check-in time), so the
+    /// application can decide presence per employee against that employee's own shift schedule and
+    /// grace — rather than relying on a single global shift boundary. Times are the device's local
+    /// (factory) wall-clock, as stored by the source.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<IReadOnlyList<BiometricPunch>> GetRecentPunchesAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>One raw check-in punch from the biometric source.</summary>
+/// <param name="BadgeNumber">The identifier as recorded by the attendance system (maps to <c>Employee.BadgeNumber</c>).</param>
+/// <param name="InTime">The check-in time, in the device's local (factory) wall-clock.</param>
+public sealed record BiometricPunch(string BadgeNumber, DateTime InTime);
 
 /// <summary>
 /// One distinct identifier observed in the biometric attendance source, aggregated across every row

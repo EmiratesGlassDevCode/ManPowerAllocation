@@ -4,6 +4,7 @@ using ManpowerAllocation.Application.BreakGlass;
 using ManpowerAllocation.Application.Import;
 using ManpowerAllocation.Application.Roles;
 using ManpowerAllocation.Application.Settings;
+using ManpowerAllocation.Application.Shifts;
 using ManpowerAllocation.Web.Security;
 
 namespace ManpowerAllocation.Web.Api;
@@ -38,6 +39,32 @@ public static class AdminEndpoints
         admin.MapPut("/shift-settings", async (UpdateShiftSettingsRequest request, IShiftSettingsService service, CancellationToken ct) =>
                 Results.Ok(await service.UpdateAsync(request, ct)))
             .AddEndpointFilter<ValidationFilter<UpdateShiftSettingsRequest>>();
+
+        MapShiftScheduleEndpoints(admin);
+    }
+
+    /// <summary>Maps the per-department shift-schedule endpoints.</summary>
+    private static void MapShiftScheduleEndpoints(RouteGroupBuilder admin)
+    {
+        var schedules = admin.MapGroup("/shift-schedules");
+
+        schedules.MapGet("/", async (IShiftScheduleService service, CancellationToken ct) =>
+            Results.Ok(await service.ListAsync(ct)));
+
+        schedules.MapPost("/", async (CreateShiftScheduleRequest request, IShiftScheduleService service, CancellationToken ct) =>
+            Results.Ok(await service.CreateAsync(request, ct)));
+
+        schedules.MapPut("/{id:int}", async (int id, UpdateShiftScheduleRequest request, IShiftScheduleService service, CancellationToken ct) =>
+            Results.Ok(await service.UpdateAsync(id, request, ct)));
+
+        schedules.MapGet("/assignments", async (IShiftScheduleService service, CancellationToken ct) =>
+            Results.Ok(await service.GetDepartmentAssignmentsAsync(ct)));
+
+        schedules.MapPut("/assignments/{departmentId:int}", async (int departmentId, AssignScheduleRequest request, IShiftScheduleService service, CancellationToken ct) =>
+        {
+            await service.AssignAsync(departmentId, request.ShiftScheduleId, ct);
+            return Results.NoContent();
+        });
     }
 
     /// <summary>Maps the role-assignment endpoints.</summary>

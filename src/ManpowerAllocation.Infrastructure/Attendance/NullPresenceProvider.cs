@@ -19,4 +19,8 @@ public sealed class NullPresenceProvider : IPresenceProvider
     /// <inheritdoc />
     public Task<IReadOnlyList<BiometricIdentity>> GetRecentIdentitiesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<BiometricIdentity>>(Array.Empty<BiometricIdentity>());
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<BiometricPunch>> GetRecentPunchesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<BiometricPunch>>(Array.Empty<BiometricPunch>());
 }

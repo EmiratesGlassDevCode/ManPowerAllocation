@@ -1,0 +1,193 @@
+@page "/admin/shift-schedules"
+@using ManpowerAllocation.Application.Shifts
+@using ManpowerAllocation.Domain.Enums
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IShiftScheduleService ScheduleService
+
+<PageTitle>Shift Schedules — Manpower Allocation</PageTitle>
+
+<h1>Shift Schedules</h1>
+<p class="hint">
+    Define each schedule's day start (night starts twelve hours later) and its grace, then assign every
+    department to one. A department's presence is measured against its own schedule's windows, widened by
+    the grace before the start and after the end of each shift.
+</p>
+
+@if (!_loaded)
+{
+    <p><em>Loading…</em></p>
+}
+else
+{
+    <div class="data-card" style="margin-bottom:16px">
+        <div class="kv-card-head"><span class="title">Schedules</span></div>
+        <div style="padding:16px; display:flex; flex-direction:column; gap:14px">
+            <div class="grid-scroll">
+                <table class="grid">
+                    <thead><tr><th>Name</th><th>Day start</th><th>Night start</th><th>Grace (min)</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var s in _schedules)
+                        {
+                            <tr>
+                                <td><input type="text" @bind="s.Name" style="width:170px" /></td>
+                                <td><input type="time" @bind="s.DayStart" /></td>
+                                <td>@s.DayStart.AddHours(12).ToString("HH\\:mm")</td>
+                                <td><input type="number" min="0" max="240" @bind="s.GraceMinutes" style="width:80px" /></td>
+                                <td><FluentButton Appearance="Appearance.Neutral" @onclick="() => SaveScheduleAsync(s)">Save</FluentButton></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-inline">
+                <label>Name <input type="text" @bind="_newName" placeholder="e.g. 08:00 – 20:00" /></label>
+                <label>Day start <input type="time" @bind="_newDayStart" /></label>
+                <label>Grace <input type="number" min="0" max="240" @bind="_newGrace" style="width:80px" /></label>
+                <FluentButton Appearance="Appearance.Accent" @onclick="AddScheduleAsync">Add schedule</FluentButton>
+            </div>
+        </div>
+    </div>
+
+    <div class="data-card">
+        <div class="kv-card-head"><span class="title">Department assignments</span></div>
+        <div class="grid-scroll" style="padding:16px">
+            <table class="grid">
+                <thead><tr><th>Division</th><th>Department</th><th>Schedule</th></tr></thead>
+                <tbody>
+                    @foreach (var d in _assignments)
+                    {
+                        <tr>
+                            <td>@DivisionLabel(d.Division)</td>
+                            <td class="strong">@TextCase.Title(d.DepartmentName)</td>
+                            <td>
+                                <select value="@d.ShiftScheduleId" @onchange="e => AssignAsync(d, e)">
+                                    @foreach (var s in _schedules)
+                                    {
+                                        <option value="@s.Id">@s.Name</option>
+                                    }
+                                </select>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_msg)) { <p class="message ok">@_msg</p> }
+    @if (!string.IsNullOrEmpty(_err)) { <p class="message error">@_err</p> }
+}
+
+@code {
+    private bool _loaded;
+    private List<ScheduleEdit> _schedules = new();
+    private IReadOnlyList<DepartmentScheduleDto> _assignments = Array.Empty<DepartmentScheduleDto>();
+
+    private string _newName = string.Empty;
+    private TimeOnly _newDayStart = new(8, 0);
+    private int _newGrace = 60;
+
+    private string? _msg;
+    private string? _err;
+
+    /// <summary>Editable row model backing the schedule inputs.</summary>
+    private sealed class ScheduleEdit
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public TimeOnly DayStart { get; set; }
+        public int GraceMinutes { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var schedules = await ScheduleService.ListAsync();
+            _schedules = schedules
+                .Select(s => new ScheduleEdit { Id = s.Id, Name = s.Name, DayStart = TimeOnly.FromTimeSpan(s.DayStart), GraceMinutes = s.GraceMinutes })
+                .ToList();
+            _assignments = await ScheduleService.GetDepartmentAssignmentsAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+
+    private async Task SaveScheduleAsync(ScheduleEdit s)
+    {
+        _msg = _err = null;
+        try
+        {
+            await ScheduleService.UpdateAsync(s.Id, new UpdateShiftScheduleRequest
+            {
+                Name = s.Name,
+                DayStart = s.DayStart.ToTimeSpan(),
+                GraceMinutes = s.GraceMinutes
+            });
+            _msg = $"Saved schedule “{s.Name}”.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+    }
+
+    private async Task AddScheduleAsync()
+    {
+        _msg = _err = null;
+        try
+        {
+            await ScheduleService.CreateAsync(new CreateShiftScheduleRequest
+            {
+                Name = _newName,
+                DayStart = _newDayStart.ToTimeSpan(),
+                GraceMinutes = _newGrace
+            });
+            _newName = string.Empty;
+            _msg = "Schedule added.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+    }
+
+    private async Task AssignAsync(DepartmentScheduleDto department, ChangeEventArgs e)
+    {
+        _msg = _err = null;
+        if (!int.TryParse(e.Value?.ToString(), out var scheduleId))
+        {
+            return;
+        }
+
+        try
+        {
+            await ScheduleService.AssignAsync(department.DepartmentId, scheduleId);
+            _msg = $"{TextCase.Title(department.DepartmentName)} assigned.";
+            _assignments = await ScheduleService.GetDepartmentAssignmentsAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+    }
+
+    private static string DivisionLabel(Division division) => division switch
+    {
+        Division.Egl => "EGL",
+        Division.FunctionalSupport => "Functional Support",
+        Division.Brg => "BRG",
+        _ => division.ToString()
+    };
+}

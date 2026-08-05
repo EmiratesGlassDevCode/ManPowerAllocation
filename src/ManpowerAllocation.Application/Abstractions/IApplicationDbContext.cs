@@ -28,6 +28,9 @@ public interface IApplicationDbContext
     /// <summary>The single admin-configurable shift-definition row.</summary>
     DbSet<ShiftSetting> ShiftSettings { get; }
 
+    /// <summary>Named shift schedules (day/night windows + grace) that departments follow.</summary>
+    DbSet<ShiftSchedule> ShiftSchedules { get; }
+
     /// <summary>Captured daily report snapshots (one per operational date and shift).</summary>
     DbSet<AllocationSnapshot> AllocationSnapshots { get; }
 

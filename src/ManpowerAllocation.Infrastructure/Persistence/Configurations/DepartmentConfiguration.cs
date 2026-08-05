@@ -22,6 +22,13 @@ public sealed class DepartmentConfiguration : IEntityTypeConfiguration<Departmen
         builder.Property(d => d.IsActive).IsRequired();
         builder.Property(d => d.RowVersion).IsRowVersion();
 
+        // Every department follows a shift schedule; existing rows default to schedule 1 (07:00–19:00).
+        builder.Property(d => d.ShiftScheduleId).IsRequired().HasDefaultValue(1);
+        builder.HasOne(d => d.ShiftSchedule)
+            .WithMany()
+            .HasForeignKey(d => d.ShiftScheduleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // A department name belongs to exactly one division and is unique within it.
         builder.HasIndex(d => new { d.Division, d.Name }).IsUnique();
 

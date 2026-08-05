@@ -25,12 +25,16 @@ internal sealed class FakePresenceProvider : IPresenceProvider
     public bool IsConfigured { get; set; } = true;
     public ShiftPresence Presence { get; set; } = ShiftPresence.Empty;
     public IReadOnlyList<BiometricIdentity> Identities { get; set; } = Array.Empty<BiometricIdentity>();
+    public IReadOnlyList<BiometricPunch> Punches { get; set; } = Array.Empty<BiometricPunch>();
 
     public Task<ShiftPresence> GetPresenceAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(Presence);
 
     public Task<IReadOnlyList<BiometricIdentity>> GetRecentIdentitiesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(Identities);
+
+    public Task<IReadOnlyList<BiometricPunch>> GetRecentPunchesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(Punches);
 }
 
 /// <summary>Builders and an InMemory context factory shared by the tests.</summary>
