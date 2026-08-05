@@ -1,7 +1,9 @@
 using ManpowerAllocation.Application.Abstractions;
+using ManpowerAllocation.Application.Attendance;
 using ManpowerAllocation.Domain.Entities;
 using ManpowerAllocation.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace ManpowerAllocation.Application.Dashboard;
 
@@ -14,14 +16,17 @@ public sealed class DashboardService : IDashboardService
 {
     private readonly IApplicationDbContext _dbContext;
     private readonly IFactoryClock _factoryClock;
+    private readonly ShiftWindowOptions _shiftWindow;
 
     /// <summary>Initialises the service.</summary>
     /// <param name="dbContext">The application persistence context.</param>
     /// <param name="factoryClock">Local (factory) clock used to resolve the live shift.</param>
-    public DashboardService(IApplicationDbContext dbContext, IFactoryClock factoryClock)
+    /// <param name="shiftWindow">Grace-window tuning, so the live-shift boundary matches the sync.</param>
+    public DashboardService(IApplicationDbContext dbContext, IFactoryClock factoryClock, IOptions<ShiftWindowOptions> shiftWindow)
     {
         _dbContext = dbContext;
         _factoryClock = factoryClock;
+        _shiftWindow = shiftWindow.Value;
     }
 
     /// <inheritdoc />
@@ -78,15 +83,32 @@ public sealed class DashboardService : IDashboardService
         var dayStart = settings?.DayShiftStart ?? new TimeSpan(7, 0, 0);
         var nightStart = settings?.NightShiftStart ?? new TimeSpan(19, 0, 0);
 
+        // Open each shift's window GraceMinutes early, exactly as AttendanceSyncService does, so the
+        // dashboard's default shift flips at the same instant the sync (and the attendance view) do.
+        // With the defaults (07:00/19:00, 60-min grace) the boundary is 06:00 / 18:00.
+        var grace = TimeSpan.FromMinutes(Math.Max(0, _shiftWindow.GraceMinutes));
+        var dayFrom = WrapToDay(dayStart - grace);
+        var nightFrom = WrapToDay(nightStart - grace);
+
         var now = _factoryClock.LocalNow.TimeOfDay;
 
-        // Day runs from dayStart until nightStart; the remainder of the 24h cycle is night. The
-        // comparison handles a night start that wraps past midnight relative to the day start.
-        var dayLive = dayStart <= nightStart
-            ? now >= dayStart && now < nightStart
-            : now >= dayStart || now < nightStart;
+        var dayLive = dayFrom <= nightFrom
+            ? now >= dayFrom && now < nightFrom
+            : now >= dayFrom || now < nightFrom;
 
         return dayLive ? ShiftFilter.Day : ShiftFilter.Night;
+    }
+
+    /// <summary>Normalises a possibly-negative time-of-day into the [0,24h) range.</summary>
+    private static TimeSpan WrapToDay(TimeSpan value)
+    {
+        var ticks = value.Ticks % TimeSpan.TicksPerDay;
+        if (ticks < 0)
+        {
+            ticks += TimeSpan.TicksPerDay;
+        }
+
+        return TimeSpan.FromTicks(ticks);
     }
 
     /// <summary>
