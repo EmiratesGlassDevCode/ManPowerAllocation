@@ -56,10 +56,6 @@ else
             <div class="kpi @(t.ShortageDepartmentCount > 0 ? "k-red" : "k-neutral")"><div class="kpi-lbl">Short depts</div><div class="kpi-val @(t.ShortageDepartmentCount > 0 ? "sv-red" : string.Empty)">@t.ShortageDepartmentCount</div><div class="kpi-sub">need cover</div></div>
         </div>
 
-        <div style="margin:16px 0">
-            <OutsourceSummary Rows="_outsourceByDept" ShowDivision="false" />
-        </div>
-
         <div class="toolbar">
             <FluentSearch @bind-Value="_search" Immediate="true" Placeholder="Search department or person…" />
             <div class="pill-row">
@@ -172,6 +168,7 @@ else
             <AlertPanel Title="Absent" Accent="red" Items="AbsentList()" />
             <AlertPanel Title="On vacation" Accent="amber" Items="VacationList()" />
             <AlertPanel Title="Outsource present" Accent="purple" Items="OutsourceList()" />
+            <AlertPanel Title="Outsource by department" Accent="purple" Items="_outsourceByDept" />
             <AlertPanel Title="Available / excess" Accent="cyan" Items="ExcessList()" />
         </div>
     }
@@ -271,7 +268,7 @@ else
     private List<DepartmentDto> _departments = new();
     private List<EmployeeDto> _employees = new();
     private Dictionary<int, List<EmployeeDto>> _byDept = new();
-    private List<OutsourceRow> _outsourceByDept = new();
+    private List<string> _outsourceByDept = new();
     private readonly HashSet<int> _expanded = new();
     private bool _canEdit;
     private bool _canAdmin;
@@ -366,17 +363,21 @@ else
             .GroupBy(e => e.DepartmentId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
+        // Department-wise outsource lines for the "Outsource by department" panel: bold department,
+        // right-aligned present/assigned. Busiest departments first.
         _outsourceByDept = _employees
             .Where(MatchesShift)
             .Where(e => e.IsSupply)
             .GroupBy(e => e.DepartmentName)
-            .Select(g => new OutsourceRow(
-                _division!.Value,
-                g.Key,
-                g.Count(x => x.Status == AttendanceStatus.Present),
-                g.Count()))
-            .OrderByDescending(r => r.Present)
-            .ThenBy(r => r.Department)
+            .Select(g => new
+            {
+                Department = g.Key,
+                Present = g.Count(x => x.Status == AttendanceStatus.Present),
+                Total = g.Count()
+            })
+            .OrderByDescending(x => x.Present)
+            .ThenBy(x => x.Department)
+            .Select(x => $"{TextCase.Title(x.Department)} · {x.Present}/{x.Total}")
             .ToList();
     }
 
