@@ -51,13 +51,14 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
     options.CorrelationCookie.SameSite = SameSiteMode.None;
     options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
 
-    // The identity library shows a generic "We couldn't sign you in" page and swallows the
-    // underlying reason. Chain onto the existing handlers to log the real failure (invalid
-    // client secret, missing admin consent, correlation failure after a Data Protection key
-    // change, reply-URL mismatch, etc.) so operators can diagnose it. No tokens or secrets are
-    // logged — only the provider error and message.
-    var previousRemoteFailure = options.Events.OnRemoteFailure;
-    options.Events.OnRemoteFailure = async context =>
+    // Sign-in failures at the callback used to bubble up as an unhandled exception and surface to
+    // the user as a raw HTTP 500. The two events below now log the real reason (invalid client
+    // secret, missing admin consent, a stale nonce/correlation cookie after a Data Protection key
+    // change or app-pool recycle, a replayed callback, reply-URL mismatch, etc.) and then recover
+    // gracefully: a first failure re-challenges once with fresh cookies — which transparently fixes
+    // the common transient cases — and a repeat failure lands on a friendly page instead of a 500.
+    // No tokens or secrets are logged, only the provider error and message.
+    options.Events.OnRemoteFailure = context =>
     {
         var logger = context.HttpContext.RequestServices
             .GetRequiredService<ILoggerFactory>()
@@ -67,14 +68,12 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
             "Sign-in failed at the OpenID Connect callback: {Message}",
             context.Failure?.Message);
 
-        if (previousRemoteFailure is not null)
-        {
-            await previousRemoteFailure(context);
-        }
+        RecoverFromSignInFailure(context.HttpContext);
+        context.HandleResponse();
+        return Task.CompletedTask;
     };
 
-    var previousAuthFailed = options.Events.OnAuthenticationFailed;
-    options.Events.OnAuthenticationFailed = async context =>
+    options.Events.OnAuthenticationFailed = context =>
     {
         var logger = context.HttpContext.RequestServices
             .GetRequiredService<ILoggerFactory>()
@@ -84,10 +83,9 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
             "Sign-in token validation failed: {Message}",
             context.Exception?.Message);
 
-        if (previousAuthFailed is not null)
-        {
-            await previousAuthFailed(context);
-        }
+        RecoverFromSignInFailure(context.HttpContext);
+        context.HandleResponse();
+        return Task.CompletedTask;
     };
 
     // On a successful sign-in, ensure the user has at least a Viewer role. Access is still gated
@@ -103,13 +101,21 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
             await previousTokenValidated(context);
         }
 
-        var objectId = context.Principal?.GetObjectId();
-        if (!string.IsNullOrEmpty(objectId))
-        {
-            var displayName = context.Principal?.FindFirst("name")?.Value
-                ?? context.Principal?.FindFirst("preferred_username")?.Value;
-            var services = context.HttpContext.RequestServices;
+        // The sign-in succeeded — clear any auto-retry marker left by an earlier failed attempt.
+        ClearSignInRetryCookie(context.HttpContext);
 
+        var objectId = context.Principal?.GetObjectId();
+        if (string.IsNullOrEmpty(objectId))
+        {
+            return;
+        }
+
+        var displayName = context.Principal?.FindFirst("name")?.Value
+            ?? context.Principal?.FindFirst("preferred_username")?.Value;
+        var services = context.HttpContext.RequestServices;
+
+        try
+        {
             var roleService = services.GetRequiredService<IRoleService>();
             await roleService.EnsureDefaultViewerAsync(objectId, displayName, context.HttpContext.RequestAborted);
 
@@ -130,6 +136,17 @@ builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.Authentic
                 IsBreakGlassSession = false
             });
             await db.SaveChangesAsync(context.HttpContext.RequestAborted);
+        }
+        catch (Exception ex)
+        {
+            // Provisioning the default Viewer role and writing the sign-in audit are best-effort:
+            // a transient database hiccup here must NOT fail an otherwise valid sign-in (which
+            // would otherwise reach OnAuthenticationFailed and be shown as an error). The role is
+            // resolved again on the next request by the claims transformation, so log and let the
+            // login proceed.
+            var logger = services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("Authentication.OpenIdConnect");
+            logger.LogError(ex, "Post-sign-in provisioning/audit failed for {ObjectId}; sign-in still allowed.", objectId);
         }
     };
 });
@@ -280,6 +297,19 @@ builder.Services.AddCascadingAuthenticationState();
 
 var app = builder.Build();
 
+// Warn loudly when Data Protection keys are not being persisted outside Development. Without a
+// stable key path the key ring is regenerated on every app-pool recycle, which intermittently
+// breaks the sign-in callback (the nonce/correlation cookie can no longer be decrypted) and signs
+// users out on recycle. Set "DataProtection:KeyPath" to a folder the app-pool identity can
+// read/write — and a shared folder if the app runs on more than one server.
+if (!app.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(dataProtectionKeyPath))
+{
+    app.Logger.LogWarning(
+        "DataProtection:KeyPath is not configured. Keys will not persist across app-pool recycles, " +
+        "which can intermittently fail the sign-in callback. Set it to a stable folder the app-pool " +
+        "identity can read/write (shared across servers if load-balanced).");
+}
+
 // ── HTTP pipeline ───────────────────────────────────────────────────────────────────────
 // Honour the forwarded client IP/scheme from the IIS reverse proxy before anything reads them.
 app.UseForwardedHeaders();
@@ -350,6 +380,39 @@ static Task WriteHealthResponse(HttpContext httpContext, HealthReport report)
     };
     return httpContext.Response.WriteAsJsonAsync(payload);
 }
+
+// Name of the short-lived marker cookie that bounds sign-in auto-retries to a single attempt.
+const string SignInRetryCookie = "mpa_signin_retry";
+
+// Recovers from a failed OpenID Connect callback without ever returning a raw 500. The first
+// failure for a browser re-challenges once by bouncing through the app root (guarded by the
+// deny-by-default policy), which mints fresh state/nonce/correlation cookies — transparently
+// fixing the common transient causes (a Data Protection key change or app-pool recycle that left
+// the previous nonce cookie undecryptable, or a replayed/expired callback). A repeat failure means
+// the problem is not transient, so it lands on a friendly, branded page instead of looping.
+static void RecoverFromSignInFailure(HttpContext httpContext)
+{
+    if (httpContext.Request.Cookies.ContainsKey(SignInRetryCookie))
+    {
+        httpContext.Response.Cookies.Delete(SignInRetryCookie, new CookieOptions { Path = "/" });
+        httpContext.Response.Redirect("/signin-error");
+        return;
+    }
+
+    httpContext.Response.Cookies.Append(SignInRetryCookie, "1", new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = true,
+        SameSite = SameSiteMode.Lax,
+        Path = "/",
+        MaxAge = TimeSpan.FromMinutes(5)
+    });
+    httpContext.Response.Redirect("/");
+}
+
+// Clears the auto-retry marker after a successful sign-in so the next genuine failure is retried.
+static void ClearSignInRetryCookie(HttpContext httpContext) =>
+    httpContext.Response.Cookies.Delete(SignInRetryCookie, new CookieOptions { Path = "/" });
 
 // Rate-limit partition key: the authenticated principal where possible, else the client IP.
 static string ResolveRateLimitKey(HttpContext httpContext)

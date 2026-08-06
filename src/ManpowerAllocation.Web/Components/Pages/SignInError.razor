@@ -1,0 +1,25 @@
+@page "/signin-error"
+@attribute [AllowAnonymous]
+
+<PageTitle>Sign-in problem — Manpower Allocation</PageTitle>
+
+<div class="notice">
+    <div class="notice-logo">
+        <img src="img/emirates-glass-logo.png" alt="Emirates Glass" class="panel-logo" />
+        <span class="notice-brand">Manpower Allocation</span>
+    </div>
+    <h1>We couldn't complete your sign-in</h1>
+    <p>
+        Something interrupted the sign-in and it did not finish. This is usually temporary —
+        please try again.
+    </p>
+    <p class="hint">
+        If it keeps happening, close all browser tabs for this site and sign in again, or contact
+        IT support.
+    </p>
+
+    <div class="notice-actions">
+        <FluentAnchor Href="/" Appearance="Appearance.Accent">Try again</FluentAnchor>
+        <FluentAnchor Href="MicrosoftIdentity/Account/SignOut" Appearance="Appearance.Neutral">Sign out</FluentAnchor>
+    </div>
+</div>
