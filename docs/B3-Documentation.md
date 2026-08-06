@@ -99,6 +99,7 @@ flowchart TB
 |---|---|---|
 | `AttendanceSyncWorker` | every `Attendance:SyncIntervalMinutes` (default 10 min) | reads the biometric view, updates each non-supply employee's status per their shift window |
 | `AllocationSnapshotWorker` | polls every 1 min | captures the daily report at 10:00 (day) and 22:00 (night) factory-local; self-healing back-fill; writes `SnapshotHeartbeat` |
+| `DailyReportEmailWorker` | polls every 1 min | after the configured send time, emails the captured day report (PDF attached) once per operational day; self-healing and idempotent |
 | `BreakGlassLifecycleWorker` | periodic | enforces the break-glass auto-disable window and detects out-of-band enables |
 
 ---
@@ -169,6 +170,7 @@ Governed database (EF Core `ManpowerDbContext`). Enums are stored as their integ
 | RequiredNight | int | Night-shift requirement |
 | Sequence | decimal | Display order |
 | IsActive | bit | OFF departments contribute present staff but no requirement |
+| ShiftScheduleId | int (FK → ShiftSchedules) | Department's shift windows (default 1 = 07:00–19:00) |
 | RowVersion | rowversion | |
 
 ### 3.3 `RoleAssignments`
@@ -213,6 +215,33 @@ Governed database (EF Core `ManpowerDbContext`). Enums are stored as their integ
 | NightShiftStart | time | Default 19:00 |
 | UpdatedAtUtc | datetime2 | |
 | UpdatedByObjectId | nvarchar null | |
+
+### 3.6a `ShiftSchedules`
+| Field | Type | Notes |
+|---|---|---|
+| Id | int (PK) | Seeded 1 = 07:00–19:00 (default), 2 = 06:00–18:00 |
+| Name | nvarchar | Display name |
+| DayStart | time | Day-shift start; night = +12h |
+| GraceMinutes | int | Widens each shift window before start / after end (default 60) |
+
+### 3.6b `EmailSettings` (single row, Id=1)
+| Field | Type | Notes |
+|---|---|---|
+| Id | int (PK) | Always 1 |
+| Enabled | bit | Scheduled email on/off (seeded disabled) |
+| Mode | int (enum) | 1=NoAuth, 2=Basic, 3=Office365Basic, 4=Office365Modern |
+| Security | int (enum) | 1=None, 2=StartTls, 3=SslOnConnect |
+| Host / Port | nvarchar / int | SMTP host or IP; port (default 587) |
+| FromAddress / FromName | nvarchar | Sender |
+| Username | nvarchar null | Basic / O365 basic |
+| PasswordProtected | nvarchar null | Data Protection ciphertext (never plaintext) |
+| TenantId / ClientId / SenderMailbox | nvarchar null | O365 modern (OAuth2) |
+| ClientSecretProtected | nvarchar null | Data Protection ciphertext |
+| Recipients / Cc / Bcc / ReplyTo | nvarchar | Comma/semicolon/new-line separated |
+| SendAtLocal | time | Local send time (after the 10:00 cut-off) |
+| AttachPdf | bit | Attach the report PDF |
+| LastSentOperationalDate | datetime2 null | Idempotency guard (one send/day) |
+| UpdatedAtUtc / UpdatedByObjectId | datetime2 / nvarchar | Audit stamps |
 
 ### 3.7 `AllocationSnapshots` + detail tables
 - **AllocationSnapshots** — header per operational date + shift: `Id (bigint PK)`, `OperationalDate`,
@@ -275,7 +304,9 @@ All endpoints are under `/api`, inherit the **deny-by-default** auth fallback, r
 | GET | `/api/admin/audit?take=&breakGlassOnly=` | Audit trail read |
 | POST | `/api/admin/attendance/sync` | Trigger a manual sync |
 | GET | `/api/admin/attendance/status` | Last sync result |
-| GET/PUT | `/api/admin/shift-settings` | Read/update shift start times |
+| GET/PUT | `/api/admin/shift-settings` | Read/update global shift start times |
+| GET/POST/PUT | `/api/admin/shift-schedules[/{id}]` · `/assignments[/{deptId}]` | Shift schedules + per-department assignment |
+| GET/PUT/POST | `/api/admin/email-settings` · `/email-settings/test` | Daily-report email config (secrets write-only); send test |
 | GET | `/api/admin/roles` · PUT `/api/admin/roles` · DELETE `/api/admin/roles/{id}` | Role assignments |
 | POST | `/api/admin/import/attendance` (multipart: `file`, `replaceExisting`) | Master data / attendance import |
 | POST | `/api/admin/import/requirements` (multipart: `file`) | Requirements import |
@@ -324,7 +355,9 @@ fallback policy (health endpoints are the only anonymous surface).
 | 10 | Security headers on every response | ✅ | `SecurityHeadersMiddleware` |
 | 11 | Hardened cookie: `__Host-` prefix, HttpOnly, Secure, SameSite=Lax, Path=/ | ✅ (Lax deviation documented) | `Program.cs` |
 | 12 | Rate limiting on API; stricter bucket on break-glass login | ✅ | `Program.cs` (120/min; 5/5min) |
-| 13 | Data Protection keys persisted (survive app-pool recycles) | ✅ (set `DataProtection:KeyPath`) | `Program.cs` |
+| 13 | Data Protection keys persisted (survive app-pool recycles) | ✅ (set `DataProtection:KeyPath`; startup warning if unset) | `Program.cs` |
+| 13a | SMTP password & OAuth client secret encrypted at rest (write-only in UI; never returned/logged) | ✅ | `ISecretProtector` / `DataProtectionSecretProtector`, `EmailSettingsService` |
+| 13b | Resilient sign-in callback (no raw 500 on a transient failure; graceful retry) | ✅ | `Program.cs` `OnRemoteFailure`/`OnAuthenticationFailed`, `/signin-error` |
 | 14 | Forwarded headers honoured behind IIS | ✅ | `Program.cs` |
 | 15 | Generic error responses; real cause logged PII-free | ✅ | `GlobalExceptionHandler`, `RequestLoggingMiddleware` |
 | 16 | Parameterized queries only (EF Core; no raw SQL) | ✅ | throughout |
@@ -336,8 +369,8 @@ fallback policy (health endpoints are the only anonymous surface).
 
 ## 6. UAT Test Cases
 
-> **Status:** Stage B2 executed. **22 automated tests pass in CI** (workflow `CI`, commit
-> `294158e` — `Failed: 0, Passed: 22`). Rows below are marked **Automated ✅** where an
+> **Status:** Stage B2 executed. **44 automated tests pass in CI** (workflow `CI`, run
+> `31071042595`, commit `6c3fb19` — `Failed: 0, Passed: 44`). Rows below are marked **Automated ✅** where an
 > automated test covers the rule; the remainder are **Manual** — they require a live host + real
 > Entra ID (role gating, unauthenticated 401) or DB-enforced concurrency, which cannot run
 > headless, and are pending business-owner UAT on a deployed environment. No results are fabricated.
@@ -360,11 +393,21 @@ fallback policy (health endpoints are the only anonymous surface).
 | S-04 | Security | Audit accuracy | Audit rows with correct action + old/new JSON | Manual — pending |
 | S-05 | Security | Break-glass default off | Disabled by default; **enable is DB-only (no GUI/API)**; secret hash in config only; use flagged in audit | Manual — pending |
 
-**Automated test breakdown (22 total, all passing):** StaffingCalculator (6) — per-shift vs pooled
-absence, OFF/Short/Excess, roll-up; AttendanceSyncService (7) — presence rule, vacation preserved,
-blank badge / supply untouched, cumulative previous-shift, unconfigured no-op; ReconciliationService
-(4) — matched/unmatched, no-badge list, status balance, unconfigured; DashboardService (5) —
-live-shift resolution (4 cases) + per-shift division roll-up.
+**Automated test breakdown (36 test methods → 44 executed cases, all passing):** StaffingCalculator (6)
+— per-shift vs pooled absence, OFF/Short/Excess, roll-up; AttendanceSyncService (8) — presence rule,
+vacation preserved, blank badge / supply untouched, shift-window matching, unconfigured no-op;
+ShiftWindowResolver (5) — day/night 12h windows with ±grace, live-or-most-recent, presence;
+ReconciliationService (4) — matched/unmatched, no-badge list, status balance, unconfigured;
+DashboardService (3) — live-shift resolution + per-shift division roll-up; EmailRecipients (3) —
+comma/semicolon/new-line parsing, blank, case-insensitive de-dup; EmailSettingsService (5) — secret
+encrypted/never returned, keep-when-blank, clear flag, masking, missing-recipient rejection;
+BreakGlassSecretStore (2) — PBKDF2 round-trip, wrong-secret rejection.
+
+Additional manual UAT scenarios for the newer features (pending deployed-environment sign-off):
+per-department shift schedule applied (F-06), outsource-by-department summary (F-07), scheduled
+daily-report email + test send (F-08), email-recipient mixed separators (E-06, **Automated ✅**),
+SMTP secret confidentiality (S-06, **Automated ✅**), and sign-in resilience / friendly retry (S-07).
+The standalone **Test Report (Stage B2)** document carries the full 17-scenario matrix.
 
 ---
 
@@ -472,7 +515,10 @@ Excel, or a date range as Excel/CSV/PDF. `[SCREENSHOT: History]`
   `[SCREENSHOT: Attendance Sync + verification]`
 - **Master Data Import** — upload the requirements/attendance spreadsheet.
 - **Role Assignments** — grant Viewer/User/Admin.
-- **Shift Settings** — set day/night start times.
+- **Shift Settings** — set the legacy global day/night start times.
+- **Shift Schedules** — define day/night windows and grace; assign each department a schedule.
+- **Daily Report Email** — configure SMTP/recipients (secrets write-only), send a test, enable the
+  daily send. Supports local no-auth/auth SMTP and Office 365 (basic + modern OAuth2).
 - **Break-glass Status** — set the one-time emergency secret (Set / rotate); view status. Enabling
   the account for use remains a deliberate database action by IT/DBA, not a screen action.
 - **Audit Trail** — review who changed what.
@@ -491,3 +537,4 @@ Excel, or a date range as Excel/CSV/PDF. `[SCREENSHOT: History]`
 | 5 | **Authoring environment cannot build .NET** | Local `dotnet build` unavailable; verification is via GitHub Actions CI | CI (build) + Publish workflows are the compile/verify gate |
 | 6 | **SameSite=Lax cookie** (deviation from Strict) | Required for interactive Entra SSO return | Documented and intentional; flagged to IT |
 | 7 | **"All" shift view pools day+night** | If explicitly selected, Absent includes the off-shift | Dashboards default to the live shift; a caption explains "All"; per-shift Day/Night are accurate |
+| 8 | **Data Protection keys under `ApplicationPoolIdentity`** | Keys are encrypted at rest via DPAPI; a pool-profile change can make them unreadable, intermittently failing sign-in | Persist `DataProtection:KeyPath`; set the app pool's **Load User Profile = True**; back up the key folder. Sign-in now retries gracefully instead of returning a 500 |
