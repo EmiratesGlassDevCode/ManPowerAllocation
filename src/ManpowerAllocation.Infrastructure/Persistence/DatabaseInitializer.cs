@@ -64,5 +64,20 @@ public sealed class DatabaseInitializer
             await _dbContext.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded the default shift settings row.");
         }
+
+        var emailSettingsExist = await _dbContext.EmailSettings.AnyAsync(cancellationToken);
+        if (!emailSettingsExist)
+        {
+            // Seeded disabled and unconfigured; an admin sets the SMTP details and recipients from
+            // the Report Email screen. No credential is stored here.
+            _dbContext.EmailSettings.Add(new EmailSettings
+            {
+                Id = EmailSettings.SingletonId,
+                Enabled = false,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Seeded the disabled email settings row.");
+        }
     }
 }

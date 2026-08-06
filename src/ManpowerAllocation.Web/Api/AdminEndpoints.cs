@@ -1,6 +1,7 @@
 using ManpowerAllocation.Application.Attendance;
 using ManpowerAllocation.Application.Auditing;
 using ManpowerAllocation.Application.BreakGlass;
+using ManpowerAllocation.Application.Email;
 using ManpowerAllocation.Application.Import;
 using ManpowerAllocation.Application.Roles;
 using ManpowerAllocation.Application.Settings;
@@ -41,6 +42,25 @@ public static class AdminEndpoints
             .AddEndpointFilter<ValidationFilter<UpdateShiftSettingsRequest>>();
 
         MapShiftScheduleEndpoints(admin);
+        MapEmailSettingsEndpoints(admin);
+    }
+
+    /// <summary>Maps the email/SMTP settings endpoints (read, update, send test). Require Admin.</summary>
+    private static void MapEmailSettingsEndpoints(RouteGroupBuilder admin)
+    {
+        var email = admin.MapGroup("/email-settings");
+
+        email.MapGet("/", async (IEmailSettingsService service, CancellationToken ct) =>
+            Results.Ok(await service.GetAsync(ct)));
+
+        email.MapPut("/", async (UpdateEmailSettingsRequest request, IEmailSettingsService service, CancellationToken ct) =>
+            Results.Ok(await service.UpdateAsync(request, ct)));
+
+        email.MapPost("/test", async (IEmailSettingsService service, CancellationToken ct) =>
+        {
+            await service.SendTestAsync(ct);
+            return Results.NoContent();
+        });
     }
 
     /// <summary>Maps the per-department shift-schedule endpoints.</summary>

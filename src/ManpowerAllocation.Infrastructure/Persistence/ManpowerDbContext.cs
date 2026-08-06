@@ -39,6 +39,9 @@ public sealed class ManpowerDbContext : DbContext, IApplicationDbContext
     public DbSet<ShiftSchedule> ShiftSchedules => Set<ShiftSchedule>();
 
     /// <inheritdoc />
+    public DbSet<EmailSettings> EmailSettings => Set<EmailSettings>();
+
+    /// <inheritdoc />
     public DbSet<AllocationSnapshot> AllocationSnapshots => Set<AllocationSnapshot>();
 
     /// <inheritdoc />

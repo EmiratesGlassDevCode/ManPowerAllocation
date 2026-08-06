@@ -31,6 +31,9 @@ public interface IApplicationDbContext
     /// <summary>Named shift schedules (day/night windows + grace) that departments follow.</summary>
     DbSet<ShiftSchedule> ShiftSchedules { get; }
 
+    /// <summary>The single admin-configurable email/SMTP configuration row.</summary>
+    DbSet<EmailSettings> EmailSettings { get; }
+
     /// <summary>Captured daily report snapshots (one per operational date and shift).</summary>
     DbSet<AllocationSnapshot> AllocationSnapshots { get; }
 

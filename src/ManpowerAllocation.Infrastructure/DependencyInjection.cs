@@ -58,11 +58,18 @@ public static class DependencyInjection
         services.AddHttpClient(nameof(EmailTeamsAlertService));
         services.AddScoped<IAlertService, EmailTeamsAlertService>();
 
+        // Reversible secret encryption (SMTP password / OAuth client secret) and the SMTP sender.
+        services.AddSingleton<ISecretProtector, Email.DataProtectionSecretProtector>();
+        services.AddScoped<ManpowerAllocation.Application.Email.IEmailSender, Email.MailKitEmailSender>();
+
         // Enforces the four-hour auto-disable window and detects manual enables out of band.
         services.AddHostedService<BreakGlassLifecycleWorker>();
 
         // Captures the daily report at the 10:00 and 22:00 shift cut-offs.
         services.AddHostedService<Snapshots.AllocationSnapshotWorker>();
+
+        // Emails the captured day report once per day after the configured send time.
+        services.AddHostedService<Email.DailyReportEmailWorker>();
 
         AddAttendanceIntegration(services, configuration);
 
