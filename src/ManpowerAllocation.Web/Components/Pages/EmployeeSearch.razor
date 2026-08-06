@@ -297,7 +297,7 @@ else
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         _canEdit = HasRole(authState.User, UserRole.User);
-        _canDelete = HasRole(authState.User, UserRole.Admin);
+        _canDelete = HasRole(authState.User, UserRole.User);
 
         foreach (var division in new[] { Division.Egl, Division.FunctionalSupport, Division.Brg })
         {

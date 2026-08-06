@@ -208,7 +208,7 @@ public sealed class EmployeeService : IEmployeeService
     /// <inheritdoc />
     public async Task DeleteAsync(int employeeId, CancellationToken cancellationToken = default)
     {
-        Require(UserRole.Admin);
+        Require(UserRole.User);
 
         var employee = await LoadWithDepartmentAsync(employeeId, cancellationToken);
         var before = ToDto(employee, employee.Department!.Name);

@@ -4,7 +4,7 @@ using ManpowerAllocation.Web.Security;
 
 namespace ManpowerAllocation.Web.Api;
 
-/// <summary>Employee and attendance endpoints. Reads require Viewer; edits require User; delete requires Admin.</summary>
+/// <summary>Employee and attendance endpoints. Reads require Viewer; edits and delete require User.</summary>
 public static class EmployeeEndpoints
 {
     /// <summary>Maps the employee endpoints onto the supplied route group.</summary>
@@ -54,6 +54,6 @@ public static class EmployeeEndpoints
                 await service.DeleteAsync(id, ct);
                 return Results.NoContent();
             })
-            .RequireAuthorization(AuthorizationPolicies.RequireAdmin);
+            .RequireAuthorization(AuthorizationPolicies.RequireUser);
     }
 }

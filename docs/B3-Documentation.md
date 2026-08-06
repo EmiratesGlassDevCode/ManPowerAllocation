@@ -295,7 +295,7 @@ All endpoints are under `/api`, inherit the **deny-by-default** auth fallback, r
 | PUT | `/api/employees/{id}/status` | User | ChangeStatusRequest |
 | PUT | `/api/employees/{id}/shift` | User | ChangeShiftRequest |
 | PUT | `/api/employees/{id}/move` | User | MoveEmployeeRequest |
-| DELETE | `/api/employees/{id}` | Admin | — |
+| DELETE | `/api/employees/{id}` | User | — |
 
 ### 4.4 Admin — Admin only
 | Method | Path | Purpose |
