@@ -210,13 +210,27 @@ public sealed class EmployeeService : IEmployeeService
     {
         Require(UserRole.User);
 
-        var employee = await LoadWithDepartmentAsync(employeeId, cancellationToken);
+        // Read the before-image WITHOUT tracking. The context is scoped to the (long-lived) Blazor
+        // circuit, so a copy of this employee tracked earlier in the session — e.g. after opening its
+        // Edit dialog — could otherwise supply a stale RowVersion and make the delete fail with a
+        // spurious "0 rows affected" concurrency error.
+        var employee = await _dbContext.Employees
+            .AsNoTracking()
+            .Include(e => e.Department)
+            .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Employee), employeeId);
+
         var before = ToDto(employee, employee.Department!.Name);
 
-        _dbContext.Employees.Remove(employee);
+        await _dbContext.ExecuteInTransactionAsync(async ct =>
+        {
+            // Delete directly by id. This does not depend on a tracked entity's RowVersion, so it
+            // cannot fail with a stale-token concurrency error; deletion is idempotent by intent.
+            await _dbContext.Employees.Where(e => e.Id == employeeId).ExecuteDeleteAsync(ct);
 
-        _auditWriter.Add(AuditAction.Delete, nameof(Employee), employeeId.ToString(), before, null);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+            _auditWriter.Add(AuditAction.Delete, nameof(Employee), employeeId.ToString(), before, null);
+            await _dbContext.SaveChangesAsync(ct);
+        }, cancellationToken);
     }
 
     /// <summary>Loads a tracked employee together with its department, or throws if it does not exist.</summary>
