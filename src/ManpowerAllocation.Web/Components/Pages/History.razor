@@ -130,7 +130,8 @@ else
                     {
                         <div class="detail-emp">
                             <span class="emp-av @(e.IsSupply ? "supply" : "status-" + e.Status.ToString().ToLowerInvariant())">@Avatar.Initials(e.Name)</span>
-                            <span class="detail-emp-name">@TextCase.Title(e.Name)</span>
+                            <span class="detail-emp-name">@TextCase.Title(e.Name)@if (!string.IsNullOrWhiteSpace(e.BadgeNumber))
+                                {<span class="emp-id" style="opacity:.6;font-weight:400;margin-left:4px">· @e.BadgeNumber</span>}</span>
                             <span class="detail-emp-dept">@TextCase.Title(e.DepartmentName)</span>
                             <span class="badge @StatusBadge(e)">@TextCase.Status(e.Status)</span>
                         </div>

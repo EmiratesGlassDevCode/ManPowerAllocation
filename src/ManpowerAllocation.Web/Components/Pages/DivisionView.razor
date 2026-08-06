@@ -131,7 +131,8 @@ else
                                 {
                                     <li class="emp-row">
                                         <span class="emp-av @(emp.IsSupply ? "supply" : "status-" + emp.Status.ToString().ToLowerInvariant())">@Avatar.Initials(emp.Name)</span>
-                                        <span class="emp-name">@TextCase.Title(emp.Name) @(emp.IsSupply ? "(OS)" : string.Empty)</span>
+                                        <span class="emp-name">@TextCase.Title(emp.Name) @(emp.IsSupply ? "(OS)" : string.Empty)@if (!string.IsNullOrWhiteSpace(emp.BadgeNumber))
+                                            {<span class="emp-id" style="opacity:.6;font-weight:400;margin-left:4px">· @emp.BadgeNumber</span>}</span>
                                         <span class="emp-shift shift-@emp.Shift.ToString().ToLowerInvariant()">@emp.Shift</span>
                                         <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@TextCase.Status(emp.Status)</span>
                                         @if (_canEdit && !emp.IsSupply)
