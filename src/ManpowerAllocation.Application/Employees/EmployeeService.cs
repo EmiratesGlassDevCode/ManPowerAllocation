@@ -41,6 +41,22 @@ public sealed class EmployeeService : IEmployeeService
         }
     }
 
+    /// <summary>
+    /// Authorises an edit that targets a specific department: a User or Admin may edit any
+    /// department; a department head may edit only the departments assigned to them. Enforced
+    /// server-side so it cannot be bypassed by calling the API directly.
+    /// </summary>
+    private async Task RequireDepartmentEditAsync(int departmentId, CancellationToken cancellationToken)
+    {
+        if (_currentUser.HasAtLeast(UserRole.User)
+            || await DepartmentScope.IsHeadOfAsync(_dbContext, _currentUser, departmentId, cancellationToken))
+        {
+            return;
+        }
+
+        throw new ForbiddenException();
+    }
+
     /// <inheritdoc />
     public async Task<IReadOnlyList<EmployeeDto>> GetByDivisionAsync(Division division, CancellationToken cancellationToken = default)
     {
@@ -94,7 +110,7 @@ public sealed class EmployeeService : IEmployeeService
     public async Task<EmployeeDto> CreateAsync(CreateEmployeeRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Require(UserRole.User);
+        await RequireDepartmentEditAsync(request.DepartmentId, cancellationToken);
 
         var department = await _dbContext.Departments
             .FirstOrDefaultAsync(d => d.Id == request.DepartmentId, cancellationToken)
@@ -129,9 +145,9 @@ public sealed class EmployeeService : IEmployeeService
     public async Task<EmployeeDto> UpdateAsync(int employeeId, UpdateEmployeeRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Require(UserRole.User);
 
         var employee = await LoadWithDepartmentAsync(employeeId, cancellationToken);
+        await RequireDepartmentEditAsync(employee.DepartmentId, cancellationToken);
         var before = ToDto(employee, employee.Department!.Name);
 
         employee.Name = request.Name.Trim();
@@ -148,9 +164,9 @@ public sealed class EmployeeService : IEmployeeService
     public async Task<EmployeeDto> ChangeStatusAsync(int employeeId, ChangeStatusRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Require(UserRole.User);
 
         var employee = await LoadWithDepartmentAsync(employeeId, cancellationToken);
+        await RequireDepartmentEditAsync(employee.DepartmentId, cancellationToken);
         var before = ToDto(employee, employee.Department!.Name);
 
         employee.Status = request.Status;
@@ -165,9 +181,9 @@ public sealed class EmployeeService : IEmployeeService
     public async Task<EmployeeDto> ChangeShiftAsync(int employeeId, ChangeShiftRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Require(UserRole.User);
 
         var employee = await LoadWithDepartmentAsync(employeeId, cancellationToken);
+        await RequireDepartmentEditAsync(employee.DepartmentId, cancellationToken);
         var before = ToDto(employee, employee.Department!.Name);
 
         employee.Shift = request.Shift;
@@ -182,12 +198,16 @@ public sealed class EmployeeService : IEmployeeService
     public async Task<EmployeeDto> MoveAsync(int employeeId, MoveEmployeeRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Require(UserRole.User);
 
         var employee = await LoadWithDepartmentAsync(employeeId, cancellationToken);
         var target = await _dbContext.Departments
             .FirstOrDefaultAsync(d => d.Id == request.TargetDepartmentId, cancellationToken)
             ?? throw new NotFoundException(nameof(Department), request.TargetDepartmentId);
+
+        // A move must be authorised for BOTH the source and the target department: a User/Admin
+        // passes both; a department head may only move a person between departments they head.
+        await RequireDepartmentEditAsync(employee.DepartmentId, cancellationToken);
+        await RequireDepartmentEditAsync(target.Id, cancellationToken);
 
         // An employee may only move within their own division, matching the source behaviour.
         if (target.Division != employee.Division)
@@ -208,8 +228,6 @@ public sealed class EmployeeService : IEmployeeService
     /// <inheritdoc />
     public async Task DeleteAsync(int employeeId, CancellationToken cancellationToken = default)
     {
-        Require(UserRole.User);
-
         // Read the before-image WITHOUT tracking. The context is scoped to the (long-lived) Blazor
         // circuit, so a copy of this employee tracked earlier in the session — e.g. after opening its
         // Edit dialog — could otherwise supply a stale RowVersion and make the delete fail with a
@@ -220,6 +238,7 @@ public sealed class EmployeeService : IEmployeeService
             .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken)
             ?? throw new NotFoundException(nameof(Employee), employeeId);
 
+        await RequireDepartmentEditAsync(employee.DepartmentId, cancellationToken);
         var before = ToDto(employee, employee.Department!.Name);
 
         await _dbContext.ExecuteInTransactionAsync(async ct =>
