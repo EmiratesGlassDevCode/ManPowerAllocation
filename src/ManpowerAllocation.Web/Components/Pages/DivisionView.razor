@@ -135,16 +135,20 @@ else
                                             {<span class="emp-id" style="opacity:.6;font-weight:400;margin-left:4px">· @emp.BadgeNumber</span>}</span>
                                         <span class="emp-shift shift-@emp.Shift.ToString().ToLowerInvariant()">@emp.Shift</span>
                                         <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@TextCase.Status(emp.Status)</span>
-                                        @if (_canEdit && !emp.IsSupply)
+                                        @if (_canEdit)
                                         {
                                             <span class="emp-actions">
-                                                @if (emp.Status == AttendanceStatus.OnVacation)
+                                                @* Vacation is an own-staff concept; outsource/supply presence is managed differently. *@
+                                                @if (!emp.IsSupply)
                                                 {
-                                                    <FluentButton Appearance="Appearance.Lightweight" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">Unmark vac</FluentButton>
-                                                }
-                                                else
-                                                {
-                                                    <FluentButton Appearance="Appearance.Lightweight" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">Mark vac</FluentButton>
+                                                    @if (emp.Status == AttendanceStatus.OnVacation)
+                                                    {
+                                                        <FluentButton Appearance="Appearance.Lightweight" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.Absent)">Unmark vac</FluentButton>
+                                                    }
+                                                    else
+                                                    {
+                                                        <FluentButton Appearance="Appearance.Lightweight" @onclick="() => SetStatusAsync(emp.Id, AttendanceStatus.OnVacation)">Mark vac</FluentButton>
+                                                    }
                                                 }
                                                 <FluentButton Appearance="Appearance.Lightweight" @onclick="() => ChangeShiftAsync(emp.Id, emp.Shift == ShiftType.Day ? ShiftType.Night : ShiftType.Day)">↔ Shift</FluentButton>
                                                 <select class="move-select" @onchange="e => MoveAsync(emp.Id, e.Value?.ToString())">
