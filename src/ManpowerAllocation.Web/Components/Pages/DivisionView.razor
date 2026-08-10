@@ -2,11 +2,13 @@
 @using ManpowerAllocation.Application.Dashboard
 @using ManpowerAllocation.Application.Departments
 @using ManpowerAllocation.Application.Employees
+@using ManpowerAllocation.Application.Shifts
 @using ManpowerAllocation.Web.Security
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
 @inject IDashboardService DashboardService
 @inject IEmployeeService EmployeeService
 @inject IDepartmentService DepartmentService
+@inject IShiftScheduleService ScheduleService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>@_label — Manpower Allocation</PageTitle>
@@ -190,6 +192,15 @@ else
                 <FluentNumberField @bind-Value="_fReqNight" Min="0" Label="Night required" />
                 <FluentNumberField @bind-Value="_fSeq" Step="0.5" Label="Sequence" />
             </div>
+            <label style="display:flex; flex-direction:column; gap:4px; margin-top:8px">
+                Shift schedule
+                <select @bind="_fScheduleId">
+                    @foreach (var s in _schedules)
+                    {
+                        <option value="@s.Id">@s.Name</option>
+                    }
+                </select>
+            </label>
             @if (_editingId is not null)
             {
                 <FluentCheckbox @bind-Value="_fActive">Active</FluentCheckbox>
@@ -288,6 +299,8 @@ else
     private int _fReqNight;
     private decimal _fSeq;
     private bool _fActive = true;
+    private int _fScheduleId;
+    private IReadOnlyList<ShiftScheduleDto> _schedules = Array.Empty<ShiftScheduleDto>();
     private string? _formError;
 
     // Inline error for row-level actions (status/shift/move/toggle) so a service failure does
@@ -362,6 +375,7 @@ else
         _dashboard = await DashboardService.GetDivisionDashboardAsync(_division.Value, _shift);
         _departments = (await DepartmentService.GetByDivisionAsync(_division.Value)).ToList();
         _employees = (await EmployeeService.GetByDivisionAsync(_division.Value)).ToList();
+        _schedules = await ScheduleService.ListAsync();
 
         _byDept = _employees
             .Where(MatchesShift)
@@ -569,6 +583,8 @@ else
         _fReqNight = 0;
         _fSeq = 9999m;
         _fActive = true;
+        // Default to the first schedule so the dropdown is never blank.
+        _fScheduleId = _schedules.FirstOrDefault()?.Id ?? 0;
         _formError = null;
         _showDeptForm = true;
     }
@@ -587,6 +603,7 @@ else
         _fReqNight = dept.RequiredNight;
         _fSeq = dept.Sequence;
         _fActive = dept.IsActive;
+        _fScheduleId = dept.ShiftScheduleId;
         _formError = null;
         _showDeptForm = true;
     }
@@ -612,7 +629,8 @@ else
                     Name = _fName,
                     RequiredDay = _fReqDay,
                     RequiredNight = _fReqNight,
-                    Sequence = _fSeq
+                    Sequence = _fSeq,
+                    ShiftScheduleId = _fScheduleId
                 });
             }
             else
@@ -622,7 +640,8 @@ else
                     RequiredDay = _fReqDay,
                     RequiredNight = _fReqNight,
                     Sequence = _fSeq,
-                    IsActive = _fActive
+                    IsActive = _fActive,
+                    ShiftScheduleId = _fScheduleId
                 });
             }
 

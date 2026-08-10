@@ -10,7 +10,8 @@ public sealed record DepartmentDto(
     int RequiredDay,
     int RequiredNight,
     decimal Sequence,
-    bool IsActive);
+    bool IsActive,
+    int ShiftScheduleId);
 
 /// <summary>Outcome of a bulk empty-department cleanup.</summary>
 public sealed record DepartmentCleanupResult(int Deleted, int SkippedWithEmployees, int NotFound);
@@ -32,12 +33,15 @@ public sealed record CreateDepartmentRequest
 
     /// <summary>Display sequence within the division.</summary>
     public decimal Sequence { get; init; }
+
+    /// <summary>The shift schedule the department follows; 0 selects the default schedule.</summary>
+    public int ShiftScheduleId { get; init; }
 }
 
 /// <summary>
 /// Request to update a department. The name and division are immutable once created
-/// (they are the join key), so only the requirement figures, sequence and active
-/// state can change.
+/// (they are the join key), so only the requirement figures, sequence, active
+/// state and shift schedule can change.
 /// </summary>
 public sealed record UpdateDepartmentRequest
 {
@@ -52,4 +56,7 @@ public sealed record UpdateDepartmentRequest
 
     /// <summary>Whether the department is switched ON.</summary>
     public bool IsActive { get; init; }
+
+    /// <summary>The shift schedule the department follows; 0 leaves it unchanged.</summary>
+    public int ShiftScheduleId { get; init; }
 }

@@ -39,7 +39,7 @@ public sealed class DepartmentService : IDepartmentService
             .OrderBy(d => d.Sequence)
             .ThenBy(d => d.Name)
             .Select(d => new DepartmentDto(
-                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive))
+                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId))
             .ToListAsync(cancellationToken);
     }
 
@@ -70,7 +70,8 @@ public sealed class DepartmentService : IDepartmentService
             RequiredDay = request.RequiredDay,
             RequiredNight = request.RequiredNight,
             Sequence = request.Sequence,
-            IsActive = true
+            IsActive = true,
+            ShiftScheduleId = await ResolveScheduleIdAsync(request.ShiftScheduleId, cancellationToken)
         };
 
         // Insert then audit inside one transaction: the department is saved first so its
@@ -111,6 +112,11 @@ public sealed class DepartmentService : IDepartmentService
         department.RequiredNight = request.RequiredNight;
         department.Sequence = request.Sequence;
         department.IsActive = request.IsActive;
+        // 0 leaves the current schedule untouched; a valid id reassigns it.
+        if (request.ShiftScheduleId > 0)
+        {
+            department.ShiftScheduleId = await ResolveScheduleIdAsync(request.ShiftScheduleId, cancellationToken);
+        }
 
         _auditWriter.Add(AuditAction.Update, nameof(Department), department.Id.ToString(), before, ToDto(department));
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -170,7 +176,7 @@ public sealed class DepartmentService : IDepartmentService
             .OrderBy(d => d.Division)
             .ThenBy(d => d.Name)
             .Select(d => new DepartmentDto(
-                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive))
+                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId))
             .ToListAsync(cancellationToken);
     }
 
@@ -242,7 +248,31 @@ public sealed class DepartmentService : IDepartmentService
         }
     }
 
+    /// <summary>
+    /// Resolves the shift schedule to assign: the requested one when it exists, otherwise the
+    /// default (lowest-id) schedule. Guarantees a department always references a real schedule.
+    /// </summary>
+    private async Task<int> ResolveScheduleIdAsync(int requested, CancellationToken cancellationToken)
+    {
+        if (requested > 0 && await _dbContext.ShiftSchedules.AnyAsync(s => s.Id == requested, cancellationToken))
+        {
+            return requested;
+        }
+
+        var defaultId = await _dbContext.ShiftSchedules
+            .OrderBy(s => s.Id)
+            .Select(s => (int?)s.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (defaultId is null)
+        {
+            throw new BusinessRuleException("No shift schedule is configured; add one under Shift Schedules first.");
+        }
+
+        return defaultId.Value;
+    }
+
     /// <summary>Projects a department entity to its transport representation.</summary>
     private static DepartmentDto ToDto(Department d) =>
-        new(d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive);
+        new(d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId);
 }
