@@ -14,13 +14,5 @@ public enum UserRole
     User = 2,
 
     /// <summary>Full control including master-data import, department maintenance and role administration.</summary>
-    Admin = 3,
-
-    /// <summary>
-    /// Manages one or more specific departments (edit requirements, add/remove staff and roster
-    /// actions within those departments) while seeing the rest of the factory read-only. This is a
-    /// scoped role: globally it ranks only as <see cref="Viewer"/>, and its extra abilities apply
-    /// only to the departments assigned to it (see <see cref="Entities.DepartmentManager"/>).
-    /// </summary>
-    DepartmentHead = 4
+    Admin = 3
 }

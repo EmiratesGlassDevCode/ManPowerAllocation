@@ -43,30 +43,6 @@ public static class AdminEndpoints
 
         MapShiftScheduleEndpoints(admin);
         MapEmailSettingsEndpoints(admin);
-        MapDepartmentHeadEndpoints(admin);
-    }
-
-    /// <summary>Maps the department-head appointment endpoints. Require Admin.</summary>
-    private static void MapDepartmentHeadEndpoints(RouteGroupBuilder admin)
-    {
-        var heads = admin.MapGroup("/department-heads");
-
-        heads.MapGet("/", async (ManpowerAllocation.Application.DepartmentHeads.IDepartmentHeadService service, CancellationToken ct) =>
-            Results.Ok(await service.ListAsync(ct)));
-
-        heads.MapPut("/", async (ManpowerAllocation.Application.DepartmentHeads.UpsertDepartmentHeadRequest request,
-            ManpowerAllocation.Application.DepartmentHeads.IDepartmentHeadService service, CancellationToken ct) =>
-        {
-            await service.UpsertAsync(request, ct);
-            return Results.NoContent();
-        });
-
-        heads.MapDelete("/{entraObjectId}", async (string entraObjectId,
-            ManpowerAllocation.Application.DepartmentHeads.IDepartmentHeadService service, CancellationToken ct) =>
-        {
-            await service.RevokeAsync(entraObjectId, ct);
-            return Results.NoContent();
-        });
     }
 
     /// <summary>Maps the email/SMTP settings endpoints (read, update, send test). Require Admin.</summary>

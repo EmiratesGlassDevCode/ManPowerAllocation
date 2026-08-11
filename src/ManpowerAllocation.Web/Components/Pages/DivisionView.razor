@@ -9,7 +9,6 @@
 @inject IEmployeeService EmployeeService
 @inject IDepartmentService DepartmentService
 @inject IShiftScheduleService ScheduleService
-@inject ManpowerAllocation.Application.DepartmentHeads.IDepartmentHeadService HeadService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>@_label — Manpower Allocation</PageTitle>
@@ -92,7 +91,7 @@ else
                             <div class="dept-name" @onclick="() => OpenDeptModal(dept)">@TextCase.Title(dept.Name)</div>
                             <div class="dept-sub">@dept.OnRoll on roll · @ShiftText()</div>
                         </div>
-                        @if (CanEditDept(dept.DepartmentId))
+                        @if (_canEdit)
                         {
                             <FluentSwitch Value="@dept.IsActive"
                                           ValueChanged="v => ToggleDepartmentAsync(dept.DepartmentId, v)"
@@ -120,12 +119,9 @@ else
                                 @(IsExpanded(dept.DepartmentId) ? "Hide roster" : "Show roster")
                             </span>
                             <span class="dc-spacer"></span>
-                            @if (CanManageDept(dept.DepartmentId))
-                            {
-                                <FluentButton Appearance="Appearance.Neutral" @onclick="() => OpenEditDept(dept.DepartmentId)">Edit</FluentButton>
-                            }
                             @if (_canAdmin)
                             {
+                                <FluentButton Appearance="Appearance.Neutral" @onclick="() => OpenEditDept(dept.DepartmentId)">Edit</FluentButton>
                                 <FluentButton Appearance="Appearance.Neutral" @onclick="() => _deleteDeptTarget = dept">Delete</FluentButton>
                             }
                         </div>
@@ -141,7 +137,7 @@ else
                                             {<span class="emp-id" style="opacity:.6;font-weight:400;margin-left:4px">· @emp.BadgeNumber</span>}</span>
                                         <span class="emp-shift shift-@emp.Shift.ToString().ToLowerInvariant()">@emp.Shift</span>
                                         <span class="emp-status status-@(emp.Status.ToString().ToLowerInvariant())">@TextCase.Status(emp.Status)</span>
-                                        @if (CanEditDept(dept.DepartmentId))
+                                        @if (_canEdit)
                                         {
                                             <span class="emp-actions">
                                                 @* Vacation is an own-staff concept; outsource/supply presence is managed differently. *@
@@ -302,7 +298,6 @@ else
     private readonly HashSet<int> _expanded = new();
     private bool _canEdit;
     private bool _canAdmin;
-    private readonly HashSet<int> _managedDeptIds = new();
     private string _search = string.Empty;
     private string _filter = "all";
 
@@ -341,21 +336,6 @@ else
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             _canEdit = HasRole(authState.User, UserRole.User);
             _canAdmin = HasRole(authState.User, UserRole.Admin);
-
-            // A department head edits only the departments assigned to them; load that scope so the
-            // UI can show edit controls for those departments (server-side guards enforce it too).
-            _managedDeptIds.Clear();
-            if (!_canEdit)
-            {
-                try
-                {
-                    foreach (var id in await HeadService.GetManagedDepartmentIdsAsync())
-                    {
-                        _managedDeptIds.Add(id);
-                    }
-                }
-                catch { /* scope is a UI aid; server-side guards are the control */ }
-            }
 
             // Open on the shift running now, not a day+night pool that would count the off-shift
             // as absent. Resolved once so a manual shift choice survives in-page interactions.
@@ -720,16 +700,9 @@ else
 
     private void OpenDeptModal(DepartmentStats dept) => _modalDept = dept;
 
-    /// <summary>A User/Admin may edit any department; a department head only their assigned ones.</summary>
-    private bool CanEditDept(int departmentId) => _canEdit || _managedDeptIds.Contains(departmentId);
-
-    /// <summary>Editing a department’s requirements: Admin anywhere, or a head within their scope.</summary>
-    private bool CanManageDept(int departmentId) => _canAdmin || _managedDeptIds.Contains(departmentId);
-
     private static bool HasRole(System.Security.Claims.ClaimsPrincipal user, UserRole minimum)
     {
         var raw = user.FindFirst(AppClaimTypes.AppRole)?.Value;
-        // DepartmentHead ranks only as Viewer on the global ladder (its powers are scoped per department).
-        return Enum.TryParse<UserRole>(raw, out var role) && RoleRank.RankOf(role) >= RoleRank.RankOf(minimum);
+        return Enum.TryParse<UserRole>(raw, out var role) && role >= minimum;
     }
 }

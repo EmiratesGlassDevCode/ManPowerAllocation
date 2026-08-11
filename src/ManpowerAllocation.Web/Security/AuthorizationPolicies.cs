@@ -48,6 +48,6 @@ public static class AuthorizationPolicies
     private static bool HasAtLeast(ClaimsPrincipal user, UserRole minimumRole)
     {
         var raw = user.FindFirst(AppClaimTypes.AppRole)?.Value;
-        return Enum.TryParse<UserRole>(raw, out var role) && RoleRank.RankOf(role) >= RoleRank.RankOf(minimumRole);
+        return Enum.TryParse<UserRole>(raw, out var role) && role >= minimumRole;
     }
 }

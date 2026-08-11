@@ -329,39 +329,6 @@ namespace ManpowerAllocation.Infrastructure.Migrations
                     b.ToTable("Departments", (string)null);
                 });
 
-            modelBuilder.Entity("ManpowerAllocation.Domain.Entities.DepartmentManager", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedByObjectId")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<int>("DepartmentId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EntraObjectId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DepartmentId");
-
-                    b.HasIndex("EntraObjectId", "DepartmentId")
-                        .IsUnique();
-
-                    b.ToTable("DepartmentManagers", (string)null);
-                });
-
             modelBuilder.Entity("ManpowerAllocation.Domain.Entities.EmailSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -635,17 +602,6 @@ namespace ManpowerAllocation.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ShiftSchedule");
-                });
-
-            modelBuilder.Entity("ManpowerAllocation.Domain.Entities.DepartmentManager", b =>
-                {
-                    b.HasOne("ManpowerAllocation.Domain.Entities.Department", "Department")
-                        .WithMany()
-                        .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Department");
                 });
 
             modelBuilder.Entity("ManpowerAllocation.Domain.Entities.Employee", b =>
