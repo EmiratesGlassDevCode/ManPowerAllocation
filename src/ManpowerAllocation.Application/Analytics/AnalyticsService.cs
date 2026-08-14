@@ -27,7 +27,7 @@ public sealed class AnalyticsService : IAnalyticsService
         var rows = await _dbContext.AllocationSnapshots
             .AsNoTracking()
             .Where(s => s.OperationalDate >= start && s.OperationalDate <= end)
-            .OrderBy(s => s.OperationalDate).ThenBy(s => s.Shift)
+            .OrderByDescending(s => s.OperationalDate).ThenByDescending(s => s.Shift)
             .Select(s => new
             {
                 s.OperationalDate, s.Shift, s.Required, s.TotalPresent, s.Absent,
@@ -141,7 +141,7 @@ public sealed class AnalyticsService : IAnalyticsService
             from se in _dbContext.AllocationSnapshotEmployees.AsNoTracking()
             join s in _dbContext.AllocationSnapshots.AsNoTracking() on se.SnapshotId equals s.Id
             where se.EmployeeId == employeeId && s.OperationalDate >= start && s.OperationalDate <= end
-            orderby s.OperationalDate, se.Shift
+            orderby s.OperationalDate descending, se.Shift descending
             select new { s.OperationalDate, se.Shift, se.DepartmentName, se.Status })
             .ToListAsync(cancellationToken);
 
