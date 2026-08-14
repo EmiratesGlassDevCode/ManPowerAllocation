@@ -103,6 +103,6 @@ public sealed class CurrentUser : ICurrentUser
             return false;
         }
 
-        return role >= minimumRole;
+        return RoleRank.RankOf(role) >= RoleRank.RankOf(minimumRole);
     }
 }

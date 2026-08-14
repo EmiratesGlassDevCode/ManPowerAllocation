@@ -5,6 +5,7 @@
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
 @inject IEmployeeService EmployeeService
 @inject IDepartmentService DepartmentService
+@inject ManpowerAllocation.Application.DepartmentHeads.IDepartmentHeadService HeadService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Employees — Manpower Allocation</PageTitle>
@@ -56,7 +57,7 @@
     <button type="button" class="mini-btn" @onclick="ClearFilters">Clear</button>
     <span class="toolbar-spacer"></span>
     <a class="link-btn" href="api/exports/attendance" target="_blank"><span class="exp-ico" style="background:var(--mpa-ok)"></span>Excel</a>
-    @if (_canEdit)
+    @if (CanManageAny)
     {
         <FluentButton Appearance="Appearance.Accent" @onclick="OpenAdd">+ Add employee</FluentButton>
     }
@@ -87,7 +88,7 @@ else
             <thead>
                 <tr>
                     <th>Name</th><th>ID</th><th>Division</th><th>Department</th><th>Shift</th><th>Status</th><th>Notes</th>
-                    @if (_canEdit)
+                    @if (CanManageAny)
                     {
                         <th></th>
                     }
@@ -107,13 +108,16 @@ else
                         <td><span class="badge @(e.Shift == ShiftType.Day ? "b-day" : "b-night")">@e.Shift</span></td>
                         <td><span class="badge @StatusBadgeClass(e)">@TextCase.Status(e.Status)</span></td>
                         <td class="emp-notes">@(string.IsNullOrWhiteSpace(e.Notes) ? "—" : e.Notes)</td>
-                        @if (_canEdit)
+                        @if (CanManageAny)
                         {
                             <td class="row-actions">
-                                <button type="button" class="mini-btn" @onclick="() => OpenEdit(e)">Edit</button>
-                                @if (_canDelete)
+                                @if (CanEditEmp(e))
                                 {
-                                    <button type="button" class="mini-btn danger" @onclick="() => _deleteTarget = e">Delete</button>
+                                    <button type="button" class="mini-btn" @onclick="() => OpenEdit(e)">Edit</button>
+                                    @if (_canDelete || _managedDeptIds.Contains(e.DepartmentId))
+                                    {
+                                        <button type="button" class="mini-btn danger" @onclick="() => _deleteTarget = e">Delete</button>
+                                    }
                                 }
                             </td>
                         }
@@ -134,11 +138,11 @@ else
             <FluentTextField @bind-Value="_aBadge" Label="Badge / employee ID" Placeholder="Leave blank if none yet" Style="width:100%" />
             <label class="native-select-label">Department
                 <select @bind="_aDeptId">
-                    @if (_departments.Count == 0)
+                    @if (!EditableDepartments().Any())
                     {
-                        <option value="0">No departments — import master data first</option>
+                        <option value="0">No departments available</option>
                     }
-                    @foreach (var group in _departments.GroupBy(d => d.Division))
+                    @foreach (var group in EditableDepartments().GroupBy(d => d.Division))
                     {
                         <optgroup label="@DivisionLabel(group.Key)">
                             @foreach (var d in group)
@@ -188,7 +192,8 @@ else
             <FluentTextField @bind-Value="_eBadge" Label="Badge / employee ID" Placeholder="The ID must match the biometric feed" Style="width:100%" />
             <label class="native-select-label">Department (@DivisionLabel(_editTarget.Division))
                 <select @bind="_eDeptId">
-                    @foreach (var d in _departments.Where(d => d.Division == _editTarget.Division))
+                    @* User/Admin: any department in the division. Head: only their own (plus the current one, shown read-only-ish). *@
+                    @foreach (var d in _departments.Where(d => d.Division == _editTarget.Division && (_canEdit || _managedDeptIds.Contains(d.Id) || d.Id == _editTarget.DepartmentId)))
                     {
                         <option value="@d.Id">@TextCase.Title(d.Name)</option>
                     }
@@ -255,6 +260,17 @@ else
     private List<DepartmentDto> _departments = new();
     private bool _canEdit;
     private bool _canDelete;
+    private readonly HashSet<int> _managedDeptIds = new();
+
+    /// <summary>Whether the current user can manage at least one department (User/Admin, or a head).</summary>
+    private bool CanManageAny => _canEdit || _managedDeptIds.Count > 0;
+
+    /// <summary>A User/Admin may edit any employee; a department head only those in their departments.</summary>
+    private bool CanEditEmp(EmployeeDto e) => _canEdit || _managedDeptIds.Contains(e.DepartmentId);
+
+    /// <summary>Departments the current user may assign staff to (all for User/Admin; scoped for a head).</summary>
+    private IEnumerable<DepartmentDto> EditableDepartments() =>
+        _canEdit ? _departments : _departments.Where(d => _managedDeptIds.Contains(d.Id));
 
     // Filters.
     private string _search = string.Empty;
@@ -298,6 +314,20 @@ else
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         _canEdit = HasRole(authState.User, UserRole.User);
         _canDelete = HasRole(authState.User, UserRole.User);
+
+        // A department head edits only staff in the departments assigned to them.
+        _managedDeptIds.Clear();
+        if (!_canEdit)
+        {
+            try
+            {
+                foreach (var id in await HeadService.GetManagedDepartmentIdsAsync())
+                {
+                    _managedDeptIds.Add(id);
+                }
+            }
+            catch { /* scope is a UI aid; server-side guards are the control */ }
+        }
 
         foreach (var division in new[] { Division.Egl, Division.FunctionalSupport, Division.Brg })
         {
@@ -364,7 +394,7 @@ else
         _addError = null;
         _message = null;
         _aName = _aBadge = _aNotes = string.Empty;
-        _aDeptId = _departments.Count > 0 ? _departments[0].Id : 0;
+        _aDeptId = EditableDepartments().Select(d => d.Id).FirstOrDefault();
         _aShift = ShiftType.Day;
         _aStatus = AttendanceStatus.Present;
         _aSupply = false;
@@ -488,6 +518,7 @@ else
     private static bool HasRole(System.Security.Claims.ClaimsPrincipal user, UserRole minimum)
     {
         var raw = user.FindFirst(AppClaimTypes.AppRole)?.Value;
-        return Enum.TryParse<UserRole>(raw, out var role) && role >= minimum;
+        // DepartmentHead ranks only as Viewer on the global ladder (its powers are scoped per department).
+        return Enum.TryParse<UserRole>(raw, out var role) && RoleRank.RankOf(role) >= RoleRank.RankOf(minimum);
     }
 }

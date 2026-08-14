@@ -19,6 +19,9 @@ public interface IApplicationDbContext
     /// <summary>Entra object id → role assignments.</summary>
     DbSet<RoleAssignment> RoleAssignments { get; }
 
+    /// <summary>Department-head scope: which departments each head manages.</summary>
+    DbSet<DepartmentManager> DepartmentManagers { get; }
+
     /// <summary>The immutable audit trail.</summary>
     DbSet<AuditLogEntry> AuditLogEntries { get; }
 

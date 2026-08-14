@@ -100,11 +100,12 @@ public sealed class DepartmentService : IDepartmentService
     public async Task<DepartmentDto> UpdateAsync(int departmentId, UpdateDepartmentRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        Require(UserRole.Admin);
 
         var department = await _dbContext.Departments
             .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
             ?? throw new NotFoundException(nameof(Department), departmentId);
+
+        await RequireDepartmentManageAsync(departmentId, cancellationToken);
 
         var before = ToDto(department);
 
@@ -127,11 +128,11 @@ public sealed class DepartmentService : IDepartmentService
     /// <inheritdoc />
     public async Task<DepartmentDto> SetActiveAsync(int departmentId, bool isActive, CancellationToken cancellationToken = default)
     {
-        Require(UserRole.User);
-
         var department = await _dbContext.Departments
             .FirstOrDefaultAsync(d => d.Id == departmentId, cancellationToken)
             ?? throw new NotFoundException(nameof(Department), departmentId);
+
+        await RequireDepartmentEditAsync(departmentId, cancellationToken);
 
         var before = ToDto(department);
         department.IsActive = isActive;
@@ -246,6 +247,37 @@ public sealed class DepartmentService : IDepartmentService
         {
             throw new ForbiddenException();
         }
+    }
+
+    /// <summary>
+    /// Authorises editing a department's definition (required headcount, sequence): an Admin may
+    /// edit any department; a department head only the departments assigned to them. Plain Users
+    /// cannot edit requirements.
+    /// </summary>
+    private async Task RequireDepartmentManageAsync(int departmentId, CancellationToken cancellationToken)
+    {
+        if (_currentUser.HasAtLeast(UserRole.Admin)
+            || await DepartmentScope.IsHeadOfAsync(_dbContext, _currentUser, departmentId, cancellationToken))
+        {
+            return;
+        }
+
+        throw new ForbiddenException();
+    }
+
+    /// <summary>
+    /// Authorises a roster-level department action (on/off): a User or Admin may act on any
+    /// department; a department head only on the departments assigned to them.
+    /// </summary>
+    private async Task RequireDepartmentEditAsync(int departmentId, CancellationToken cancellationToken)
+    {
+        if (_currentUser.HasAtLeast(UserRole.User)
+            || await DepartmentScope.IsHeadOfAsync(_dbContext, _currentUser, departmentId, cancellationToken))
+        {
+            return;
+        }
+
+        throw new ForbiddenException();
     }
 
     /// <summary>

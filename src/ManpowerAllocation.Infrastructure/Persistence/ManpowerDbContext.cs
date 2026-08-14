@@ -27,6 +27,9 @@ public sealed class ManpowerDbContext : DbContext, IApplicationDbContext
     public DbSet<RoleAssignment> RoleAssignments => Set<RoleAssignment>();
 
     /// <inheritdoc />
+    public DbSet<DepartmentManager> DepartmentManagers => Set<DepartmentManager>();
+
+    /// <inheritdoc />
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
 
     /// <inheritdoc />
