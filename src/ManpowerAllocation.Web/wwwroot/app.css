@@ -711,3 +711,12 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
 .abs-not-informed { background: var(--mpa-danger-bg); color: var(--mpa-danger); border-color: var(--mpa-danger-bd); }
 .muted { color: var(--mpa-fg-2); opacity: .8; }
 .edit-row > td { background: var(--mpa-brand-tint); }
+
+/* ── Analytics page ─────────────────────────────────────────────────────────────────── */
+.kpi-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.kpi-tile { flex: 1; min-width: 130px; background: var(--mpa-surface); border: 1px solid var(--mpa-stroke-1); border-radius: var(--mpa-r-md); padding: 14px 16px; }
+.kpi-value { font: 700 26px/1.1 var(--mpa-font); color: var(--mpa-brand); }
+.kpi-label { font: 600 11px/1.4 var(--mpa-font); color: var(--mpa-fg-2); text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
+.minibar { display: inline-block; width: 90px; height: 8px; background: var(--mpa-stroke-1); border-radius: 4px; overflow: hidden; vertical-align: middle; margin-right: 8px; }
+.minibar-fill { display: block; height: 100%; border-radius: 4px; }
+.minibar-val { font: 600 12px/1 var(--mpa-font); color: var(--mpa-fg-2); vertical-align: middle; }

@@ -1,0 +1,303 @@
+@page "/analytics"
+@using ManpowerAllocation.Application.Analytics
+@using ManpowerAllocation.Domain.Enums
+@using ManpowerAllocation.Web.Common
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
+@inject IAnalyticsService Analytics
+
+<PageTitle>Analytics — Manpower Allocation</PageTitle>
+
+<h1>Analytics &amp; Reports</h1>
+<p class="hint">
+    Trend analysis over the captured daily-report history (from 30 Jul 2026 onward, two captures per
+    day). Pick a From/To range and a report. History accumulates daily.
+</p>
+
+<div class="data-card" style="margin-bottom:16px">
+    <div style="padding:14px; display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end">
+        <label style="display:flex; flex-direction:column; gap:4px">From
+            <input type="date" @bind="_from" />
+        </label>
+        <label style="display:flex; flex-direction:column; gap:4px">To
+            <input type="date" @bind="_to" />
+        </label>
+        @if (_report is ReportKind.Departments or ReportKind.Absentees)
+        {
+            <label style="display:flex; flex-direction:column; gap:4px">Division
+                <select @bind="_divisionKey">
+                    <option value="">All divisions</option>
+                    <option value="Egl">EGL</option>
+                    <option value="FunctionalSupport">Functional Support</option>
+                    <option value="Brg">BRG</option>
+                </select>
+            </label>
+        }
+        @if (_report == ReportKind.Employee)
+        {
+            <label style="display:flex; flex-direction:column; gap:4px">Employee
+                <select @bind="_employeeId">
+                    <option value="0">— choose —</option>
+                    @foreach (var e in _employees)
+                    {
+                        <option value="@e.Id">@TextCase.Title(e.Name)@(string.IsNullOrWhiteSpace(e.Badge) ? "" : $" · {e.Badge}")</option>
+                    }
+                </select>
+            </label>
+        }
+        <FluentButton Appearance="Appearance.Accent" @onclick="LoadAsync" Disabled="_busy">Run report</FluentButton>
+    </div>
+</div>
+
+<div class="pill-row" style="margin-bottom:16px">
+    <button type="button" class="pill @(_report == ReportKind.Overall ? "active" : "")" @onclick="() => SwitchAsync(ReportKind.Overall)">Overall trend</button>
+    <button type="button" class="pill @(_report == ReportKind.Departments ? "active" : "")" @onclick="() => SwitchAsync(ReportKind.Departments)">Department trend</button>
+    <button type="button" class="pill @(_report == ReportKind.Absentees ? "active" : "")" @onclick="() => SwitchAsync(ReportKind.Absentees)">Absentee analytics</button>
+    <button type="button" class="pill @(_report == ReportKind.Employee ? "active" : "")" @onclick="() => SwitchAsync(ReportKind.Employee)">Employee history</button>
+</div>
+
+@if (!string.IsNullOrEmpty(_err)) { <p class="message error">@_err</p> }
+
+@if (_busy)
+{
+    <p><em>Running…</em></p>
+}
+else
+{
+    @(_report switch
+    {
+        ReportKind.Overall => RenderOverall(),
+        ReportKind.Departments => RenderDepartments(),
+        ReportKind.Absentees => RenderAbsentees(),
+        ReportKind.Employee => RenderEmployee(),
+        _ => null
+    })
+}
+
+@code {
+    private enum ReportKind { Overall, Departments, Absentees, Employee }
+
+    private ReportKind _report = ReportKind.Overall;
+    private DateTime _from = DateTime.Today.AddDays(-13);
+    private DateTime _to = DateTime.Today;
+    private string _divisionKey = string.Empty;
+    private Division? _division;
+    private int _employeeId;
+
+    private bool _busy;
+    private string? _err;
+
+    private IReadOnlyList<OverallTrendPoint> _overall = Array.Empty<OverallTrendPoint>();
+    private IReadOnlyList<DepartmentTrendRow> _departments = Array.Empty<DepartmentTrendRow>();
+    private AbsenteeAnalyticsDto? _absentees;
+    private EmployeeHistoryDto? _employee;
+    private IReadOnlyList<EmployeeOption> _employees = Array.Empty<EmployeeOption>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _employees = await Analytics.GetEmployeeOptionsAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        await LoadAsync();
+    }
+
+    private async Task SwitchAsync(ReportKind kind)
+    {
+        _report = kind;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _err = null;
+        _busy = true;
+        _division = string.IsNullOrEmpty(_divisionKey) ? null : Enum.Parse<Division>(_divisionKey);
+        try
+        {
+            switch (_report)
+            {
+                case ReportKind.Overall:
+                    _overall = await Analytics.GetOverallTrendAsync(_from, _to);
+                    break;
+                case ReportKind.Departments:
+                    _departments = await Analytics.GetDepartmentTrendAsync(_from, _to, _division);
+                    break;
+                case ReportKind.Absentees:
+                    _absentees = await Analytics.GetAbsenteeAnalyticsAsync(_from, _to, _division);
+                    break;
+                case ReportKind.Employee:
+                    _employee = _employeeId > 0 ? await Analytics.GetEmployeeHistoryAsync(_employeeId, _from, _to) : null;
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── Overall trend ─────────────────────────────────────────────────────────
+    private RenderFragment RenderOverall() => builder =>
+    {
+        if (_overall.Count == 0) { NoData(builder); return; }
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddMarkupContent(seq++, BuildTable(
+            new[] { "Date", "Shift", "Required", "Present", "Absent", "Vacation", "Supply", "Variance", "Fill %" },
+            _overall.Select(p => new[]
+            {
+                p.Date.ToString("dd MMM yyyy"), p.Shift, p.Required.ToString(), p.TotalPresent.ToString(),
+                p.Absent.ToString(), p.OnVacation.ToString(), p.Supply.ToString(), Signed(p.Variance), Bar(p.FillPct)
+            }).ToList(),
+            fillColumns: new[] { 8 }));
+        builder.CloseElement();
+    };
+
+    // ── Department trend ──────────────────────────────────────────────────────
+    private RenderFragment RenderDepartments() => builder =>
+    {
+        if (_departments.Count == 0) { NoData(builder); return; }
+        var seq = 0;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddMarkupContent(seq++, BuildTable(
+            new[] { "Division", "Department", "Captures", "Avg req", "Avg present", "Avg fill %", "Days short", "Days excess", "Worst var" },
+            _departments.Select(d => new[]
+            {
+                d.Division, TextCase.Title(d.Department), d.Captures.ToString(),
+                d.AvgRequired.ToString("0.0"), d.AvgPresent.ToString("0.0"), Bar(d.AvgFillPct),
+                d.DaysShort.ToString(), d.DaysExcess.ToString(), Signed(d.WorstVariance)
+            }).ToList(),
+            fillColumns: new[] { 5 }));
+        builder.CloseElement();
+    };
+
+    // ── Absentee analytics ────────────────────────────────────────────────────
+    private RenderFragment RenderAbsentees() => builder =>
+    {
+        if (_absentees is null || _absentees.TotalRecords == 0) { NoData(builder); return; }
+        var seq = 0;
+        var a = _absentees;
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "kpi-row");
+        builder.AddMarkupContent(seq++,
+            Kpi("Absence records", a.TotalRecords.ToString()) +
+            Kpi("Employees", a.TotalEmployees.ToString()) +
+            Kpi("Informed", a.InformedRecords.ToString()) +
+            Kpi("Not informed", a.NotInformedRecords.ToString()));
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddAttribute(seq++, "style", "margin-top:16px");
+        builder.AddMarkupContent(seq++, "<div class=\"kv-card-head\"><span class=\"title\">By reason</span></div>" + BuildTable(
+            new[] { "Kind", "Category", "Records", "Employees" },
+            a.ByCategory.Select(c => new[] { c.Kind, TextCase.Title(c.Category), c.Records.ToString(), c.Employees.ToString() }).ToList()));
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddAttribute(seq++, "style", "margin-top:16px");
+        builder.AddMarkupContent(seq++, "<div class=\"kv-card-head\"><span class=\"title\">By department</span></div>" + BuildTable(
+            new[] { "Division", "Department", "Records", "Employees" },
+            a.ByDepartment.Select(c => new[] { c.Division, TextCase.Title(c.Department), c.Records.ToString(), c.Employees.ToString() }).ToList()));
+        builder.CloseElement();
+    };
+
+    // ── Employee history ──────────────────────────────────────────────────────
+    private RenderFragment RenderEmployee() => builder =>
+    {
+        if (_employeeId == 0)
+        {
+            builder.AddMarkupContent(0, "<div class=\"data-card\"><div style=\"padding:16px\"><em>Choose an employee and run the report.</em></div></div>");
+            return;
+        }
+        if (_employee is null) { NoData(builder); return; }
+
+        var seq = 0;
+        var e = _employee;
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "kpi-row");
+        builder.AddMarkupContent(seq++,
+            Kpi("Present days", e.PresentDays.ToString()) +
+            Kpi("Absent days", e.AbsentDays.ToString()) +
+            Kpi("Vacation days", e.VacationDays.ToString()));
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddAttribute(seq++, "style", "margin-top:16px");
+        builder.AddMarkupContent(seq++, "<div class=\"kv-card-head\"><span class=\"title\">Recorded absence reasons</span></div>" + (
+            e.Absences.Count == 0
+                ? "<div style=\"padding:16px\"><em>No absence reasons recorded in this range.</em></div>"
+                : BuildTable(
+                    new[] { "Kind", "Category", "From", "To", "Comment", "Recorded by" },
+                    e.Absences.Select(r => new[]
+                    {
+                        r.Kind, TextCase.Title(r.Category), r.FromDate.ToString("dd MMM yyyy"),
+                        r.ToDate?.ToString("dd MMM yyyy") ?? "—", r.Comment ?? "—", r.SetBy ?? "—"
+                    }).ToList())));
+        builder.CloseElement();
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddAttribute(seq++, "style", "margin-top:16px");
+        builder.AddMarkupContent(seq++, "<div class=\"kv-card-head\"><span class=\"title\">Captured attendance</span></div>" + (
+            e.Days.Count == 0
+                ? "<div style=\"padding:16px\"><em>No captured attendance in this range.</em></div>"
+                : BuildTable(
+                    new[] { "Date", "Shift", "Department", "Status" },
+                    e.Days.Select(d => new[] { d.Date.ToString("dd MMM yyyy"), d.Shift, TextCase.Title(d.Department), d.Status }).ToList())));
+        builder.CloseElement();
+    };
+
+    private static void NoData(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder) =>
+        builder.AddMarkupContent(0, "<div class=\"data-card\"><div style=\"padding:16px\"><em>No data for this range.</em></div></div>");
+
+    /// <summary>Builds an HTML table; columns listed in <paramref name="fillColumns"/> hold pre-rendered bar markup.</summary>
+    private static string BuildTable(string[] headers, IReadOnlyList<string[]> rows, int[]? fillColumns = null)
+    {
+        var fill = new HashSet<int>(fillColumns ?? Array.Empty<int>());
+        var sb = new System.Text.StringBuilder();
+        sb.Append("<div class=\"grid-scroll\" style=\"padding:0\"><table class=\"grid\"><thead><tr>");
+        foreach (var h in headers) { sb.Append("<th>").Append(System.Net.WebUtility.HtmlEncode(h)).Append("</th>"); }
+        sb.Append("</tr></thead><tbody>");
+        foreach (var row in rows)
+        {
+            sb.Append("<tr>");
+            for (var i = 0; i < row.Length; i++)
+            {
+                sb.Append("<td>");
+                sb.Append(fill.Contains(i) ? row[i] : System.Net.WebUtility.HtmlEncode(row[i]));
+                sb.Append("</td>");
+            }
+            sb.Append("</tr>");
+        }
+        sb.Append("</tbody></table></div>");
+        return sb.ToString();
+    }
+
+    /// <summary>A percentage cell rendered as a coloured mini-bar with the value.</summary>
+    private static string Bar(int pct)
+    {
+        var clamped = Math.Clamp(pct, 0, 100);
+        var color = pct >= 100 ? "var(--mpa-ok)" : pct >= 85 ? "var(--mpa-gold)" : "var(--mpa-danger)";
+        return $"<div class=\"minibar\"><span class=\"minibar-fill\" style=\"width:{clamped}%;background:{color}\"></span></div><span class=\"minibar-val\">{pct}%</span>";
+    }
+
+    private static string Kpi(string label, string value) =>
+        $"<div class=\"kpi-tile\"><div class=\"kpi-value\">{System.Net.WebUtility.HtmlEncode(value)}</div><div class=\"kpi-label\">{System.Net.WebUtility.HtmlEncode(label)}</div></div>";
+
+    private static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString();
+}
