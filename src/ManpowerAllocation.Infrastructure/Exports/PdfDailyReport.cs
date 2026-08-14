@@ -206,6 +206,79 @@ internal static class PdfDailyReport
             y = Margin;
         }
 
+        // ── Absentees summary (quick overview: counts grouped by reason) ──────
+        if (m.Absentees.Count > 0)
+        {
+            var summary = m.Absentees
+                .GroupBy(AbsenteeSummaryKey)
+                .Select(g => (Label: g.Key, Count: g.Count()))
+                .OrderByDescending(x => x.Count).ThenBy(x => x.Label)
+                .ToList();
+
+            var summaryH = 40 + (summary.Count + 1) * 17;
+            if (y > h - Margin - Math.Min(summaryH, 160))
+            {
+                gfx.Dispose();
+                page = doc.AddPage();
+                page.Size = PageSize.A4;
+                gfx = XGraphics.FromPdfPage(page);
+                y = Margin;
+            }
+
+            gfx.DrawString("ABSENTEES SUMMARY", Bold(11), new XSolidBrush(Navy),
+                new XRect(Margin, y, contentW, 14), XStringFormats.TopLeft);
+            y += 20;
+
+            var sLabelW = contentW - 90;
+            var sCountW = 90.0;
+            gfx.DrawRoundedRectangle(new XSolidBrush(Navy), Margin, y, contentW, 20, 4, 4);
+            gfx.DrawString("Reason", Bold(8), new XSolidBrush(White), new XRect(Margin + 6, y, sLabelW - 8, 20), XStringFormats.CenterLeft);
+            gfx.DrawString("Count", Bold(8), new XSolidBrush(White), new XRect(Margin + sLabelW + 6, y, sCountW - 8, 20), XStringFormats.CenterRight);
+            y += 20;
+
+            var srowH = 17.0;
+            var sAlt = false;
+            foreach (var s in summary)
+            {
+                if (y > h - Margin - 26)
+                {
+                    gfx.Dispose();
+                    page = doc.AddPage();
+                    page.Size = PageSize.A4;
+                    gfx = XGraphics.FromPdfPage(page);
+                    y = Margin;
+                }
+
+                if (sAlt)
+                {
+                    gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(0xFA, 0xFB, 0xFD)), Margin, y, contentW, srowH);
+                }
+                sAlt = !sAlt;
+
+                gfx.DrawString(Clip(gfx, s.Label, sLabelW - 8, Regular(8.5)), Regular(8.5), new XSolidBrush(Ink),
+                    new XRect(Margin + 6, y, sLabelW - 8, srowH), XStringFormats.CenterLeft);
+                gfx.DrawString(s.Count.ToString(), Bold(8.5), new XSolidBrush(Navy),
+                    new XRect(Margin + sLabelW + 6, y, sCountW - 8, srowH), XStringFormats.CenterRight);
+                gfx.DrawLine(new XPen(Line, 0.5), Margin, y + srowH, Margin + contentW, y + srowH);
+                y += srowH;
+            }
+
+            // Total row.
+            gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(0xEF, 0xF3, 0xF8)), Margin, y, contentW, srowH);
+            gfx.DrawString("Total away", Bold(8.5), new XSolidBrush(Navy), new XRect(Margin + 6, y, sLabelW - 8, srowH), XStringFormats.CenterLeft);
+            gfx.DrawString(m.Absentees.Count.ToString(), Bold(9), new XSolidBrush(Navy), new XRect(Margin + sLabelW + 6, y, sCountW - 8, srowH), XStringFormats.CenterRight);
+            y += srowH + 18;
+        }
+
+        if (y > h - Margin - 80)
+        {
+            gfx.Dispose();
+            page = doc.AddPage();
+            page.Size = PageSize.A4;
+            gfx = XGraphics.FromPdfPage(page);
+            y = Margin;
+        }
+
         gfx.DrawString("ABSENTEES & REASONS", Bold(11), new XSolidBrush(Navy),
             new XRect(Margin, y, contentW, 14), XStringFormats.TopLeft);
         y += 20;
@@ -497,6 +570,25 @@ internal static class PdfDailyReport
             fg.DrawString($"Page {p + 1} of {doc.PageCount}", Regular(7.5), new XSolidBrush(Muted),
                 new XRect(Margin, fh - 26, fw - 2 * Margin, 12), XStringFormats.CenterRight);
         }
+    }
+
+    /// <summary>
+    /// The grouping label for the absentees summary: the reason (kind · category) when one is
+    /// recorded, otherwise the reason kind, otherwise the plain status (e.g. "On vacation").
+    /// </summary>
+    private static string AbsenteeSummaryKey(AbsenteeRow a)
+    {
+        if (!string.IsNullOrEmpty(a.ReasonCategory) && a.ReasonCategory != "—")
+        {
+            return $"{a.ReasonKind} · {a.ReasonCategory}";
+        }
+
+        if (!string.IsNullOrEmpty(a.ReasonKind) && a.ReasonKind != "—")
+        {
+            return a.ReasonKind;
+        }
+
+        return a.StatusLabel;
     }
 
     /// <summary>Truncates text with an ellipsis so it fits within the given width for the font.</summary>
