@@ -4,7 +4,7 @@
 @using ManpowerAllocation.Web.Common
 @using ManpowerAllocation.Web.Security
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
-@inject IAnalyticsService Analytics
+@inject IAnalyticsService AnalyticsService
 
 <PageTitle>Analytics — Manpower Allocation</PageTitle>
 
@@ -46,6 +46,8 @@
             </label>
         }
         <FluentButton Appearance="Appearance.Accent" @onclick="LoadAsync" Disabled="_busy">Run report</FluentButton>
+        <a class="export-link" href="@ExportUrl("Excel")" target="_blank" rel="noopener">Export Excel</a>
+        <a class="export-link" href="@ExportUrl("Pdf")" target="_blank" rel="noopener">Export PDF</a>
     </div>
 </div>
 
@@ -97,7 +99,7 @@ else
     {
         try
         {
-            _employees = await Analytics.GetEmployeeOptionsAsync();
+            _employees = await AnalyticsService.GetEmployeeOptionsAsync();
         }
         catch (Exception ex)
         {
@@ -122,16 +124,16 @@ else
             switch (_report)
             {
                 case ReportKind.Overall:
-                    _overall = await Analytics.GetOverallTrendAsync(_from, _to);
+                    _overall = await AnalyticsService.GetOverallTrendAsync(_from, _to);
                     break;
                 case ReportKind.Departments:
-                    _departments = await Analytics.GetDepartmentTrendAsync(_from, _to, _division);
+                    _departments = await AnalyticsService.GetDepartmentTrendAsync(_from, _to, _division);
                     break;
                 case ReportKind.Absentees:
-                    _absentees = await Analytics.GetAbsenteeAnalyticsAsync(_from, _to, _division);
+                    _absentees = await AnalyticsService.GetAbsenteeAnalyticsAsync(_from, _to, _division);
                     break;
                 case ReportKind.Employee:
-                    _employee = _employeeId > 0 ? await Analytics.GetEmployeeHistoryAsync(_employeeId, _from, _to) : null;
+                    _employee = _employeeId > 0 ? await AnalyticsService.GetEmployeeHistoryAsync(_employeeId, _from, _to) : null;
                     break;
             }
         }
@@ -300,4 +302,19 @@ else
         $"<div class=\"kpi-tile\"><div class=\"kpi-value\">{System.Net.WebUtility.HtmlEncode(value)}</div><div class=\"kpi-label\">{System.Net.WebUtility.HtmlEncode(label)}</div></div>";
 
     private static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString();
+
+    /// <summary>Builds the export URL for the current report and filters.</summary>
+    private string ExportUrl(string format)
+    {
+        var q = $"/api/analytics/export?report={_report}&format={format}&from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}";
+        if ((_report is ReportKind.Departments or ReportKind.Absentees) && !string.IsNullOrEmpty(_divisionKey))
+        {
+            q += $"&division={_divisionKey}";
+        }
+        if (_report == ReportKind.Employee && _employeeId > 0)
+        {
+            q += $"&employeeId={_employeeId}";
+        }
+        return q;
+    }
 }

@@ -33,5 +33,15 @@ public static class AnalyticsEndpoints
 
         analytics.MapGet("/employees", async (IAnalyticsService service, CancellationToken ct) =>
             Results.Ok(await service.GetEmployeeOptionsAsync(ct)));
+
+        // File export: ?report=Overall|Departments|Absentees|Employee & format=Excel|Pdf & from & to
+        // (& division & employeeId as applicable).
+        analytics.MapGet("/export", async (
+            AnalyticsReport report, AnalyticsExportFormat format, DateTime from, DateTime to,
+            Division? division, int? employeeId, IAnalyticsExportService service, CancellationToken ct) =>
+        {
+            var file = await service.ExportAsync(report, format, from, to, division, employeeId, ct);
+            return Results.File(file.Content, file.ContentType, file.FileName);
+        });
     }
 }
