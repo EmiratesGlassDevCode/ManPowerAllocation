@@ -55,11 +55,13 @@ public sealed class AbsenceService : IAbsenceService
 
         var reasonEmployeeIds = reasonByEmployee.Keys.ToList();
 
-        // Show everyone currently marked Absent, plus anyone on an active (e.g. Informed) reason even
-        // if the sync has not yet flipped their status.
+        // Show everyone currently marked Absent or On vacation (i.e. not present), plus anyone on an
+        // active (e.g. Informed) reason even if the sync has not yet flipped their status.
         var employeesQuery = _dbContext.Employees
             .AsNoTracking()
-            .Where(e => e.Status == AttendanceStatus.Absent || reasonEmployeeIds.Contains(e.Id));
+            .Where(e => e.Status == AttendanceStatus.Absent
+                || e.Status == AttendanceStatus.OnVacation
+                || reasonEmployeeIds.Contains(e.Id));
 
         if (division is { } d)
         {

@@ -52,6 +52,20 @@ public sealed class AbsenceServiceTests
     }
 
     [Fact]
+    public async Task Absentees_list_includes_on_vacation_employees()
+    {
+        using var db = TestSupport.NewContext();
+        await SeedAsync(db);
+        db.Employees.Add(TestSupport.Emp(303, "B303", ShiftType.Day, AttendanceStatus.OnVacation, deptId: 1));
+        await db.SaveChangesAsync();
+        var svc = NewService(db, Simple(UserRole.User));
+
+        var list = await svc.GetAbsenteesAsync(null);
+
+        Assert.Contains(list, i => i.EmployeeId == 303 && i.Status == AttendanceStatus.OnVacation);
+    }
+
+    [Fact]
     public async Task Head_can_set_informed_reason_in_own_department()
     {
         using var db = TestSupport.NewContext();
