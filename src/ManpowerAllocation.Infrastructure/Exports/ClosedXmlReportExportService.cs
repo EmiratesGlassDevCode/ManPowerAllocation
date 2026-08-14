@@ -242,11 +242,13 @@ public sealed class ClosedXmlReportExportService : IReportExportService
                 d.Absent, d.OnVacation, d.SupplyPresent, d.Variance, d.Status))
             .ToList();
 
+        var absentees = await BuildAbsenteeRowsAsync(snapshot, cancellationToken);
+
         var model = new PdfDailyReport.Model(
             snapshot.OperationalDate, snapshot.Shift.ToString(), snapshot.CapturedAtUtc,
             snapshot.Required, snapshot.OnRoll, snapshot.Present, snapshot.Absent, snapshot.OnVacation,
             snapshot.SupplyPresent, snapshot.TotalPresent, snapshot.Variance, snapshot.ShortageDepartmentCount,
-            divisions, deptRows);
+            divisions, deptRows, absentees);
 
         var pdf = PdfDailyReport.Render(LoadLogo(), model);
         return new ExportFile($"daily_report_{snapshot.OperationalDate:yyyyMMdd}_{snapshot.Shift}.pdf", "application/pdf", pdf);
@@ -327,6 +329,49 @@ public sealed class ClosedXmlReportExportService : IReportExportService
             row++;
         }
 
+        // Absentees & reasons section below the department table.
+        var absentees = await BuildAbsenteeRowsAsync(snapshot, cancellationToken);
+        row += 2;
+        var absTitle = ws.Cell(row, 1);
+        absTitle.Value = "Absentees & Reasons";
+        absTitle.Style.Font.Bold = true;
+        absTitle.Style.Font.FontColor = XLColor.FromHtml("#12446B");
+        ws.Range(row, 1, row, 6).Merge();
+        row++;
+
+        var absHeaders = new[] { "Employee", "Badge", "Division", "Department", "Status", "Reason", "Category", "Detail" };
+        for (var i = 0; i < absHeaders.Length; i++)
+        {
+            var cell = ws.Cell(row, i + 1);
+            cell.Value = absHeaders[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("#12446B");
+        }
+        row++;
+
+        if (absentees.Count == 0)
+        {
+            ws.Cell(row, 1).Value = "No absentees recorded for this shift.";
+            ws.Range(row, 1, row, 8).Merge();
+            row++;
+        }
+        else
+        {
+            foreach (var a in absentees)
+            {
+                ws.Cell(row, 1).Value = a.Name;
+                ws.Cell(row, 2).Value = a.Badge ?? string.Empty;
+                ws.Cell(row, 3).Value = a.Division;
+                ws.Cell(row, 4).Value = a.Department;
+                ws.Cell(row, 5).Value = a.StatusLabel;
+                ws.Cell(row, 6).Value = a.ReasonKind;
+                ws.Cell(row, 7).Value = a.ReasonCategory;
+                ws.Cell(row, 8).Value = a.Detail;
+                row++;
+            }
+        }
+
         ws.Columns().AdjustToContents(1, 60);
         return ToFile(wb, $"daily_report_{snapshot.OperationalDate:yyyyMMdd}_{snapshot.Shift}");
     }
@@ -337,9 +382,83 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         var snapshot = await _dbContext.AllocationSnapshots
             .AsNoTracking()
             .Include(s => s.Departments)
+            .Include(s => s.Employees)
             .FirstOrDefaultAsync(s => s.Id == snapshotId, cancellationToken);
 
         return snapshot ?? throw new Application.Common.NotFoundException("Daily report", snapshotId);
+    }
+
+    /// <summary>
+    /// Builds the absentees section for a captured snapshot: every employee who was Absent or On
+    /// vacation at capture time, with the reason recorded for the snapshot's operational date (if any).
+    /// </summary>
+    private async Task<List<PdfDailyReport.AbsenteeRow>> BuildAbsenteeRowsAsync(AllocationSnapshot snapshot, CancellationToken cancellationToken)
+    {
+        var absentEmployees = snapshot.Employees
+            .Where(e => e.Status is AttendanceStatus.Absent or AttendanceStatus.OnVacation)
+            .ToList();
+
+        if (absentEmployees.Count == 0)
+        {
+            return new List<PdfDailyReport.AbsenteeRow>();
+        }
+
+        var opDate = DateOnly.FromDateTime(snapshot.OperationalDate);
+        var employeeIds = absentEmployees.Select(e => e.EmployeeId).Distinct().ToList();
+
+        // Reason records active on the snapshot's operational date, most-recent-per-employee.
+        var reasons = await _dbContext.EmployeeAbsences
+            .AsNoTracking()
+            .Where(a => employeeIds.Contains(a.EmployeeId)
+                && a.FromDate <= opDate && (a.ToDate == null || opDate <= a.ToDate))
+            .Select(a => new
+            {
+                a.EmployeeId,
+                a.Kind,
+                CategoryName = a.Category!.Name,
+                a.FromDate,
+                a.ToDate,
+                a.Comment,
+                a.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var reasonByEmployee = reasons
+            .GroupBy(r => r.EmployeeId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CreatedAtUtc).First());
+
+        return absentEmployees
+            .OrderBy(e => e.Division)
+            .ThenBy(e => e.DepartmentName)
+            .ThenBy(e => e.Name)
+            .Select(e =>
+            {
+                var statusLabel = e.Status == AttendanceStatus.OnVacation ? "On vacation" : "Absent";
+                if (reasonByEmployee.TryGetValue(e.EmployeeId, out var r))
+                {
+                    var kind = r.Kind == Domain.Enums.AbsenceKind.Informed ? "Informed" : "Not Informed";
+                    string detail;
+                    if (r.Kind == Domain.Enums.AbsenceKind.Informed)
+                    {
+                        var to = r.ToDate?.ToString("dd MMM") ?? "—";
+                        detail = $"{r.FromDate:dd MMM} – {to}";
+                        if (!string.IsNullOrWhiteSpace(r.Comment)) { detail += $" · {r.Comment}"; }
+                    }
+                    else
+                    {
+                        detail = string.IsNullOrWhiteSpace(r.Comment) ? "—" : r.Comment!;
+                    }
+
+                    return new PdfDailyReport.AbsenteeRow(
+                        e.Name, e.BadgeNumber, DivisionLabel(e.Division), e.DepartmentName, statusLabel, kind, r.CategoryName, detail);
+                }
+
+                // No recorded reason: for a vacation this is self-explanatory; otherwise it's unexplained.
+                var fallbackKind = e.Status == AttendanceStatus.OnVacation ? "—" : "Not recorded";
+                return new PdfDailyReport.AbsenteeRow(
+                    e.Name, e.BadgeNumber, DivisionLabel(e.Division), e.DepartmentName, statusLabel, fallbackKind, "—", "—");
+            })
+            .ToList();
     }
 
     /// <summary>Reads the embedded Emirates Glass logo bytes (empty if the resource is missing).</summary>

@@ -37,6 +37,11 @@ internal static class PdfDailyReport
     /// <summary>A division rollup for the fill chart.</summary>
     internal sealed record DivisionRow(string Division, int Required, int Present);
 
+    /// <summary>An absent (or on-vacation) employee and the reason recorded for the report date.</summary>
+    internal sealed record AbsenteeRow(
+        string Name, string? Badge, string Division, string Department,
+        string StatusLabel, string ReasonKind, string ReasonCategory, string Detail);
+
     /// <summary>Everything the report needs for one captured (date, shift) snapshot.</summary>
     internal sealed record Model(
         DateTime OperationalDate,
@@ -52,7 +57,8 @@ internal static class PdfDailyReport
         int Variance,
         int ShortageDepartments,
         IReadOnlyList<DivisionRow> Divisions,
-        IReadOnlyList<DeptRow> Departments);
+        IReadOnlyList<DeptRow> Departments,
+        IReadOnlyList<AbsenteeRow> Absentees);
 
     public static byte[] Render(byte[] logo, Model m)
     {
@@ -187,6 +193,96 @@ internal static class PdfDailyReport
             }
             gfx.DrawLine(new XPen(Line, 0.5), Margin, y + rowH, Margin + contentW, y + rowH);
             y += rowH;
+        }
+
+        // ── Absentees & reasons (paginates) ───────────────────────────────────
+        y += 18;
+        if (y > h - Margin - 80)
+        {
+            gfx.Dispose();
+            page = doc.AddPage();
+            page.Size = PageSize.A4;
+            gfx = XGraphics.FromPdfPage(page);
+            y = Margin;
+        }
+
+        gfx.DrawString("ABSENTEES & REASONS", Bold(11), new XSolidBrush(Navy),
+            new XRect(Margin, y, contentW, 14), XStringFormats.TopLeft);
+        y += 20;
+
+        double[] aCols = { 138, 96, 58, 118, 0 };
+        aCols[4] = contentW - (aCols[0] + aCols[1] + aCols[2] + aCols[3]);
+        string[] aHeads = { "Employee", "Department", "Status", "Reason", "Detail" };
+
+        void AbsHeader(ref double ty)
+        {
+            gfx.DrawRoundedRectangle(new XSolidBrush(Navy), Margin, ty, contentW, 20, 4, 4);
+            var hx = Margin;
+            for (var c = 0; c < aHeads.Length; c++)
+            {
+                gfx.DrawString(aHeads[c], Bold(8), new XSolidBrush(White),
+                    new XRect(hx + 6, ty, aCols[c] - 8, 20), XStringFormats.CenterLeft);
+                hx += aCols[c];
+            }
+            ty += 20;
+        }
+
+        if (m.Absentees.Count == 0)
+        {
+            gfx.DrawString("No absentees recorded for this shift.", Regular(9), new XSolidBrush(Muted),
+                new XRect(Margin, y, contentW, 14), XStringFormats.TopLeft);
+            y += 16;
+        }
+        else
+        {
+            AbsHeader(ref y);
+            var altA = false;
+            foreach (var a in m.Absentees)
+            {
+                if (y > h - Margin - 26)
+                {
+                    gfx.Dispose();
+                    page = doc.AddPage();
+                    page.Size = PageSize.A4;
+                    gfx = XGraphics.FromPdfPage(page);
+                    y = Margin;
+                    gfx.DrawString($"ABSENTEES & REASONS (cont.) · {m.OperationalDate:dd MMM yyyy} {m.Shift}",
+                        Bold(11), new XSolidBrush(Navy), new XRect(Margin, y, contentW, 14), XStringFormats.TopLeft);
+                    y += 20;
+                    AbsHeader(ref y);
+                }
+
+                if (altA)
+                {
+                    gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(0xFA, 0xFB, 0xFD)), Margin, y, contentW, rowH);
+                }
+                altA = !altA;
+
+                var employee = string.IsNullOrWhiteSpace(a.Badge) ? a.Name : $"{a.Name}  ·  {a.Badge}";
+                var reason = a.ReasonCategory == "—" ? a.ReasonKind : $"{a.ReasonKind} · {a.ReasonCategory}";
+                var reasonColor = a.ReasonKind == "Informed" ? Ok
+                    : a.ReasonKind is "Not Informed" or "Not recorded" ? Danger
+                    : Muted;
+
+                var acells = new (string Text, XColor Color)[]
+                {
+                    (employee, Ink),
+                    (a.Department, Muted),
+                    (a.StatusLabel, a.StatusLabel == "On vacation" ? Amber : Danger),
+                    (reason, reasonColor),
+                    (a.Detail, Muted),
+                };
+                var ax = Margin;
+                for (var c = 0; c < acells.Length; c++)
+                {
+                    var font = c == 0 ? Bold(8.5) : Regular(8.5);
+                    gfx.DrawString(Clip(gfx, acells[c].Text, aCols[c] - 8, font), font, new XSolidBrush(acells[c].Color),
+                        new XRect(ax + 6, y, aCols[c] - 8, rowH), XStringFormats.CenterLeft);
+                    ax += aCols[c];
+                }
+                gfx.DrawLine(new XPen(Line, 0.5), Margin, y + rowH, Margin + contentW, y + rowH);
+                y += rowH;
+            }
         }
 
         // Dispose the live page graphics before the footer pass — PDFsharp permits only one
@@ -401,6 +497,24 @@ internal static class PdfDailyReport
             fg.DrawString($"Page {p + 1} of {doc.PageCount}", Regular(7.5), new XSolidBrush(Muted),
                 new XRect(Margin, fh - 26, fw - 2 * Margin, 12), XStringFormats.CenterRight);
         }
+    }
+
+    /// <summary>Truncates text with an ellipsis so it fits within the given width for the font.</summary>
+    private static string Clip(XGraphics gfx, string text, double maxWidth, XFont font)
+    {
+        text ??= string.Empty;
+        if (maxWidth <= 0 || gfx.MeasureString(text, font).Width <= maxWidth)
+        {
+            return text;
+        }
+
+        var s = text;
+        while (s.Length > 1 && gfx.MeasureString(s + "…", font).Width > maxWidth)
+        {
+            s = s[..^1];
+        }
+
+        return s + "…";
     }
 
     private static XFont Bold(double size) => EmbeddedPdfFonts.Font(size, XFontStyleEx.Bold);
