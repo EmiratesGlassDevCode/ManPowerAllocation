@@ -22,6 +22,12 @@ public interface IApplicationDbContext
     /// <summary>Department-head scope: which departments each head manages.</summary>
     DbSet<DepartmentManager> DepartmentManagers { get; }
 
+    /// <summary>Admin-managed sub-categories of absence reasons (Informed / Not Informed).</summary>
+    DbSet<AbsenceReasonCategory> AbsenceReasonCategories { get; }
+
+    /// <summary>Recorded absence reasons per employee.</summary>
+    DbSet<EmployeeAbsence> EmployeeAbsences { get; }
+
     /// <summary>The immutable audit trail.</summary>
     DbSet<AuditLogEntry> AuditLogEntries { get; }
 

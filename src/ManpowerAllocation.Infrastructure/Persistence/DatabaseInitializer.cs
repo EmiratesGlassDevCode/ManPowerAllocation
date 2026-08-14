@@ -65,6 +65,38 @@ public sealed class DatabaseInitializer
             _logger.LogInformation("Seeded the default shift settings row.");
         }
 
+        var absenceCategoriesExist = await _dbContext.AbsenceReasonCategories.AnyAsync(cancellationToken);
+        if (!absenceCategoriesExist)
+        {
+            // Seed a sensible starter set of absence sub-categories under each fixed kind. Admins
+            // can rename, re-order, add to or deactivate these from the Absence Categories screen.
+            var now = DateTime.UtcNow;
+            var seeds = new (Domain.Enums.AbsenceKind Kind, string Name, int Sequence)[]
+            {
+                (Domain.Enums.AbsenceKind.Informed, "Annual Leave", 1),
+                (Domain.Enums.AbsenceKind.Informed, "Sick Leave", 2),
+                (Domain.Enums.AbsenceKind.Informed, "Emergency Leave", 3),
+                (Domain.Enums.AbsenceKind.Informed, "Business Travel", 4),
+                (Domain.Enums.AbsenceKind.NotInformed, "No Call / No Show", 1),
+                (Domain.Enums.AbsenceKind.NotInformed, "Unreachable", 2)
+            };
+
+            foreach (var (kind, name, sequence) in seeds)
+            {
+                _dbContext.AbsenceReasonCategories.Add(new AbsenceReasonCategory
+                {
+                    Kind = kind,
+                    Name = name,
+                    Sequence = sequence,
+                    IsActive = true,
+                    CreatedAtUtc = now
+                });
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Seeded the default absence reason categories.");
+        }
+
         var emailSettingsExist = await _dbContext.EmailSettings.AnyAsync(cancellationToken);
         if (!emailSettingsExist)
         {

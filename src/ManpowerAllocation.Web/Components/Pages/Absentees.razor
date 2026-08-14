@@ -1,0 +1,323 @@
+@page "/absentees"
+@using ManpowerAllocation.Application.Absences
+@using ManpowerAllocation.Application.DepartmentHeads
+@using ManpowerAllocation.Domain.Enums
+@using ManpowerAllocation.Web.Common
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
+@inject IAbsenceService AbsenceService
+@inject IAbsenceCategoryService CategoryService
+@inject IDepartmentHeadService HeadService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Absentees — Manpower Allocation</PageTitle>
+
+<h1>Absentees</h1>
+<p class="hint">
+    Employees currently marked absent by the attendance sync, plus anyone on planned (Informed) leave
+    covering today. Record why each person is absent: choose <strong>Informed</strong> with a date range
+    for a communicated absence, or <strong>Not Informed</strong> with a comment. An Informed reason
+    automatically drops off this list once its period ends.
+</p>
+
+<div class="pill-row" style="margin-bottom:12px">
+    <button type="button" class="pill @(_division is null ? "active" : "")" @onclick="() => FilterAsync(null)">All</button>
+    <button type="button" class="pill @(_division == Division.Egl ? "active" : "")" @onclick="() => FilterAsync(Division.Egl)">EGL</button>
+    <button type="button" class="pill @(_division == Division.FunctionalSupport ? "active" : "")" @onclick="() => FilterAsync(Division.FunctionalSupport)">Functional Support</button>
+    <button type="button" class="pill @(_division == Division.Brg ? "active" : "")" @onclick="() => FilterAsync(Division.Brg)">BRG</button>
+</div>
+
+@if (!_loaded)
+{
+    <p><em>Loading…</em></p>
+}
+else if (_items.Count == 0)
+{
+    <div class="data-card"><div style="padding:16px"><em>No absentees to show.</em></div></div>
+}
+else
+{
+    <div class="data-card">
+        <div class="grid-scroll" style="padding:0">
+            <table class="grid">
+                <thead>
+                    <tr>
+                        <th>Employee</th><th>Department</th><th>Shift</th><th>Status</th><th>Reason</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _items)
+                    {
+                        <tr>
+                            <td class="strong">
+                                @TextCase.Title(item.Name)
+                                @if (!string.IsNullOrWhiteSpace(item.BadgeNumber))
+                                {
+                                    <span class="emp-id" style="opacity:.6;font-weight:400;margin-left:4px">· @item.BadgeNumber</span>
+                                }
+                                @if (item.IsSupply) { <span class="badge b-vac" style="margin-left:6px">Supply</span> }
+                            </td>
+                            <td>@TextCase.Title(item.DepartmentName)</td>
+                            <td>@item.Shift</td>
+                            <td>@StatusLabel(item.Status)</td>
+                            <td>@ReasonMarkup(item.Reason)</td>
+                            <td style="white-space:nowrap">
+                                @if (CanEditDept(item.DepartmentId))
+                                {
+                                    <FluentButton Appearance="Appearance.Lightweight" @onclick="() => BeginEdit(item)">
+                                        @(item.Reason is null ? "Set reason" : "Edit")
+                                    </FluentButton>
+                                    @if (item.Reason is not null)
+                                    {
+                                        <FluentButton Appearance="Appearance.Lightweight" @onclick="() => ClearAsync(item)" Disabled="_busy">Clear</FluentButton>
+                                    }
+                                }
+                            </td>
+                        </tr>
+
+                        @if (_editingEmployeeId == item.EmployeeId)
+                        {
+                            <tr class="edit-row">
+                                <td colspan="6">
+                                    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:8px 4px">
+                                        <label style="display:flex; flex-direction:column; gap:4px">Reason
+                                            <select @bind="_editCategoryId" style="min-width:220px">
+                                                <option value="0">— choose —</option>
+                                                <optgroup label="Informed">
+                                                    @foreach (var c in _categories.Where(c => c.Kind == AbsenceKind.Informed))
+                                                    {
+                                                        <option value="@c.Id">@c.Name</option>
+                                                    }
+                                                </optgroup>
+                                                <optgroup label="Not Informed">
+                                                    @foreach (var c in _categories.Where(c => c.Kind == AbsenceKind.NotInformed))
+                                                    {
+                                                        <option value="@c.Id">@c.Name</option>
+                                                    }
+                                                </optgroup>
+                                            </select>
+                                        </label>
+
+                                        @if (SelectedKind == AbsenceKind.Informed)
+                                        {
+                                            <label style="display:flex; flex-direction:column; gap:4px">From
+                                                <input type="date" @bind="_editFrom" />
+                                            </label>
+                                            <label style="display:flex; flex-direction:column; gap:4px">To
+                                                <input type="date" @bind="_editTo" />
+                                            </label>
+                                        }
+
+                                        <label style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:220px">Comment
+                                            <input type="text" @bind="_editComment" placeholder="@(SelectedKind == AbsenceKind.NotInformed ? "Reason / note" : "Optional note")" />
+                                        </label>
+
+                                        <FluentButton Appearance="Appearance.Accent" @onclick="() => SaveAsync(item)" Disabled="_busy">Save</FluentButton>
+                                        <FluentButton Appearance="Appearance.Neutral" @onclick="CancelEdit" Disabled="_busy">Cancel</FluentButton>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(_editErr)) { <p class="message error" style="margin:4px">@_editErr</p> }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_msg)) { <p class="message ok">@_msg</p> }
+@if (!string.IsNullOrEmpty(_err)) { <p class="message error">@_err</p> }
+
+@code {
+    private bool _loaded;
+    private bool _busy;
+    private bool _canEdit;   // User+ globally
+    private Division? _division;
+
+    private IReadOnlyList<AbsenceListItemDto> _items = Array.Empty<AbsenceListItemDto>();
+    private IReadOnlyList<AbsenceCategoryDto> _categories = Array.Empty<AbsenceCategoryDto>();
+    private readonly HashSet<int> _managedDeptIds = new();
+
+    private int? _editingEmployeeId;
+    private int _editCategoryId;
+    private DateOnly _editFrom = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly _editTo = DateOnly.FromDateTime(DateTime.Now);
+    private string _editComment = string.Empty;
+    private string? _editErr;
+
+    private string? _msg;
+    private string? _err;
+
+    private AbsenceKind? SelectedKind =>
+        _categories.FirstOrDefault(c => c.Id == _editCategoryId)?.Kind;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            _canEdit = HasRole(authState.User, UserRole.User);
+            var isAdmin = HasRole(authState.User, UserRole.Admin);
+
+            _managedDeptIds.Clear();
+            // Only a department head needs the managed-department list; Users/Admins can edit anywhere.
+            if (!_canEdit && !isAdmin)
+            {
+                foreach (var id in await HeadService.GetManagedDepartmentIdsAsync())
+                {
+                    _managedDeptIds.Add(id);
+                }
+            }
+
+            _categories = await CategoryService.ListAsync(includeInactive: false);
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _items = await AbsenceService.GetAbsenteesAsync(_division);
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+
+    private async Task FilterAsync(Division? division)
+    {
+        _division = division;
+        CancelEdit();
+        await LoadAsync();
+    }
+
+    private void BeginEdit(AbsenceListItemDto item)
+    {
+        _editErr = _msg = _err = null;
+        _editingEmployeeId = item.EmployeeId;
+        if (item.Reason is { } r)
+        {
+            _editCategoryId = r.CategoryId;
+            _editFrom = r.FromDate;
+            _editTo = r.ToDate ?? r.FromDate;
+            _editComment = r.Comment ?? string.Empty;
+        }
+        else
+        {
+            _editCategoryId = 0;
+            _editFrom = _editTo = DateOnly.FromDateTime(DateTime.Now);
+            _editComment = string.Empty;
+        }
+    }
+
+    private void CancelEdit()
+    {
+        _editingEmployeeId = null;
+        _editErr = null;
+    }
+
+    private async Task SaveAsync(AbsenceListItemDto item)
+    {
+        _editErr = null;
+        if (_editCategoryId == 0) { _editErr = "Choose a reason."; return; }
+
+        _busy = true;
+        try
+        {
+            var informed = SelectedKind == AbsenceKind.Informed;
+            await AbsenceService.SetReasonAsync(new SetAbsenceReasonRequest
+            {
+                EmployeeId = item.EmployeeId,
+                CategoryId = _editCategoryId,
+                FromDate = informed ? _editFrom : null,
+                ToDate = informed ? _editTo : null,
+                Comment = string.IsNullOrWhiteSpace(_editComment) ? null : _editComment
+            });
+            _msg = $"Reason recorded for {item.Name}.";
+            CancelEdit();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _editErr = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ClearAsync(AbsenceListItemDto item)
+    {
+        _msg = _err = null;
+        _busy = true;
+        try
+        {
+            await AbsenceService.ClearReasonAsync(item.EmployeeId);
+            _msg = $"Reason cleared for {item.Name}.";
+            if (_editingEmployeeId == item.EmployeeId) { CancelEdit(); }
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private MarkupString ReasonMarkup(AbsenceReasonView? reason)
+    {
+        if (reason is null)
+        {
+            return (MarkupString)"<span class=\"muted\">—</span>";
+        }
+
+        var kind = reason.Kind == AbsenceKind.Informed ? "Informed" : "Not Informed";
+        var cls = reason.Kind == AbsenceKind.Informed ? "abs-informed" : "abs-not-informed";
+        var text = $"<span class=\"badge {cls}\">{kind}</span> {System.Net.WebUtility.HtmlEncode(reason.CategoryName)}";
+
+        if (reason.Kind == AbsenceKind.Informed)
+        {
+            var to = reason.ToDate?.ToString("dd MMM") ?? "—";
+            text += $" <span class=\"muted\">({reason.FromDate:dd MMM} – {to})</span>";
+        }
+
+        if (!string.IsNullOrWhiteSpace(reason.Comment))
+        {
+            text += $" <span class=\"muted\">· {System.Net.WebUtility.HtmlEncode(reason.Comment)}</span>";
+        }
+
+        return (MarkupString)text;
+    }
+
+    private static string StatusLabel(AttendanceStatus status) => status switch
+    {
+        AttendanceStatus.Present => "Present",
+        AttendanceStatus.Absent => "Absent",
+        AttendanceStatus.OnVacation => "On vacation",
+        _ => status.ToString()
+    };
+
+    private bool CanEditDept(int departmentId) => _canEdit || _managedDeptIds.Contains(departmentId);
+
+    private static bool HasRole(System.Security.Claims.ClaimsPrincipal user, UserRole minimum)
+    {
+        var raw = user.FindFirst(AppClaimTypes.AppRole)?.Value;
+        return Enum.TryParse<UserRole>(raw, out var role) && RoleRank.RankOf(role) >= RoleRank.RankOf(minimum);
+    }
+}

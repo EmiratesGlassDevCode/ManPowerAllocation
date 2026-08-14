@@ -1,0 +1,157 @@
+@page "/admin/absence-categories"
+@using ManpowerAllocation.Application.Absences
+@using ManpowerAllocation.Domain.Enums
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IAbsenceCategoryService CategoryService
+
+<PageTitle>Absence Categories — Manpower Allocation</PageTitle>
+
+<h1>Absence Categories</h1>
+<p class="hint">
+    Manage the reasons that appear in the drop-down on the Absentees page. There are two fixed
+    top-level kinds — <strong>Informed</strong> (a planned absence with a From/To date range) and
+    <strong>Not Informed</strong> (a comment only) — and you define the sub-categories under each.
+    Deactivating a category hides it from new absences without affecting existing records.
+</p>
+
+@if (!_loaded)
+{
+    <p><em>Loading…</em></p>
+}
+else
+{
+    @foreach (var kind in new[] { AbsenceKind.Informed, AbsenceKind.NotInformed })
+    {
+        var rows = _categories.Where(c => c.Kind == kind).OrderBy(c => c.Sequence).ThenBy(c => c.Name).ToList();
+        <div class="data-card" style="margin-bottom:16px">
+            <div class="kv-card-head"><span class="title">@KindLabel(kind)</span></div>
+            <div class="grid-scroll" style="padding:16px">
+                <table class="grid">
+                    <thead><tr><th>Name</th><th style="width:110px">Order</th><th style="width:110px">Active</th><th style="width:90px"></th></tr></thead>
+                    <tbody>
+                        @foreach (var c in rows)
+                        {
+                            <tr>
+                                <td><input type="text" @bind="c.Name" style="width:220px" /></td>
+                                <td><input type="number" min="0" max="999" @bind="c.Sequence" style="width:80px" /></td>
+                                <td><input type="checkbox" @bind="c.IsActive" /></td>
+                                <td><FluentButton Appearance="Appearance.Neutral" @onclick="() => SaveAsync(c)" Disabled="_busy">Save</FluentButton></td>
+                            </tr>
+                        }
+                        @if (rows.Count == 0)
+                        {
+                            <tr><td colspan="4"><em>No categories yet.</em></td></tr>
+                        }
+                    </tbody>
+                </table>
+                <div class="form-inline" style="margin-top:12px">
+                    <label>New @KindLabel(kind) reason
+                        <input type="text" @bind="_newName[kind]" placeholder="e.g. Annual Leave" style="width:220px" />
+                    </label>
+                    <FluentButton Appearance="Appearance.Accent" @onclick="() => AddAsync(kind)" Disabled="_busy">Add</FluentButton>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_msg)) { <p class="message ok">@_msg</p> }
+    @if (!string.IsNullOrEmpty(_err)) { <p class="message error">@_err</p> }
+}
+
+@code {
+    private bool _loaded;
+    private bool _busy;
+    private List<Row> _categories = new();
+    private readonly Dictionary<AbsenceKind, string> _newName = new()
+    {
+        [AbsenceKind.Informed] = string.Empty,
+        [AbsenceKind.NotInformed] = string.Empty
+    };
+    private string? _msg;
+    private string? _err;
+
+    /// <summary>Editable row model backing the inputs.</summary>
+    private sealed class Row
+    {
+        public int Id { get; set; }
+        public AbsenceKind Kind { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int Sequence { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var list = await CategoryService.ListAsync(includeInactive: true);
+            _categories = list.Select(c => new Row { Id = c.Id, Kind = c.Kind, Name = c.Name, Sequence = c.Sequence, IsActive = c.IsActive }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+
+    private async Task AddAsync(AbsenceKind kind)
+    {
+        _msg = _err = null;
+        _busy = true;
+        try
+        {
+            var name = _newName[kind];
+            if (string.IsNullOrWhiteSpace(name)) { _err = "Enter a name."; return; }
+            await CategoryService.CreateAsync(new CreateAbsenceCategoryRequest { Kind = kind, Name = name });
+            _newName[kind] = string.Empty;
+            _msg = "Category added.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SaveAsync(Row row)
+    {
+        _msg = _err = null;
+        _busy = true;
+        try
+        {
+            await CategoryService.UpdateAsync(row.Id, new UpdateAbsenceCategoryRequest
+            {
+                Name = row.Name,
+                Sequence = row.Sequence,
+                IsActive = row.IsActive
+            });
+            _msg = $"Saved “{row.Name}”.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string KindLabel(AbsenceKind kind) => kind switch
+    {
+        AbsenceKind.Informed => "Informed",
+        AbsenceKind.NotInformed => "Not Informed",
+        _ => kind.ToString()
+    };
+}

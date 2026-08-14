@@ -44,6 +44,24 @@ public static class AdminEndpoints
         MapShiftScheduleEndpoints(admin);
         MapEmailSettingsEndpoints(admin);
         MapDepartmentHeadEndpoints(admin);
+        MapAbsenceCategoryEndpoints(admin);
+    }
+
+    /// <summary>Maps the admin-managed absence reason category endpoints. Require Admin.</summary>
+    private static void MapAbsenceCategoryEndpoints(RouteGroupBuilder admin)
+    {
+        var categories = admin.MapGroup("/absence-categories");
+
+        categories.MapGet("/", async (Application.Absences.IAbsenceCategoryService service, CancellationToken ct) =>
+            Results.Ok(await service.ListAsync(includeInactive: true, ct)));
+
+        categories.MapPost("/", async (Application.Absences.CreateAbsenceCategoryRequest request,
+            Application.Absences.IAbsenceCategoryService service, CancellationToken ct) =>
+            Results.Ok(await service.CreateAsync(request, ct)));
+
+        categories.MapPut("/{id:int}", async (int id, Application.Absences.UpdateAbsenceCategoryRequest request,
+            Application.Absences.IAbsenceCategoryService service, CancellationToken ct) =>
+            Results.Ok(await service.UpdateAsync(id, request, ct)));
     }
 
     /// <summary>Maps the department-head appointment endpoints. Require Admin.</summary>

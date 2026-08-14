@@ -705,3 +705,9 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
 /* ── Tabular numerals everywhere a number sits in a column or changes on refresh ─── */
 .kpi-val, .stat-num, .ft-num, .metric b, .dc-val, .sync-stat b,
 .grid td.num, .data-grid .num, .nav-count { font-variant-numeric: tabular-nums; }
+
+/* ── Absentees page ─────────────────────────────────────────────────────────────────── */
+.abs-informed { background: var(--mpa-ok-bg); color: var(--mpa-ok); border-color: var(--mpa-ok-bd); }
+.abs-not-informed { background: var(--mpa-danger-bg); color: var(--mpa-danger); border-color: var(--mpa-danger-bd); }
+.muted { color: var(--mpa-fg-2); opacity: .8; }
+.edit-row > td { background: var(--mpa-brand-tint); }

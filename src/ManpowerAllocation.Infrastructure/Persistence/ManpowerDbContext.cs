@@ -30,6 +30,12 @@ public sealed class ManpowerDbContext : DbContext, IApplicationDbContext
     public DbSet<DepartmentManager> DepartmentManagers => Set<DepartmentManager>();
 
     /// <inheritdoc />
+    public DbSet<AbsenceReasonCategory> AbsenceReasonCategories => Set<AbsenceReasonCategory>();
+
+    /// <inheritdoc />
+    public DbSet<EmployeeAbsence> EmployeeAbsences => Set<EmployeeAbsence>();
+
+    /// <inheritdoc />
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
 
     /// <inheritdoc />
