@@ -133,7 +133,25 @@ public sealed class AnalyticsExportService : IAnalyticsExportService
                     a.Compliance.Select(c => new[] { c.Division, c.Department, c.Informed.ToString(), c.NotInformed.ToString(), c.InformedPct + "%" }).ToList()),
                 new("Top absentees",
                     new[] { "Employee", "Badge", "Department", "Absent days" },
-                    a.TopAbsentees.Select(t => new[] { t.Name, t.Badge ?? "—", t.Department, t.AbsentDays.ToString() }).ToList())
+                    a.TopAbsentees.Select(t => new[] { t.Name, t.Badge ?? "—", t.Department, t.AbsentDays.ToString() }).ToList()),
+                new("Reason mix",
+                    new[] { "Kind", "Category", "Records", "Share %" },
+                    a.ReasonMix.Select(r => new[] { r.Kind, r.Category, r.Records.ToString(), r.SharePct + "%" }).ToList()),
+                new("Day-of-week pattern",
+                    new[] { "Day", "Absent", "On vacation" },
+                    a.DayOfWeek.Select(d => new[] { d.Day, d.Absent.ToString(), d.OnVacation.ToString() }).ToList()),
+                new("Shift split",
+                    new[] { "Shift", "Absent", "On vacation" },
+                    a.ShiftSplit.Select(s => new[] { s.Shift, s.Absent.ToString(), s.OnVacation.ToString() }).ToList()),
+                new("Average leave duration",
+                    new[] { "Category", "Leaves", "Avg days" },
+                    a.LeaveDuration.Select(l => new[] { l.Category, l.Records.ToString(), l.AvgDays.ToString("0.0") }).ToList()),
+                new("Leave days by category",
+                    new[] { "Category", "Leaves", "Total leave-days" },
+                    a.LeaveDaysByCategory.Select(l => new[] { l.Category, l.Records.ToString(), l.TotalLeaveDays.ToString() }).ToList()),
+                new("Currently on leave",
+                    new[] { "Employee", "Badge", "Department", "Category", "From", "Returns" },
+                    a.CurrentlyOnLeave.Select(o => new[] { o.Name, o.Badge ?? "—", o.Department, o.Category, o.FromDate.ToString("dd MMM yyyy"), o.ToDate.ToString("dd MMM yyyy") }).ToList())
             });
     }
 

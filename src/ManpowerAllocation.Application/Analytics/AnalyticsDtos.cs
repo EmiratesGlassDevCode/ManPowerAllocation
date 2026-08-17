@@ -52,6 +52,24 @@ public sealed record DepartmentComplianceRow(string Division, string Department,
 /// <summary>An employee with a high count of absent days across the range.</summary>
 public sealed record TopAbsenteeRow(int EmployeeId, string Name, string? Badge, string Department, int AbsentDays);
 
+/// <summary>Share of total absence records held by one reason category.</summary>
+public sealed record ReasonMixRow(string Kind, string Category, int Records, int SharePct);
+
+/// <summary>Absence head counts for one day of the week (summed across the range).</summary>
+public sealed record DayOfWeekAbsenceRow(string Day, int Absent, int OnVacation);
+
+/// <summary>Absence head counts split by shift.</summary>
+public sealed record ShiftSplitRow(string Shift, int Absent, int OnVacation);
+
+/// <summary>Average length of Informed leaves for one category.</summary>
+public sealed record LeaveDurationRow(string Category, int Records, double AvgDays);
+
+/// <summary>An employee on Informed leave as of the reference date, with the return date.</summary>
+public sealed record OnLeaveRow(string Name, string? Badge, string Department, string Category, DateOnly FromDate, DateOnly ToDate);
+
+/// <summary>Total Informed leave-days taken in one category over the range.</summary>
+public sealed record LeaveDaysRow(string Category, int Records, int TotalLeaveDays);
+
 /// <summary>The absentee analytics result: reason and department breakdowns, trend, rate, compliance and top absentees.</summary>
 public sealed record AbsenteeAnalyticsDto(
     IReadOnlyList<AbsenceByCategoryRow> ByCategory,
@@ -63,7 +81,13 @@ public sealed record AbsenteeAnalyticsDto(
     IReadOnlyList<AbsenceTrendPoint> Trend,
     IReadOnlyList<DepartmentAbsenceRateRow> ByDepartmentRate,
     IReadOnlyList<DepartmentComplianceRow> Compliance,
-    IReadOnlyList<TopAbsenteeRow> TopAbsentees);
+    IReadOnlyList<TopAbsenteeRow> TopAbsentees,
+    IReadOnlyList<ReasonMixRow> ReasonMix,
+    IReadOnlyList<DayOfWeekAbsenceRow> DayOfWeek,
+    IReadOnlyList<ShiftSplitRow> ShiftSplit,
+    IReadOnlyList<LeaveDurationRow> LeaveDuration,
+    IReadOnlyList<OnLeaveRow> CurrentlyOnLeave,
+    IReadOnlyList<LeaveDaysRow> LeaveDaysByCategory);
 
 // ── Employee history ────────────────────────────────────────────────────────────────────
 

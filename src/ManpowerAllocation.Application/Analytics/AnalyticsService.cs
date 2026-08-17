@@ -10,12 +10,14 @@ public sealed class AnalyticsService : IAnalyticsService
 {
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUser _currentUser;
+    private readonly IFactoryClock _factoryClock;
 
     /// <summary>Initialises the service.</summary>
-    public AnalyticsService(IApplicationDbContext dbContext, ICurrentUser currentUser)
+    public AnalyticsService(IApplicationDbContext dbContext, ICurrentUser currentUser, IFactoryClock factoryClock)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
+        _factoryClock = factoryClock;
     }
 
     /// <inheritdoc />
@@ -87,7 +89,8 @@ public sealed class AnalyticsService : IAnalyticsService
             join dep in _dbContext.Departments.AsNoTracking() on e.DepartmentId equals dep.Id
             where a.FromDate <= end && (a.ToDate == null || a.ToDate >= start)
                 && (division == null || e.Division == division)
-            select new { a.EmployeeId, a.Kind, Category = a.Category!.Name, e.Division, Department = dep.Name })
+            select new { a.EmployeeId, a.Kind, Category = a.Category!.Name, e.Division, Department = dep.Name,
+                a.FromDate, a.ToDate, EmployeeName = e.Name, Badge = e.BadgeNumber })
             .ToListAsync(cancellationToken);
 
         var byCategory = rows
@@ -137,7 +140,7 @@ public sealed class AnalyticsService : IAnalyticsService
             join s in _dbContext.AllocationSnapshots.AsNoTracking() on d.SnapshotId equals s.Id
             where s.OperationalDate >= dtoStart && s.OperationalDate <= dtoEnd
                 && (division == null || d.Division == division)
-            select new { s.OperationalDate, d.DepartmentId, d.DepartmentName, d.Division, d.Absent, d.OnVacation, d.OnRoll })
+            select new { s.OperationalDate, s.Shift, d.DepartmentId, d.DepartmentName, d.Division, d.Absent, d.OnVacation, d.OnRoll })
             .ToListAsync(cancellationToken);
 
         var trend = deptFacts
@@ -179,6 +182,68 @@ public sealed class AnalyticsService : IAnalyticsService
             .Take(20)
             .ToList();
 
+        // #5 Reason mix — share of total records per reason.
+        var totalRecords = rows.Count;
+        var reasonMix = rows
+            .GroupBy(r => new { r.Kind, r.Category })
+            .Select(g => new ReasonMixRow(
+                g.Key.Kind == AbsenceKind.Informed ? "Informed" : "Not Informed",
+                g.Key.Category, g.Count(),
+                totalRecords > 0 ? (int)Math.Round(100.0 * g.Count() / totalRecords) : 0))
+            .OrderByDescending(r => r.Records).ThenBy(r => r.Category)
+            .ToList();
+
+        // #6 Day-of-week pattern — absence head counts by weekday.
+        var dow = deptFacts
+            .GroupBy(f => f.OperationalDate.DayOfWeek)
+            .ToDictionary(g => g.Key, g => (Absent: g.Sum(x => x.Absent), OnVacation: g.Sum(x => x.OnVacation)));
+        var weekOrder = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday };
+        var dayOfWeek = weekOrder
+            .Where(d => dow.ContainsKey(d))
+            .Select(d => new DayOfWeekAbsenceRow(d.ToString(), dow[d].Absent, dow[d].OnVacation))
+            .ToList();
+
+        // #7 Day vs Night shift split.
+        var shiftSplit = deptFacts
+            .GroupBy(f => f.Shift)
+            .Select(g => new ShiftSplitRow(g.Key.ToString(), g.Sum(x => x.Absent), g.Sum(x => x.OnVacation)))
+            .OrderBy(r => r.Shift)
+            .ToList();
+
+        // Informed records with a bounded window (needed for duration / leave-days / on-leave).
+        var informedWithDates = rows
+            .Where(r => r.Kind == AbsenceKind.Informed && r.ToDate is not null)
+            .ToList();
+
+        // #8 Average leave duration by category.
+        var leaveDuration = informedWithDates
+            .GroupBy(r => r.Category)
+            .Select(g => new LeaveDurationRow(
+                g.Key, g.Count(),
+                Math.Round(g.Average(r => r.ToDate!.Value.DayNumber - r.FromDate.DayNumber + 1), 1)))
+            .OrderByDescending(r => r.AvgDays).ThenBy(r => r.Category)
+            .ToList();
+
+        // #9 Currently on leave (as of today) with return date.
+        var today = DateOnly.FromDateTime(_factoryClock.LocalNow);
+        var currentlyOnLeave = informedWithDates
+            .Where(r => r.FromDate <= today && today <= r.ToDate!.Value)
+            .Select(r => new OnLeaveRow(r.EmployeeName, r.Badge, r.Department, r.Category, r.FromDate, r.ToDate!.Value))
+            .OrderBy(r => r.ToDate).ThenBy(r => r.Name)
+            .ToList();
+
+        // #10 Total Informed leave-days taken per category within the range.
+        var leaveDaysByCategory = informedWithDates
+            .Select(r => new
+            {
+                r.Category,
+                Days = Math.Max(0, Math.Min(r.ToDate!.Value.DayNumber, end.DayNumber) - Math.Max(r.FromDate.DayNumber, start.DayNumber) + 1)
+            })
+            .GroupBy(x => x.Category)
+            .Select(g => new LeaveDaysRow(g.Key, g.Count(), g.Sum(x => x.Days)))
+            .OrderByDescending(r => r.TotalLeaveDays).ThenBy(r => r.Category)
+            .ToList();
+
         return new AbsenteeAnalyticsDto(
             byCategory,
             byDepartment,
@@ -189,7 +254,13 @@ public sealed class AnalyticsService : IAnalyticsService
             trend,
             byDepartmentRate,
             compliance,
-            topAbsentees);
+            topAbsentees,
+            reasonMix,
+            dayOfWeek,
+            shiftSplit,
+            leaveDuration,
+            currentlyOnLeave,
+            leaveDaysByCategory);
     }
 
     /// <inheritdoc />

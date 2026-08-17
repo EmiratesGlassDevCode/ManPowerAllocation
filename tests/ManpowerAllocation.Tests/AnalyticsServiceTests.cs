@@ -57,7 +57,7 @@ public sealed class AnalyticsServiceTests
     }
 
     private static AnalyticsService NewService(Infrastructure.Persistence.ManpowerDbContext db) =>
-        new(db, new FakeAnalyticsUser());
+        new(db, new FakeAnalyticsUser(), new FakeFactoryClock { LocalNow = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Unspecified) });
 
     private static readonly DateTime From = new(2026, 1, 1);
     private static readonly DateTime To = new(2026, 1, 31);

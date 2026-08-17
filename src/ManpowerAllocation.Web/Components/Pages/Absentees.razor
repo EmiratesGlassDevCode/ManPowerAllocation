@@ -45,6 +45,8 @@ else
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-ok)">@CountKind(AbsenceKind.Informed)</div><div class="kpi-label">Informed</div></div>
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-danger)">@CountKind(AbsenceKind.NotInformed)</div><div class="kpi-label">Not informed</div></div>
         <div class="kpi-tile"><div class="kpi-value">@(_items.Count(i => i.Reason is null))</div><div class="kpi-label">Uncategorized</div></div>
+        <div class="kpi-tile"><div class="kpi-value">@(_items.Select(i => i.DepartmentId).Distinct().Count())</div><div class="kpi-label">Departments affected</div></div>
+        <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-teal)">@ReturningSoon()</div><div class="kpi-label">Returning ≤ tomorrow</div></div>
     </div>
 
     <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px">
@@ -360,6 +362,14 @@ else
     private int CountStatus(AttendanceStatus status) => _items.Count(i => i.Status == status);
 
     private int CountKind(AbsenceKind kind) => _items.Count(i => i.Reason is not null && i.Reason.Kind == kind);
+
+    /// <summary>Count of Informed leaves whose return (To) date is today or tomorrow.</summary>
+    private int ReturningSoon()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var tomorrow = today.AddDays(1);
+        return _items.Count(i => i.Reason?.ToDate is { } d && d >= today && d <= tomorrow);
+    }
 
     /// <summary>Applies the status/reason quick-filter and the chosen sort to the loaded list.</summary>
     private IReadOnlyList<AbsenceListItemDto> Displayed()

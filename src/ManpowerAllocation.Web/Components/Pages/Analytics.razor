@@ -266,7 +266,55 @@ else
                         TextCase.Title(t.Department), t.AbsentDays.ToString()
                     }).ToList())));
         builder.CloseElement();
+
+        // Reason mix (share %).
+        Card(builder, ref seq, "Reason mix", BuildTable(
+            new[] { "Kind", "Category", "Records", "Share %" },
+            a.ReasonMix.Select(r => new[] { r.Kind, TextCase.Title(r.Category), r.Records.ToString(), Bar(r.SharePct) }).ToList(),
+            fillColumns: new[] { 3 }));
+
+        // Day-of-week pattern.
+        Card(builder, ref seq, "Day-of-week pattern", BuildTable(
+            new[] { "Day", "Absent", "On vacation" },
+            a.DayOfWeek.Select(d => new[] { d.Day, d.Absent.ToString(), d.OnVacation.ToString() }).ToList()));
+
+        // Day vs Night shift split.
+        Card(builder, ref seq, "Shift split", BuildTable(
+            new[] { "Shift", "Absent", "On vacation" },
+            a.ShiftSplit.Select(s => new[] { s.Shift, s.Absent.ToString(), s.OnVacation.ToString() }).ToList()));
+
+        // Average leave duration.
+        Card(builder, ref seq, "Average leave duration", BuildTable(
+            new[] { "Category", "Leaves", "Avg days" },
+            a.LeaveDuration.Select(l => new[] { TextCase.Title(l.Category), l.Records.ToString(), l.AvgDays.ToString("0.0") }).ToList()));
+
+        // Total leave-days by category.
+        Card(builder, ref seq, "Leave days by category", BuildTable(
+            new[] { "Category", "Leaves", "Total leave-days" },
+            a.LeaveDaysByCategory.Select(l => new[] { TextCase.Title(l.Category), l.Records.ToString(), l.TotalLeaveDays.ToString() }).ToList()));
+
+        // Currently on leave / return forecast.
+        Card(builder, ref seq, "Currently on leave", a.CurrentlyOnLeave.Count == 0
+            ? "<div style=\"padding:16px\"><em>No one is on Informed leave as of today.</em></div>"
+            : BuildTable(
+                new[] { "Employee", "Department", "Category", "From", "Returns" },
+                a.CurrentlyOnLeave.Select(o => new[]
+                {
+                    TextCase.Title(o.Name) + (string.IsNullOrWhiteSpace(o.Badge) ? "" : $" · {o.Badge}"),
+                    TextCase.Title(o.Department), TextCase.Title(o.Category),
+                    o.FromDate.ToString("dd MMM yyyy"), o.ToDate.ToString("dd MMM yyyy")
+                }).ToList()));
     };
+
+    /// <summary>Emits a titled data-card wrapping pre-rendered inner markup.</summary>
+    private static void Card(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, ref int seq, string title, string innerMarkup)
+    {
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddAttribute(seq++, "style", "margin-top:16px");
+        builder.AddMarkupContent(seq++, $"<div class=\"kv-card-head\"><span class=\"title\">{System.Net.WebUtility.HtmlEncode(title)}</span></div>" + innerMarkup);
+        builder.CloseElement();
+    }
 
     // ── Employee history ──────────────────────────────────────────────────────
     private RenderFragment RenderEmployee() => builder =>
