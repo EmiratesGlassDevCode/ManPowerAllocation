@@ -28,6 +28,10 @@
     <button type="button" class="pill @(_division == Division.Brg ? "active" : "")" @onclick="() => FilterAsync(Division.Brg)">BRG</button>
 </div>
 
+@{
+    var rows = Displayed();
+}
+
 @if (!_loaded)
 {
     <p><em>Loading…</em></p>
@@ -67,9 +71,6 @@ else
         </label>
     </div>
 
-    @{
-        var rows = Displayed();
-    }
     @if (rows.Count == 0)
     {
         <div class="data-card"><div style="padding:16px"><em>No absentees to show.</em></div></div>
