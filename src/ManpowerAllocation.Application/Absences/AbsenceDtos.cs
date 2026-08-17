@@ -41,7 +41,8 @@ public sealed record AbsenceReasonView(
     DateOnly FromDate,
     DateOnly? ToDate,
     string? Comment,
-    string? SetByName);
+    string? SetByName,
+    DateTime SetAtUtc);
 
 /// <summary>One row on the Absentees page: an absent (or on-leave) employee and their reason.</summary>
 public sealed record AbsenceListItemDto(

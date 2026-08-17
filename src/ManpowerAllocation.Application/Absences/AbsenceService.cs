@@ -90,7 +90,7 @@ public sealed class AbsenceService : IAbsenceService
             .Select(e => new AbsenceListItemDto(
                 e.Id, e.Name, e.BadgeNumber, e.DepartmentId, e.DepartmentName, e.Division, e.Shift, e.Status, e.IsSupply,
                 reasonByEmployee.TryGetValue(e.Id, out var r)
-                    ? new AbsenceReasonView(r.RecordId, r.CategoryId, r.CategoryName, r.Kind, r.FromDate, r.ToDate, r.Comment, r.SetByName)
+                    ? new AbsenceReasonView(r.RecordId, r.CategoryId, r.CategoryName, r.Kind, r.FromDate, r.ToDate, r.Comment, r.SetByName, r.CreatedAtUtc)
                     : null))
             .ToList();
     }

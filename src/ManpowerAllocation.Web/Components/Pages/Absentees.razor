@@ -32,12 +32,50 @@
 {
     <p><em>Loading…</em></p>
 }
-else if (_items.Count == 0)
-{
-    <div class="data-card"><div style="padding:16px"><em>No absentees to show.</em></div></div>
-}
 else
 {
+    <div class="kpi-row" style="margin-bottom:16px">
+        <div class="kpi-tile"><div class="kpi-value">@_items.Count</div><div class="kpi-label">Total away</div></div>
+        <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-danger)">@CountStatus(AttendanceStatus.Absent)</div><div class="kpi-label">Absent</div></div>
+        <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-gold)">@CountStatus(AttendanceStatus.OnVacation)</div><div class="kpi-label">On vacation</div></div>
+        <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-ok)">@CountKind(AbsenceKind.Informed)</div><div class="kpi-label">Informed</div></div>
+        <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-danger)">@CountKind(AbsenceKind.NotInformed)</div><div class="kpi-label">Not informed</div></div>
+        <div class="kpi-tile"><div class="kpi-value">@(_items.Count(i => i.Reason is null))</div><div class="kpi-label">Uncategorized</div></div>
+    </div>
+
+    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px">
+        <div class="pill-row">
+            <button type="button" class="pill @(_statusFilter == "all" ? "active" : "")" @onclick='() => _statusFilter = "all"'>All</button>
+            <button type="button" class="pill @(_statusFilter == "absent" ? "active" : "")" @onclick='() => _statusFilter = "absent"'>Absent</button>
+            <button type="button" class="pill @(_statusFilter == "vacation" ? "active" : "")" @onclick='() => _statusFilter = "vacation"'>On vacation</button>
+            <button type="button" class="pill @(_statusFilter == "informed" ? "active" : "")" @onclick='() => _statusFilter = "informed"'>Informed</button>
+            <button type="button" class="pill @(_statusFilter == "notinformed" ? "active" : "")" @onclick='() => _statusFilter = "notinformed"'>Not informed</button>
+            <button type="button" class="pill @(_statusFilter == "uncat" ? "active" : "")" @onclick='() => _statusFilter = "uncat"'>Uncategorized</button>
+        </div>
+        <label style="display:flex; align-items:center; gap:6px">Sort
+            <select @bind="_sortKey">
+                <option value="dept">Department</option>
+                <option value="division">Division</option>
+                <option value="name">Name</option>
+                <option value="badge">Employee ID</option>
+                <option value="status">Status</option>
+                <option value="reason">Reason</option>
+                <option value="return">Return date</option>
+                <option value="updated">Recently updated</option>
+            </select>
+            <button type="button" class="export-link" @onclick="() => _sortDesc = !_sortDesc" title="Toggle direction">@(_sortDesc ? "▼" : "▲")</button>
+        </label>
+    </div>
+
+    @{
+        var rows = Displayed();
+    }
+    @if (rows.Count == 0)
+    {
+        <div class="data-card"><div style="padding:16px"><em>No absentees to show.</em></div></div>
+    }
+    else
+    {
     <div class="data-card">
         <div class="grid-scroll" style="padding:0">
             <table class="grid">
@@ -47,7 +85,7 @@ else
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var item in _items)
+                    @foreach (var item in rows)
                     {
                         <tr>
                             <td class="strong">
@@ -125,6 +163,7 @@ else
             </table>
         </div>
     </div>
+    }
 }
 
 @if (!string.IsNullOrEmpty(_msg)) { <p class="message ok">@_msg</p> }
@@ -135,6 +174,9 @@ else
     private bool _busy;
     private bool _canEdit;   // User+ globally
     private Division? _division;
+    private string _statusFilter = "all";
+    private string _sortKey = "dept";
+    private bool _sortDesc;
 
     private IReadOnlyList<AbsenceListItemDto> _items = Array.Empty<AbsenceListItemDto>();
     private IReadOnlyList<AbsenceCategoryDto> _categories = Array.Empty<AbsenceCategoryDto>();
@@ -313,6 +355,40 @@ else
         AttendanceStatus.OnVacation => "On vacation",
         _ => status.ToString()
     };
+
+    private int CountStatus(AttendanceStatus status) => _items.Count(i => i.Status == status);
+
+    private int CountKind(AbsenceKind kind) => _items.Count(i => i.Reason is not null && i.Reason.Kind == kind);
+
+    /// <summary>Applies the status/reason quick-filter and the chosen sort to the loaded list.</summary>
+    private IReadOnlyList<AbsenceListItemDto> Displayed()
+    {
+        IEnumerable<AbsenceListItemDto> q = _items;
+        q = _statusFilter switch
+        {
+            "absent" => q.Where(i => i.Status == AttendanceStatus.Absent),
+            "vacation" => q.Where(i => i.Status == AttendanceStatus.OnVacation),
+            "informed" => q.Where(i => i.Reason is not null && i.Reason.Kind == AbsenceKind.Informed),
+            "notinformed" => q.Where(i => i.Reason is not null && i.Reason.Kind == AbsenceKind.NotInformed),
+            "uncat" => q.Where(i => i.Reason is null),
+            _ => q
+        };
+
+        Func<AbsenceListItemDto, object> key = _sortKey switch
+        {
+            "division" => i => i.Division,
+            "name" => i => i.Name,
+            "badge" => i => i.BadgeNumber ?? string.Empty,
+            "status" => i => (int)i.Status,
+            "reason" => i => i.Reason is null ? 99 : (int)i.Reason.Kind,
+            "return" => i => i.Reason?.ToDate?.DayNumber ?? int.MaxValue,
+            "updated" => i => i.Reason?.SetAtUtc ?? DateTime.MinValue,
+            _ => i => i.DepartmentName
+        };
+
+        var ordered = _sortDesc ? q.OrderByDescending(key) : q.OrderBy(key);
+        return ordered.ThenBy(i => i.Name).ToList();
+    }
 
     private bool CanEditDept(int departmentId) => _canEdit || _managedDeptIds.Contains(departmentId);
 
