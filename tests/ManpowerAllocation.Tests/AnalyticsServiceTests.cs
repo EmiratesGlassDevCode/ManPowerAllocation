@@ -117,6 +117,15 @@ public sealed class AnalyticsServiceTests
         Assert.Single(result.ByCategory);
         Assert.Equal("Annual Leave", result.ByCategory[0].Category);
         Assert.Single(result.ByDepartment);
+
+        // Trend has a point per captured day (2).
+        Assert.Equal(2, result.Trend.Count);
+        // D1 averaged 2 absent of 10 on-roll → 20% rate.
+        var d1Rate = result.ByDepartmentRate.Single(r => r.Department == "D1");
+        Assert.Equal(20, d1Rate.AbsenceRatePct);
+        // Employee 101 was absent on both captured days.
+        var top = result.TopAbsentees.Single(t => t.EmployeeId == 101);
+        Assert.Equal(2, top.AbsentDays);
     }
 
     [Fact]

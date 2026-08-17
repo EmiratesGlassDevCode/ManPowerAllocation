@@ -40,14 +40,30 @@ public sealed record AbsenceByCategoryRow(string Kind, string Category, int Reco
 /// <summary>Absence totals for one department over the range.</summary>
 public sealed record AbsenceByDepartmentRow(string Division, string Department, int Records, int Employees);
 
-/// <summary>The absentee analytics result: reason and department breakdowns plus totals.</summary>
+/// <summary>One day on the absence trend: absent and on-vacation head counts (summed across shifts).</summary>
+public sealed record AbsenceTrendPoint(DateTime Date, int Absent, int OnVacation);
+
+/// <summary>Absenteeism rate for one department across the range.</summary>
+public sealed record DepartmentAbsenceRateRow(string Division, string Department, double AvgAbsent, double AvgOnRoll, int AbsenceRatePct);
+
+/// <summary>Informed-vs-not-informed compliance for one department across the range.</summary>
+public sealed record DepartmentComplianceRow(string Division, string Department, int Informed, int NotInformed, int InformedPct);
+
+/// <summary>An employee with a high count of absent days across the range.</summary>
+public sealed record TopAbsenteeRow(int EmployeeId, string Name, string? Badge, string Department, int AbsentDays);
+
+/// <summary>The absentee analytics result: reason and department breakdowns, trend, rate, compliance and top absentees.</summary>
 public sealed record AbsenteeAnalyticsDto(
     IReadOnlyList<AbsenceByCategoryRow> ByCategory,
     IReadOnlyList<AbsenceByDepartmentRow> ByDepartment,
     int TotalRecords,
     int TotalEmployees,
     int InformedRecords,
-    int NotInformedRecords);
+    int NotInformedRecords,
+    IReadOnlyList<AbsenceTrendPoint> Trend,
+    IReadOnlyList<DepartmentAbsenceRateRow> ByDepartmentRate,
+    IReadOnlyList<DepartmentComplianceRow> Compliance,
+    IReadOnlyList<TopAbsenteeRow> TopAbsentees);
 
 // ── Employee history ────────────────────────────────────────────────────────────────────
 

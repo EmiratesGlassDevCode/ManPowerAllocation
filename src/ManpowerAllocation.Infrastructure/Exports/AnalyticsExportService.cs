@@ -121,7 +121,19 @@ public sealed class AnalyticsExportService : IAnalyticsExportService
                     a.ByCategory.Select(c => new[] { c.Kind, c.Category, c.Records.ToString(), c.Employees.ToString() }).ToList()),
                 new("By department",
                     new[] { "Division", "Department", "Records", "Employees" },
-                    a.ByDepartment.Select(c => new[] { c.Division, c.Department, c.Records.ToString(), c.Employees.ToString() }).ToList())
+                    a.ByDepartment.Select(c => new[] { c.Division, c.Department, c.Records.ToString(), c.Employees.ToString() }).ToList()),
+                new("Absence trend",
+                    new[] { "Date", "Absent", "On vacation" },
+                    a.Trend.Select(t => new[] { t.Date.ToString("dd MMM yyyy"), t.Absent.ToString(), t.OnVacation.ToString() }).ToList()),
+                new("Absenteeism rate",
+                    new[] { "Division", "Department", "Avg absent", "Avg on roll", "Rate %" },
+                    a.ByDepartmentRate.Select(r => new[] { r.Division, r.Department, r.AvgAbsent.ToString("0.0"), r.AvgOnRoll.ToString("0.0"), r.AbsenceRatePct + "%" }).ToList()),
+                new("Informed vs not informed",
+                    new[] { "Division", "Department", "Informed", "Not informed", "Informed %" },
+                    a.Compliance.Select(c => new[] { c.Division, c.Department, c.Informed.ToString(), c.NotInformed.ToString(), c.InformedPct + "%" }).ToList()),
+                new("Top absentees",
+                    new[] { "Employee", "Badge", "Department", "Absent days" },
+                    a.TopAbsentees.Select(t => new[] { t.Name, t.Badge ?? "—", t.Department, t.AbsentDays.ToString() }).ToList())
             });
     }
 

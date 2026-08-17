@@ -215,6 +215,57 @@ else
             new[] { "Division", "Department", "Records", "Employees" },
             a.ByDepartment.Select(c => new[] { c.Division, TextCase.Title(c.Department), c.Records.ToString(), c.Employees.ToString() }).ToList()));
         builder.CloseElement();
+
+        // Absence trend (newest first).
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddAttribute(seq++, "style", "margin-top:16px");
+        builder.AddMarkupContent(seq++, "<div class=\"kv-card-head\"><span class=\"title\">Absence trend</span></div>" + BuildTable(
+            new[] { "Date", "Absent", "On vacation" },
+            a.Trend.Select(t => new[] { t.Date.ToString("dd MMM yyyy"), t.Absent.ToString(), t.OnVacation.ToString() }).ToList()));
+        builder.CloseElement();
+
+        // Absenteeism rate by department.
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddAttribute(seq++, "style", "margin-top:16px");
+        builder.AddMarkupContent(seq++, "<div class=\"kv-card-head\"><span class=\"title\">Absenteeism rate</span></div>" + BuildTable(
+            new[] { "Division", "Department", "Avg absent", "Avg on roll", "Rate %" },
+            a.ByDepartmentRate.Select(r => new[]
+            {
+                r.Division, TextCase.Title(r.Department), r.AvgAbsent.ToString("0.0"), r.AvgOnRoll.ToString("0.0"), Bar(r.AbsenceRatePct)
+            }).ToList(),
+            fillColumns: new[] { 4 }));
+        builder.CloseElement();
+
+        // Informed vs not-informed compliance.
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddAttribute(seq++, "style", "margin-top:16px");
+        builder.AddMarkupContent(seq++, "<div class=\"kv-card-head\"><span class=\"title\">Informed vs not informed</span></div>" + BuildTable(
+            new[] { "Division", "Department", "Informed", "Not informed", "Informed %" },
+            a.Compliance.Select(c => new[]
+            {
+                c.Division, TextCase.Title(c.Department), c.Informed.ToString(), c.NotInformed.ToString(), Bar(c.InformedPct)
+            }).ToList(),
+            fillColumns: new[] { 4 }));
+        builder.CloseElement();
+
+        // Top absentees.
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", "data-card");
+        builder.AddAttribute(seq++, "style", "margin-top:16px");
+        builder.AddMarkupContent(seq++, "<div class=\"kv-card-head\"><span class=\"title\">Top absentees</span></div>" + (
+            a.TopAbsentees.Count == 0
+                ? "<div style=\"padding:16px\"><em>No absent days captured in this range.</em></div>"
+                : BuildTable(
+                    new[] { "Employee", "Department", "Absent days" },
+                    a.TopAbsentees.Select(t => new[]
+                    {
+                        TextCase.Title(t.Name) + (string.IsNullOrWhiteSpace(t.Badge) ? "" : $" · {t.Badge}"),
+                        TextCase.Title(t.Department), t.AbsentDays.ToString()
+                    }).ToList())));
+        builder.CloseElement();
     };
 
     // ── Employee history ──────────────────────────────────────────────────────

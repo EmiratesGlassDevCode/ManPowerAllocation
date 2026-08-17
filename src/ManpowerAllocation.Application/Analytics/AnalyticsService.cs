@@ -110,13 +110,86 @@ public sealed class AnalyticsService : IAnalyticsService
             .OrderByDescending(r => r.Records).ThenBy(r => r.Department)
             .ToList();
 
+        var compliance = rows
+            .GroupBy(r => new { r.Division, r.Department })
+            .Select(g =>
+            {
+                var informed = g.Count(x => x.Kind == AbsenceKind.Informed);
+                var notInformed = g.Count(x => x.Kind == AbsenceKind.NotInformed);
+                var total = informed + notInformed;
+                return new DepartmentComplianceRow(
+                    DivisionLabel(g.Key.Division), g.Key.Department, informed, notInformed,
+                    total > 0 ? (int)Math.Round(100.0 * informed / total) : 0);
+            })
+            .OrderByDescending(r => r.NotInformed).ThenBy(r => r.Department)
+            .ToList();
+
+        // Trend + absenteeism rate come from the captured department snapshots (respect the division
+        // filter via the department rows), so they reflect actual daily attendance, not just records.
+        var (dtoStart, dtoEnd) = (from.Date, to.Date);
+        if (dtoStart > dtoEnd)
+        {
+            (dtoStart, dtoEnd) = (dtoEnd, dtoStart);
+        }
+
+        var deptFacts = await (
+            from d in _dbContext.AllocationSnapshotDepartments.AsNoTracking()
+            join s in _dbContext.AllocationSnapshots.AsNoTracking() on d.SnapshotId equals s.Id
+            where s.OperationalDate >= dtoStart && s.OperationalDate <= dtoEnd
+                && (division == null || d.Division == division)
+            select new { s.OperationalDate, d.DepartmentId, d.DepartmentName, d.Division, d.Absent, d.OnVacation, d.OnRoll })
+            .ToListAsync(cancellationToken);
+
+        var trend = deptFacts
+            .GroupBy(f => f.OperationalDate)
+            .Select(g => new AbsenceTrendPoint(g.Key, g.Sum(x => x.Absent), g.Sum(x => x.OnVacation)))
+            .OrderByDescending(p => p.Date)
+            .ToList();
+
+        var byDepartmentRate = deptFacts
+            .GroupBy(f => new { f.DepartmentId, f.DepartmentName, f.Division })
+            .Select(g =>
+            {
+                var avgAbsent = g.Average(x => x.Absent);
+                var avgOnRoll = g.Average(x => x.OnRoll);
+                return new DepartmentAbsenceRateRow(
+                    DivisionLabel(g.Key.Division), g.Key.DepartmentName,
+                    Math.Round(avgAbsent, 1), Math.Round(avgOnRoll, 1),
+                    avgOnRoll > 0 ? (int)Math.Round(100.0 * avgAbsent / avgOnRoll) : 0);
+            })
+            .OrderByDescending(r => r.AbsenceRatePct).ThenBy(r => r.Department)
+            .ToList();
+
+        // Top absentees: employees with the most distinct absent days in the range.
+        var absentLines = await (
+            from se in _dbContext.AllocationSnapshotEmployees.AsNoTracking()
+            join s in _dbContext.AllocationSnapshots.AsNoTracking() on se.SnapshotId equals s.Id
+            where s.OperationalDate >= dtoStart && s.OperationalDate <= dtoEnd
+                && se.Status == AttendanceStatus.Absent
+                && (division == null || se.Division == division)
+            select new { se.EmployeeId, se.Name, se.BadgeNumber, se.DepartmentName, s.OperationalDate })
+            .ToListAsync(cancellationToken);
+
+        var topAbsentees = absentLines
+            .GroupBy(x => new { x.EmployeeId, x.Name, x.BadgeNumber, x.DepartmentName })
+            .Select(g => new TopAbsenteeRow(
+                g.Key.EmployeeId, g.Key.Name, g.Key.BadgeNumber, g.Key.DepartmentName,
+                g.Select(x => x.OperationalDate).Distinct().Count()))
+            .OrderByDescending(r => r.AbsentDays).ThenBy(r => r.Name)
+            .Take(20)
+            .ToList();
+
         return new AbsenteeAnalyticsDto(
             byCategory,
             byDepartment,
             rows.Count,
             rows.Select(r => r.EmployeeId).Distinct().Count(),
             rows.Count(r => r.Kind == AbsenceKind.Informed),
-            rows.Count(r => r.Kind == AbsenceKind.NotInformed));
+            rows.Count(r => r.Kind == AbsenceKind.NotInformed),
+            trend,
+            byDepartmentRate,
+            compliance,
+            topAbsentees);
     }
 
     /// <inheritdoc />
