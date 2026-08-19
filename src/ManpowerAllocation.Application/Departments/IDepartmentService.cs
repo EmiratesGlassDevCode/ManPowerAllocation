@@ -10,6 +10,10 @@ public interface IDepartmentService
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<IReadOnlyList<DepartmentDto>> GetByDivisionAsync(Division division, CancellationToken cancellationToken = default);
 
+    /// <summary>Lists the shared pool (bench) departments across all divisions, for loan targets.</summary>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<IReadOnlyList<DepartmentDto>> GetPoolsAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Creates a new department, rejecting a duplicate (division, name) pair.</summary>
     /// <param name="request">The department to create.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>

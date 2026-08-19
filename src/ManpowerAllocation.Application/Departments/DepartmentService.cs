@@ -39,7 +39,19 @@ public sealed class DepartmentService : IDepartmentService
             .OrderBy(d => d.Sequence)
             .ThenBy(d => d.Name)
             .Select(d => new DepartmentDto(
-                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId))
+                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId, d.IsPool))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DepartmentDto>> GetPoolsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Departments
+            .AsNoTracking()
+            .Where(d => d.IsPool)
+            .OrderBy(d => d.Name)
+            .Select(d => new DepartmentDto(
+                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId, d.IsPool))
             .ToListAsync(cancellationToken);
     }
 
@@ -71,6 +83,9 @@ public sealed class DepartmentService : IDepartmentService
             RequiredNight = request.RequiredNight,
             Sequence = request.Sequence,
             IsActive = true,
+            // Departments named EXCESS / OUTSOURCE are shared pools (bench). Flag on create so a
+            // newly-added Outsource pool works immediately without waiting for the startup pass.
+            IsPool = name is "EXCESS" or "OUTSOURCE",
             ShiftScheduleId = await ResolveScheduleIdAsync(request.ShiftScheduleId, cancellationToken)
         };
 
@@ -177,7 +192,7 @@ public sealed class DepartmentService : IDepartmentService
             .OrderBy(d => d.Division)
             .ThenBy(d => d.Name)
             .Select(d => new DepartmentDto(
-                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId))
+                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId, d.IsPool))
             .ToListAsync(cancellationToken);
     }
 
@@ -306,5 +321,5 @@ public sealed class DepartmentService : IDepartmentService
 
     /// <summary>Projects a department entity to its transport representation.</summary>
     private static DepartmentDto ToDto(Department d) =>
-        new(d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId);
+        new(d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId, d.IsPool);
 }

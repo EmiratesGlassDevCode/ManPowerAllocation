@@ -11,7 +11,8 @@ public sealed record DepartmentDto(
     int RequiredNight,
     decimal Sequence,
     bool IsActive,
-    int ShiftScheduleId);
+    int ShiftScheduleId,
+    bool IsPool);
 
 /// <summary>Outcome of a bulk empty-department cleanup.</summary>
 public sealed record DepartmentCleanupResult(int Deleted, int SkippedWithEmployees, int NotFound);

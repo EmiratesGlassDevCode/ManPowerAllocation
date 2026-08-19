@@ -158,10 +158,19 @@ else
                                                 }
                                                 <FluentButton Appearance="Appearance.Lightweight" @onclick="() => ChangeShiftAsync(emp.Id, emp.Shift == ShiftType.Day ? ShiftType.Night : ShiftType.Day)">↔ Shift</FluentButton>
                                                 <select class="move-select" @onchange="e => MoveAsync(emp.Id, e.Value?.ToString())">
-                                                    <option value="0">Move to…</option>
-                                                    @foreach (var d in _departments.Where(d => d.Id != emp.DepartmentId))
+                                                    <option value="0">Loan to…</option>
+                                                    @foreach (var d in _departments.Where(d => !d.IsPool && d.Id != emp.DepartmentId))
                                                     {
                                                         <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                                                    }
+                                                    @if (_pools.Any(p => p.Id != emp.DepartmentId))
+                                                    {
+                                                        <optgroup label="Pools">
+                                                            @foreach (var p in _pools.Where(p => p.Id != emp.DepartmentId))
+                                                            {
+                                                                <option value="@p.Id">@TextCase.Title(p.Name)</option>
+                                                            }
+                                                        </optgroup>
                                                     }
                                                 </select>
                                             </span>
@@ -296,6 +305,7 @@ else
     private bool _shiftInitialised;
     private DivisionDashboard? _dashboard;
     private List<DepartmentDto> _departments = new();
+    private List<DepartmentDto> _pools = new();
     private List<EmployeeDto> _employees = new();
     private Dictionary<int, List<EmployeeDto>> _byDept = new();
     private List<string> _outsourceByDept = new();
@@ -404,6 +414,7 @@ else
 
         _dashboard = await DashboardService.GetDivisionDashboardAsync(_division.Value, _shift);
         _departments = (await DepartmentService.GetByDivisionAsync(_division.Value)).ToList();
+        _pools = (await DepartmentService.GetPoolsAsync()).ToList();
         _employees = (await EmployeeService.GetByDivisionAsync(_division.Value)).ToList();
         _schedules = await ScheduleService.ListAsync();
 
