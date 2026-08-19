@@ -190,10 +190,11 @@ public sealed class AbsenceService : IAbsenceService
         DateOnly fromDate;
         DateOnly? toDate;
 
-        if (category.Kind == AbsenceKind.Informed)
+        if (AbsenceKindText.HasDateRange(category.Kind))
         {
-            fromDate = request.FromDate ?? throw new BusinessRuleException("An Informed absence requires a From date.");
-            toDate = request.ToDate ?? throw new BusinessRuleException("An Informed absence requires a To date.");
+            var kindLabel = AbsenceKindText.Label(category.Kind);
+            fromDate = request.FromDate ?? throw new BusinessRuleException($"A {kindLabel} leave requires a From date.");
+            toDate = request.ToDate ?? throw new BusinessRuleException($"A {kindLabel} leave requires a To date.");
             if (toDate < fromDate)
             {
                 throw new BusinessRuleException("The To date must be on or after the From date.");

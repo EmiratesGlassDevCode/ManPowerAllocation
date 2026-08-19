@@ -436,9 +436,9 @@ public sealed class ClosedXmlReportExportService : IReportExportService
                 var statusLabel = e.Status == AttendanceStatus.OnVacation ? "On vacation" : "Absent";
                 if (reasonByEmployee.TryGetValue(e.EmployeeId, out var r))
                 {
-                    var kind = r.Kind == Domain.Enums.AbsenceKind.Informed ? "Informed" : "Not Informed";
+                    var kind = Application.Absences.AbsenceKindText.Label(r.Kind);
                     string detail;
-                    if (r.Kind == Domain.Enums.AbsenceKind.Informed)
+                    if (Application.Absences.AbsenceKindText.HasDateRange(r.Kind))
                     {
                         var to = r.ToDate?.ToString("dd MMM") ?? "—";
                         detail = $"{r.FromDate:dd MMM} – {to}";

@@ -334,6 +334,7 @@ internal static class PdfDailyReport
                 var employee = string.IsNullOrWhiteSpace(a.Badge) ? a.Name : $"{a.Name}  ·  {a.Badge}";
                 var reason = a.ReasonCategory == "—" ? a.ReasonKind : $"{a.ReasonKind} · {a.ReasonCategory}";
                 var reasonColor = a.ReasonKind == "Informed" ? Ok
+                    : a.ReasonKind == "Vacation" ? Amber
                     : a.ReasonKind is "Not Informed" or "Not recorded" ? Danger
                     : Muted;
 

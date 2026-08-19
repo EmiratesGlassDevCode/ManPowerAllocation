@@ -66,6 +66,30 @@ public sealed class AbsenceServiceTests
     }
 
     [Fact]
+    public async Task Vacation_requires_a_date_range_and_stores_its_kind()
+    {
+        using var db = TestSupport.NewContext();
+        await SeedAsync(db);
+        var vacation = new AbsenceReasonCategory { Kind = AbsenceKind.Vacation, Name = "Annual Leave", Sequence = 1, IsActive = true, CreatedAtUtc = new DateTime(2026, 1, 1) };
+        db.AbsenceReasonCategories.Add(vacation);
+        await db.SaveChangesAsync();
+        var svc = NewService(db, Simple(UserRole.User));
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            svc.SetReasonAsync(new SetAbsenceReasonRequest { EmployeeId = 101, CategoryId = vacation.Id }));
+
+        await svc.SetReasonAsync(new SetAbsenceReasonRequest
+        {
+            EmployeeId = 101, CategoryId = vacation.Id,
+            FromDate = new DateOnly(2026, 1, 14), ToDate = new DateOnly(2026, 1, 20)
+        });
+
+        var row = (await svc.GetAbsenteesAsync(null)).Single(i => i.EmployeeId == 101);
+        Assert.Equal(AbsenceKind.Vacation, row.Reason!.Kind);
+        Assert.Equal(new DateOnly(2026, 1, 20), row.Reason.ToDate);
+    }
+
+    [Fact]
     public async Task Head_can_set_informed_reason_in_own_department()
     {
         using var db = TestSupport.NewContext();

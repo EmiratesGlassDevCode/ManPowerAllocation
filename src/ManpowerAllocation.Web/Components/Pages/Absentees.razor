@@ -62,6 +62,7 @@ else
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-gold)">@CountStatus(AttendanceStatus.OnVacation)</div><div class="kpi-label">On vacation</div></div>
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-ok)">@CountKind(AbsenceKind.Informed)</div><div class="kpi-label">Informed</div></div>
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-danger)">@CountKind(AbsenceKind.NotInformed)</div><div class="kpi-label">Not informed</div></div>
+        <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-brand)">@CountKind(AbsenceKind.Vacation)</div><div class="kpi-label">Vacation</div></div>
         <div class="kpi-tile"><div class="kpi-value">@(_items.Count(i => i.Reason is null))</div><div class="kpi-label">Uncategorized</div></div>
         <div class="kpi-tile"><div class="kpi-value">@(_items.Select(i => i.DepartmentId).Distinct().Count())</div><div class="kpi-label">Departments affected</div></div>
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-teal)">@ReturningSoon()</div><div class="kpi-label">Returning ≤ tomorrow</div></div>
@@ -74,6 +75,7 @@ else
             <button type="button" class="pill @(_statusFilter == "vacation" ? "active" : "")" @onclick='() => _statusFilter = "vacation"'>On vacation</button>
             <button type="button" class="pill @(_statusFilter == "informed" ? "active" : "")" @onclick='() => _statusFilter = "informed"'>Informed</button>
             <button type="button" class="pill @(_statusFilter == "notinformed" ? "active" : "")" @onclick='() => _statusFilter = "notinformed"'>Not informed</button>
+            <button type="button" class="pill @(_statusFilter == "vacationkind" ? "active" : "")" @onclick='() => _statusFilter = "vacationkind"'>Vacation</button>
             <button type="button" class="pill @(_statusFilter == "uncat" ? "active" : "")" @onclick='() => _statusFilter = "uncat"'>Uncategorized</button>
         </div>
         <label style="display:flex; align-items:center; gap:6px">Sort
@@ -151,6 +153,12 @@ else
                                                         <option value="@c.Id">@c.Name</option>
                                                     }
                                                 </optgroup>
+                                                <optgroup label="Vacation">
+                                                    @foreach (var c in _categories.Where(c => c.Kind == AbsenceKind.Vacation))
+                                                    {
+                                                        <option value="@c.Id">@c.Name</option>
+                                                    }
+                                                </optgroup>
                                                 <optgroup label="Not Informed">
                                                     @foreach (var c in _categories.Where(c => c.Kind == AbsenceKind.NotInformed))
                                                     {
@@ -160,7 +168,7 @@ else
                                             </select>
                                         </label>
 
-                                        @if (SelectedKind == AbsenceKind.Informed)
+                                        @if (SelectedKind is AbsenceKind.Informed or AbsenceKind.Vacation)
                                         {
                                             <label style="display:flex; flex-direction:column; gap:4px">From
                                                 <input type="date" @bind="_editFrom" />
@@ -320,13 +328,13 @@ else
         _busy = true;
         try
         {
-            var informed = SelectedKind == AbsenceKind.Informed;
+            var hasDates = SelectedKind is AbsenceKind.Informed or AbsenceKind.Vacation;
             await AbsenceService.SetReasonAsync(new SetAbsenceReasonRequest
             {
                 EmployeeId = item.EmployeeId,
                 CategoryId = _editCategoryId,
-                FromDate = informed ? _editFrom : null,
-                ToDate = informed ? _editTo : null,
+                FromDate = hasDates ? _editFrom : null,
+                ToDate = hasDates ? _editTo : null,
                 Comment = string.IsNullOrWhiteSpace(_editComment) ? null : _editComment
             });
             _msg = $"Reason recorded for {item.Name}.";
@@ -371,11 +379,16 @@ else
             return (MarkupString)"<span class=\"muted\">—</span>";
         }
 
-        var kind = reason.Kind == AbsenceKind.Informed ? "Informed" : "Not Informed";
-        var cls = reason.Kind == AbsenceKind.Informed ? "abs-informed" : "abs-not-informed";
+        var kind = AbsenceKindText.Label(reason.Kind);
+        var cls = reason.Kind switch
+        {
+            AbsenceKind.Informed => "abs-informed",
+            AbsenceKind.Vacation => "abs-vacation",
+            _ => "abs-not-informed"
+        };
         var text = $"<span class=\"badge {cls}\">{kind}</span> {System.Net.WebUtility.HtmlEncode(reason.CategoryName)}";
 
-        if (reason.Kind == AbsenceKind.Informed)
+        if (AbsenceKindText.HasDateRange(reason.Kind))
         {
             var to = reason.ToDate?.ToString("dd MMM") ?? "—";
             text += $" <span class=\"muted\">({reason.FromDate:dd MMM} – {to})</span>";
@@ -419,6 +432,7 @@ else
             "vacation" => q.Where(i => i.Status == AttendanceStatus.OnVacation),
             "informed" => q.Where(i => i.Reason is not null && i.Reason.Kind == AbsenceKind.Informed),
             "notinformed" => q.Where(i => i.Reason is not null && i.Reason.Kind == AbsenceKind.NotInformed),
+            "vacationkind" => q.Where(i => i.Reason is not null && i.Reason.Kind == AbsenceKind.Vacation),
             "uncat" => q.Where(i => i.Reason is null),
             _ => q
         };

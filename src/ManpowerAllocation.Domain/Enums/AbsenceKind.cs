@@ -13,5 +13,8 @@ public enum AbsenceKind
     Informed = 1,
 
     /// <summary>The absence was not communicated. Has a comment only, no date range.</summary>
-    NotInformed = 2
+    NotInformed = 2,
+
+    /// <summary>Approved vacation / holiday leave. Like Informed, it carries a From/To date range.</summary>
+    Vacation = 3
 }

@@ -1,4 +1,5 @@
 using ManpowerAllocation.Application.Abstractions;
+using ManpowerAllocation.Application.Absences;
 using ManpowerAllocation.Application.Common;
 using ManpowerAllocation.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -96,7 +97,7 @@ public sealed class AnalyticsService : IAnalyticsService
         var byCategory = rows
             .GroupBy(r => new { r.Kind, r.Category })
             .Select(g => new AbsenceByCategoryRow(
-                g.Key.Kind == AbsenceKind.Informed ? "Informed" : "Not Informed",
+                AbsenceKindText.Label(g.Key.Kind),
                 g.Key.Category,
                 g.Count(),
                 g.Select(x => x.EmployeeId).Distinct().Count()))
@@ -117,7 +118,8 @@ public sealed class AnalyticsService : IAnalyticsService
             .GroupBy(r => new { r.Division, r.Department })
             .Select(g =>
             {
-                var informed = g.Count(x => x.Kind == AbsenceKind.Informed);
+                // Vacation is a communicated (planned) absence, so it counts on the informed side.
+                var informed = g.Count(x => x.Kind != AbsenceKind.NotInformed);
                 var notInformed = g.Count(x => x.Kind == AbsenceKind.NotInformed);
                 var total = informed + notInformed;
                 return new DepartmentComplianceRow(
@@ -187,7 +189,7 @@ public sealed class AnalyticsService : IAnalyticsService
         var reasonMix = rows
             .GroupBy(r => new { r.Kind, r.Category })
             .Select(g => new ReasonMixRow(
-                g.Key.Kind == AbsenceKind.Informed ? "Informed" : "Not Informed",
+                AbsenceKindText.Label(g.Key.Kind),
                 g.Key.Category, g.Count(),
                 totalRecords > 0 ? (int)Math.Round(100.0 * g.Count() / totalRecords) : 0))
             .OrderByDescending(r => r.Records).ThenBy(r => r.Category)
@@ -212,7 +214,7 @@ public sealed class AnalyticsService : IAnalyticsService
 
         // Informed records with a bounded window (needed for duration / leave-days / on-leave).
         var informedWithDates = rows
-            .Where(r => r.Kind == AbsenceKind.Informed && r.ToDate is not null)
+            .Where(r => AbsenceKindText.HasDateRange(r.Kind) && r.ToDate is not null)
             .ToList();
 
         // #8 Average leave duration by category.
@@ -297,7 +299,7 @@ public sealed class AnalyticsService : IAnalyticsService
             .Where(a => a.EmployeeId == employeeId && a.FromDate <= endDate && (a.ToDate == null || a.ToDate >= startDate))
             .OrderByDescending(a => a.FromDate)
             .Select(a => new EmployeeAbsenceRow(
-                a.Kind == AbsenceKind.Informed ? "Informed" : "Not Informed",
+                a.Kind == AbsenceKind.Informed ? "Informed" : a.Kind == AbsenceKind.Vacation ? "Vacation" : "Not Informed",
                 a.Category!.Name, a.FromDate, a.ToDate, a.Comment, a.CreatedByName))
             .ToListAsync(cancellationToken);
 

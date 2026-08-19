@@ -21,7 +21,7 @@
 }
 else
 {
-    @foreach (var kind in new[] { AbsenceKind.Informed, AbsenceKind.NotInformed })
+    @foreach (var kind in new[] { AbsenceKind.Informed, AbsenceKind.NotInformed, AbsenceKind.Vacation })
     {
         var rows = _categories.Where(c => c.Kind == kind).OrderBy(c => c.Sequence).ThenBy(c => c.Name).ToList();
         <div class="data-card" style="margin-bottom:16px">
@@ -152,6 +152,7 @@ else
     {
         AbsenceKind.Informed => "Informed",
         AbsenceKind.NotInformed => "Not Informed",
+        AbsenceKind.Vacation => "Vacation",
         _ => kind.ToString()
     };
 }

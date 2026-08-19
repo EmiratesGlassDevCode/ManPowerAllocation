@@ -73,12 +73,14 @@ public sealed class DatabaseInitializer
             var now = DateTime.UtcNow;
             var seeds = new (Domain.Enums.AbsenceKind Kind, string Name, int Sequence)[]
             {
-                (Domain.Enums.AbsenceKind.Informed, "Annual Leave", 1),
-                (Domain.Enums.AbsenceKind.Informed, "Sick Leave", 2),
-                (Domain.Enums.AbsenceKind.Informed, "Emergency Leave", 3),
-                (Domain.Enums.AbsenceKind.Informed, "Business Travel", 4),
+                (Domain.Enums.AbsenceKind.Informed, "Sick Leave", 1),
+                (Domain.Enums.AbsenceKind.Informed, "Emergency Leave", 2),
+                (Domain.Enums.AbsenceKind.Informed, "Business Travel", 3),
                 (Domain.Enums.AbsenceKind.NotInformed, "No Call / No Show", 1),
-                (Domain.Enums.AbsenceKind.NotInformed, "Unreachable", 2)
+                (Domain.Enums.AbsenceKind.NotInformed, "Unreachable", 2),
+                (Domain.Enums.AbsenceKind.Vacation, "Annual Leave", 1),
+                (Domain.Enums.AbsenceKind.Vacation, "Casual Leave", 2),
+                (Domain.Enums.AbsenceKind.Vacation, "Public Holiday", 3)
             };
 
             foreach (var (kind, name, sequence) in seeds)
@@ -95,6 +97,38 @@ public sealed class DatabaseInitializer
 
             await _dbContext.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded the default absence reason categories.");
+        }
+
+        // One-time consistency fix: "Annual Leave" belongs under the Vacation kind (aligns with the
+        // On-vacation figures shown across the dashboards). Move any Informed "Annual Leave" category
+        // — and the records that reference it — to Vacation. Idempotent: only acts when such a
+        // category exists and no Vacation "Annual Leave" already does (avoids a duplicate).
+        var informedAnnual = await _dbContext.AbsenceReasonCategories
+            .Where(c => c.Kind == Domain.Enums.AbsenceKind.Informed && c.Name == "Annual Leave")
+            .ToListAsync(cancellationToken);
+        if (informedAnnual.Count > 0)
+        {
+            var vacationAnnualExists = await _dbContext.AbsenceReasonCategories
+                .AnyAsync(c => c.Kind == Domain.Enums.AbsenceKind.Vacation && c.Name == "Annual Leave", cancellationToken);
+            if (!vacationAnnualExists)
+            {
+                foreach (var category in informedAnnual)
+                {
+                    category.Kind = Domain.Enums.AbsenceKind.Vacation;
+                }
+
+                var ids = informedAnnual.Select(c => c.Id).ToList();
+                var records = await _dbContext.EmployeeAbsences
+                    .Where(a => ids.Contains(a.CategoryId) && a.Kind == Domain.Enums.AbsenceKind.Informed)
+                    .ToListAsync(cancellationToken);
+                foreach (var record in records)
+                {
+                    record.Kind = Domain.Enums.AbsenceKind.Vacation;
+                }
+
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Reclassified 'Annual Leave' from Informed to Vacation ({RecordCount} records updated).", records.Count);
+            }
         }
 
         var emailSettingsExist = await _dbContext.EmailSettings.AnyAsync(cancellationToken);
