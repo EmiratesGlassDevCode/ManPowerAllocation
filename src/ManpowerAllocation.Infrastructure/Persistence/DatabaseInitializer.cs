@@ -162,6 +162,20 @@ public sealed class DatabaseInitializer
             _logger.LogInformation("Flagged {Count} pool department(s).", poolsToFlag.Count);
         }
 
+        var allocationSettingsExist = await _dbContext.AllocationSettings.AnyAsync(cancellationToken);
+        if (!allocationSettingsExist)
+        {
+            // Seeded with the auto shift-reset OFF; an admin enables it after a master upload.
+            _dbContext.AllocationSettings.Add(new AllocationSettings
+            {
+                Id = AllocationSettings.SingletonId,
+                AutoShiftResetEnabled = false,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Seeded the allocation settings row (auto shift-reset disabled).");
+        }
+
         var emailSettingsExist = await _dbContext.EmailSettings.AnyAsync(cancellationToken);
         if (!emailSettingsExist)
         {

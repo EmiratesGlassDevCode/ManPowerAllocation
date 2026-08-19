@@ -105,5 +105,6 @@ public static class DependencyInjection
         }
 
         services.AddHostedService<AttendanceSyncWorker>();
+        services.AddHostedService<Allocation.ShiftResetWorker>();
     }
 }

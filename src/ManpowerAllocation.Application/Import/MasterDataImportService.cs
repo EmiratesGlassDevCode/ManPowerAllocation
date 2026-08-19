@@ -119,6 +119,8 @@ public sealed class MasterDataImportService : IMasterDataImportService
             await _dbContext.SaveChangesAsync(ct);
         }, cancellationToken);
 
+        await MarkMasterUploadedAsync(cancellationToken);
+
         return new ImportResult
         {
             DepartmentsCreated = departmentsCreated,
@@ -310,11 +312,24 @@ public sealed class MasterDataImportService : IMasterDataImportService
             await _dbContext.SaveChangesAsync(ct);
         }, cancellationToken);
 
+        await MarkMasterUploadedAsync(cancellationToken);
+
         return new ImportResult
         {
             EmployeesUpdated = updated,
             Warnings = warnings
         };
+    }
+
+    /// <summary>Records that a master roster sheet was just uploaded — the gate for enabling auto shift-reset.</summary>
+    private async Task MarkMasterUploadedAsync(CancellationToken cancellationToken)
+    {
+        var settings = await _dbContext.AllocationSettings.FirstOrDefaultAsync(cancellationToken);
+        if (settings is not null)
+        {
+            settings.LastMasterUploadUtc = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <inheritdoc />

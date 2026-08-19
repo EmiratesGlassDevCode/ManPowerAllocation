@@ -37,6 +37,9 @@ public interface IApplicationDbContext
     /// <summary>The single admin-configurable shift-definition row.</summary>
     DbSet<ShiftSetting> ShiftSettings { get; }
 
+    /// <summary>The single settings row for the shift-loan model (auto-reset toggle, master-upload gate).</summary>
+    DbSet<AllocationSettings> AllocationSettings { get; }
+
     /// <summary>Named shift schedules (day/night windows + grace) that departments follow.</summary>
     DbSet<ShiftSchedule> ShiftSchedules { get; }
 

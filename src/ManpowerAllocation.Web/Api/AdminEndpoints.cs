@@ -45,6 +45,25 @@ public static class AdminEndpoints
         MapEmailSettingsEndpoints(admin);
         MapDepartmentHeadEndpoints(admin);
         MapAbsenceCategoryEndpoints(admin);
+        MapShiftResetEndpoints(admin);
+    }
+
+    /// <summary>Maps the shift-loan auto-reset endpoints (status, enable/disable, reset now). Require Admin.</summary>
+    private static void MapShiftResetEndpoints(RouteGroupBuilder admin)
+    {
+        var reset = admin.MapGroup("/shift-reset");
+
+        reset.MapGet("/", async (Application.Allocation.IAllocationResetService service, CancellationToken ct) =>
+            Results.Ok(await service.GetStatusAsync(ct)));
+
+        reset.MapPut("/enabled", async (bool enabled, Application.Allocation.IAllocationResetService service, CancellationToken ct) =>
+        {
+            await service.SetEnabledAsync(enabled, ct);
+            return Results.NoContent();
+        });
+
+        reset.MapPost("/reset-now", async (Application.Allocation.IAllocationResetService service, CancellationToken ct) =>
+            Results.Ok(new { returned = await service.ResetNowAsync(ct) }));
     }
 
     /// <summary>Maps the admin-managed absence reason category endpoints. Require Admin.</summary>

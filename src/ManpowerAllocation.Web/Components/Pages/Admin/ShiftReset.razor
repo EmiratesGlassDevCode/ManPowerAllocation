@@ -1,0 +1,128 @@
+@page "/admin/shift-reset"
+@using ManpowerAllocation.Application.Allocation
+@using ManpowerAllocation.Web.Common
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IAllocationResetService ResetService
+@inject DisplayTimeZone Time
+
+<PageTitle>Shift Reset — Manpower Allocation</PageTitle>
+
+<h1>Automatic Shift Reset</h1>
+<p class="hint">
+    Every in-app movement is a temporary <strong>loan</strong>; permanent placement changes only via a
+    master-data upload. When enabled, the system returns every loaned employee to their
+    <strong>home department</strong> at each day/night shift changeover. Enable it only after you have
+    uploaded a master sheet.
+</p>
+
+@if (!_loaded)
+{
+    <p><em>Loading…</em></p>
+}
+else if (_status is null)
+{
+    <p class="message error">@_err</p>
+}
+else
+{
+    <div class="kpi-row" style="margin-bottom:16px">
+        <div class="kpi-tile"><div class="kpi-value" style="color:@(_status.Enabled ? "var(--mpa-ok)" : "var(--mpa-fg-2)")">@(_status.Enabled ? "ON" : "OFF")</div><div class="kpi-label">Auto reset</div></div>
+        <div class="kpi-tile"><div class="kpi-value">@_status.LoanedNow</div><div class="kpi-label">On loan now</div></div>
+        <div class="kpi-tile"><div class="kpi-value" style="color:@(_status.UnsetHomeCount > 0 ? "var(--mpa-danger)" : "var(--mpa-ok)")">@_status.UnsetHomeCount</div><div class="kpi-label">No home set</div></div>
+    </div>
+
+    <div class="data-card" style="margin-bottom:16px">
+        <div style="padding:16px; display:flex; flex-direction:column; gap:10px">
+            <div><span class="strong">Last master upload:</span> @(_status.LastMasterUploadUtc is { } u ? Time.Format(u, "dd MMM yyyy HH:mm") : "— never —")</div>
+            <div><span class="strong">Last reset:</span> @(_status.LastResetAtUtc is { } r ? Time.Format(r, "dd MMM yyyy HH:mm") : "— never —")</div>
+
+            <div class="form-inline" style="gap:10px; margin-top:6px">
+                @if (_status.Enabled)
+                {
+                    <FluentButton Appearance="Appearance.Neutral" @onclick="() => SetEnabledAsync(false)" Disabled="_busy">Disable auto reset</FluentButton>
+                }
+                else
+                {
+                    <FluentButton Appearance="Appearance.Accent" @onclick="() => SetEnabledAsync(true)" Disabled="_busy || !_status.CanEnable">Enable auto reset</FluentButton>
+                }
+                <FluentButton Appearance="Appearance.Lightweight" @onclick="ResetNowAsync" Disabled="_busy">Reset now</FluentButton>
+            </div>
+
+            @if (!_status.Enabled && !_status.CanEnable)
+            {
+                <p class="hint" style="color:var(--mpa-gold)">
+                    ⚠ Upload a master sheet (and ensure every employee has a home department) before enabling.
+                </p>
+            }
+            @if (!string.IsNullOrEmpty(_msg)) { <p class="message ok">@_msg</p> }
+            @if (!string.IsNullOrEmpty(_err)) { <p class="message error">@_err</p> }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loaded;
+    private bool _busy;
+    private AllocationResetStatusDto? _status;
+    private string? _msg;
+    private string? _err;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _status = await ResetService.GetStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+
+    private async Task SetEnabledAsync(bool enabled)
+    {
+        _msg = _err = null;
+        _busy = true;
+        try
+        {
+            await ResetService.SetEnabledAsync(enabled);
+            _msg = enabled ? "Automatic shift-reset enabled." : "Automatic shift-reset disabled.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ResetNowAsync()
+    {
+        _msg = _err = null;
+        _busy = true;
+        try
+        {
+            var count = await ResetService.ResetNowAsync();
+            _msg = $"Returned {count} employee(s) to their home department.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
