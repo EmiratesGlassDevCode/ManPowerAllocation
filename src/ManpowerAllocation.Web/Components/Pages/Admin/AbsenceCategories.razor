@@ -63,11 +63,9 @@ else
     private bool _loaded;
     private bool _busy;
     private List<Row> _categories = new();
-    private readonly Dictionary<AbsenceKind, string> _newName = new()
-    {
-        [AbsenceKind.Informed] = string.Empty,
-        [AbsenceKind.NotInformed] = string.Empty
-    };
+    // One "add new" box per kind — built from every AbsenceKind so a new kind can't leave a gap.
+    private readonly Dictionary<AbsenceKind, string> _newName =
+        Enum.GetValues<AbsenceKind>().ToDictionary(k => k, _ => string.Empty);
     private string? _msg;
     private string? _err;
 
