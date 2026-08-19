@@ -148,7 +148,11 @@ public sealed class DatabaseInitializer
 
         // Flag the shared pool (bench) departments by name so picking to/from them is treated as a
         // cross-division loan and they are excluded from headcount. Admins can also toggle this later.
-        var poolNames = new[] { "EXCESS", "OUTSOURCE" };
+        // NOTE: this MUST be a List, not an array. Under .NET 8 EF re-compiles this predicate with
+        // the expression interpreter, and `array.Contains(member)` binds to the ReadOnlySpan<T>
+        // overload of Contains — which throws a TypeLoadException at runtime (ReadOnlySpan is a ref
+        // struct and cannot be a generic argument). A List binds to Enumerable.Contains and is safe.
+        var poolNames = new List<string> { "EXCESS", "OUTSOURCE" };
         var poolsToFlag = await _dbContext.Departments
             .Where(d => !d.IsPool && poolNames.Contains(d.Name))
             .ToListAsync(cancellationToken);
