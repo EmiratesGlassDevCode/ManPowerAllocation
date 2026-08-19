@@ -131,6 +131,37 @@ public sealed class DatabaseInitializer
             }
         }
 
+        // Backfill each employee's home department from their current department where it is not yet
+        // set, so the shift-reset has a home to return people to for staff that predate the field.
+        var missingHome = await _dbContext.Employees
+            .Where(e => e.HomeDepartmentId == null)
+            .ToListAsync(cancellationToken);
+        if (missingHome.Count > 0)
+        {
+            foreach (var employee in missingHome)
+            {
+                employee.HomeDepartmentId = employee.DepartmentId;
+            }
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Backfilled home department for {Count} employees.", missingHome.Count);
+        }
+
+        // Flag the shared pool (bench) departments by name so picking to/from them is treated as a
+        // cross-division loan and they are excluded from headcount. Admins can also toggle this later.
+        var poolNames = new[] { "EXCESS", "OUTSOURCE" };
+        var poolsToFlag = await _dbContext.Departments
+            .Where(d => !d.IsPool && poolNames.Contains(d.Name))
+            .ToListAsync(cancellationToken);
+        if (poolsToFlag.Count > 0)
+        {
+            foreach (var department in poolsToFlag)
+            {
+                department.IsPool = true;
+            }
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Flagged {Count} pool department(s).", poolsToFlag.Count);
+        }
+
         var emailSettingsExist = await _dbContext.EmailSettings.AnyAsync(cancellationToken);
         if (!emailSettingsExist)
         {

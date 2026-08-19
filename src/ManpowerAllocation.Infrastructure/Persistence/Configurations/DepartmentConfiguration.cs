@@ -20,6 +20,7 @@ public sealed class DepartmentConfiguration : IEntityTypeConfiguration<Departmen
         builder.Property(d => d.RequiredNight).IsRequired();
         builder.Property(d => d.Sequence).HasColumnType("decimal(9,2)");
         builder.Property(d => d.IsActive).IsRequired();
+        builder.Property(d => d.IsPool).IsRequired().HasDefaultValue(false);
         builder.Property(d => d.RowVersion).IsRowVersion();
 
         // Every department follows a shift schedule; existing rows default to schedule 1 (07:00–19:00).

@@ -36,6 +36,13 @@ public sealed class Department
     public bool IsActive { get; set; } = true;
 
     /// <summary>
+    /// Whether this department is a shared <em>pool</em> (bench) — e.g. "Excess" (own spare staff) or
+    /// "Outsource" (agency staff). Pools carry no headcount requirement, are excluded from
+    /// shortage/fill, and any department head may loan staff into/out of them across divisions.
+    /// </summary>
+    public bool IsPool { get; set; }
+
+    /// <summary>
     /// The shift schedule this department follows (defines its day/night windows and grace). Defaults
     /// to schedule 1 for new and existing departments; an administrator reassigns it as needed.
     /// </summary>

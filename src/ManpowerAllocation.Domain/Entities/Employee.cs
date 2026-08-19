@@ -22,11 +22,21 @@ public sealed class Employee
     /// <summary>The division this employee currently sits in.</summary>
     public Division Division { get; set; }
 
-    /// <summary>Foreign key to the owning <see cref="Department"/>.</summary>
+    /// <summary>
+    /// Foreign key to the employee's <em>current</em> department — where they are working right now.
+    /// A shift loan changes this temporarily; the shift-reset returns it to <see cref="HomeDepartmentId"/>.
+    /// </summary>
     public int DepartmentId { get; set; }
 
-    /// <summary>Navigation to the owning department.</summary>
+    /// <summary>Navigation to the current department.</summary>
     public Department? Department { get; set; }
+
+    /// <summary>
+    /// The employee's permanent "home" department, set only by the master-data import. Every in-app
+    /// movement is a temporary loan; the shift-reset returns <see cref="DepartmentId"/> to this value.
+    /// Null only until the first backfill/import runs (then it mirrors the current department).
+    /// </summary>
+    public int? HomeDepartmentId { get; set; }
 
     /// <summary>Assigned working shift.</summary>
     public ShiftType Shift { get; set; }

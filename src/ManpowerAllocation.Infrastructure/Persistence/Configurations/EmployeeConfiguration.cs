@@ -23,8 +23,16 @@ public sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(e => e.Notes).HasMaxLength(500);
         builder.Property(e => e.RowVersion).IsRowVersion();
 
+        // Home department: a second, optional relationship to Department (no navigation, no cascade),
+        // set by the master import. Restrict so a department in use as a home cannot be silently deleted.
+        builder.HasOne<Department>()
+            .WithMany()
+            .HasForeignKey(e => e.HomeDepartmentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(e => e.Division);
         builder.HasIndex(e => e.DepartmentId);
+        builder.HasIndex(e => e.HomeDepartmentId);
         // Badge numbers are not unique (they repeat and outsource rows reuse values),
         // but an index still speeds up the employee search.
         builder.HasIndex(e => e.BadgeNumber);
