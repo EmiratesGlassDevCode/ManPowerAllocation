@@ -1,6 +1,8 @@
 @page "/absentees"
+@using ManpowerAllocation.Application.Abstractions
 @using ManpowerAllocation.Application.Absences
 @using ManpowerAllocation.Application.DepartmentHeads
+@using ManpowerAllocation.Application.Settings
 @using ManpowerAllocation.Domain.Enums
 @using ManpowerAllocation.Web.Common
 @using ManpowerAllocation.Web.Security
@@ -8,6 +10,8 @@
 @inject IAbsenceService AbsenceService
 @inject IAbsenceCategoryService CategoryService
 @inject IDepartmentHeadService HeadService
+@inject IShiftSettingsService ShiftSettingsService
+@inject IFactoryClock FactoryClock
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Absentees — Manpower Allocation</PageTitle>
@@ -45,6 +49,11 @@
         <button type="button" class="export-link" @onclick="GoToday">Back to today</button>
     }
 </div>
+
+@if (!string.IsNullOrEmpty(_shiftWarning))
+{
+    <div class="hint" style="color:var(--mpa-gold); margin-bottom:12px">⚠ @_shiftWarning</div>
+}
 
 @{
     var rows = Displayed();
@@ -210,6 +219,8 @@ else
     private bool _sortDesc;
     private DateTime _asOf = DateTime.Today;
     private string _shiftKey = "all";
+    private bool _nightStarted;      // true once the current local time is in the night window
+    private string? _shiftWarning;
 
     private bool _isToday => _asOf.Date == DateTime.Today;
 
@@ -249,6 +260,13 @@ else
             }
 
             _categories = await CategoryService.ListAsync(includeInactive: false);
+
+            // Default today's view to the live shift; "All" is intended for after the night shift starts.
+            var shiftSettings = await ShiftSettingsService.GetAsync();
+            var now = FactoryClock.LocalNow.TimeOfDay;
+            var inDayWindow = now >= shiftSettings.DayShiftStart && now < shiftSettings.NightShiftStart;
+            _nightStarted = !inDayWindow;
+            _shiftKey = inDayWindow ? "Day" : "Night";
         }
         catch (Exception ex)
         {
@@ -271,6 +289,12 @@ else
             var asOf = DateOnly.FromDateTime(_asOf);
             _items = await AbsenceService.GetAbsenteesAsync(_division, asOf, shift);
             if (!_isToday) { CancelEdit(); }
+
+            // Warn when viewing "All shifts" today before the night shift has started — night data
+            // does not exist yet, so the "All" view is only day-shift data at this point.
+            _shiftWarning = (_isToday && _shiftKey == "all" && !_nightStarted)
+                ? "Night shift hasn’t started yet — “All shifts” shows day-shift data only so far."
+                : null;
         }
         catch (Exception ex)
         {
@@ -285,6 +309,7 @@ else
     private async Task GoToday()
     {
         _asOf = DateTime.Today;
+        _shiftKey = _nightStarted ? "Night" : "Day";
         await LoadAsync();
     }
 
