@@ -94,6 +94,8 @@ public sealed class MasterDataImportService : IMasterDataImportService
                         BadgeNumber = string.IsNullOrWhiteSpace(row.BadgeNumber) ? null : row.BadgeNumber.Trim(),
                         Division = division,
                         DepartmentId = departmentId,
+                        // The master import is the only permanent placement: home = current department.
+                        HomeDepartmentId = departmentId,
                         Shift = row.Shift,
                         Status = row.Status,
                         IsSupply = row.IsSupply,
@@ -281,7 +283,9 @@ public sealed class MasterDataImportService : IMasterDataImportService
 
                 if (department is not null)
                 {
+                    // Master import = permanent placement, so both the current and home department move.
                     employee.DepartmentId = department.Id;
+                    employee.HomeDepartmentId = department.Id;
                     employee.Division = department.Division;
                 }
 

@@ -200,29 +200,60 @@ public sealed class EmployeeService : IEmployeeService
         ArgumentNullException.ThrowIfNull(request);
 
         var employee = await LoadWithDepartmentAsync(employeeId, cancellationToken);
+        var source = employee.Department!;
         var target = await _dbContext.Departments
             .FirstOrDefaultAsync(d => d.Id == request.TargetDepartmentId, cancellationToken)
             ?? throw new NotFoundException(nameof(Department), request.TargetDepartmentId);
 
-        // A move must be authorised for BOTH the source and the target department: a User/Admin
-        // passes both; a department head may only move a person between departments they head.
-        await RequireDepartmentEditAsync(employee.DepartmentId, cancellationToken);
-        await RequireDepartmentEditAsync(target.Id, cancellationToken);
+        // A loan is a temporary reassignment (the permanent home changes only via the master import;
+        // the shift-reset returns the person to their home). Both sides must be authorised: a
+        // User/Admin passes anywhere; a department head passes their own departments and any shared
+        // pool (Excess/Outsource).
+        await RequireLoanSideAsync(source, cancellationToken);
+        await RequireLoanSideAsync(target, cancellationToken);
 
-        // An employee may only move within their own division, matching the source behaviour.
-        if (target.Division != employee.Division)
+        // Loans stay within a division unless a shared pool is involved — pools are factory-wide, so
+        // picking from / returning to a pool may cross divisions.
+        if (target.Division != employee.Division && !source.IsPool && !target.IsPool)
         {
-            throw new BusinessRuleException("An employee can only be moved to a department in the same division.");
+            throw new BusinessRuleException("A loan can only cross divisions through a shared pool (Excess / Outsource).");
         }
 
-        var before = ToDto(employee, employee.Department!.Name);
+        var before = ToDto(employee, source.Name);
         employee.DepartmentId = target.Id;
         employee.Department = target;
+        // Keep the employee's division aligned with where they are working for the shift, so the
+        // dashboards and rosters show them under the loaned department/division consistently.
+        employee.Division = target.Division;
 
         _auditWriter.Add(AuditAction.Update, nameof(Employee), employee.Id.ToString(), before, ToDto(employee, target.Name));
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return ToDto(employee, target.Name);
+    }
+
+    /// <summary>
+    /// Authorises one side of a loan: a User/Admin may use any department; a department head may use
+    /// their own departments and any shared pool (Excess/Outsource); anyone else is refused.
+    /// </summary>
+    private async Task RequireLoanSideAsync(Department department, CancellationToken cancellationToken)
+    {
+        if (_currentUser.HasAtLeast(UserRole.User))
+        {
+            return;
+        }
+
+        if (department.IsPool && _currentUser.Role == UserRole.DepartmentHead)
+        {
+            return;
+        }
+
+        if (await DepartmentScope.IsHeadOfAsync(_dbContext, _currentUser, department.Id, cancellationToken))
+        {
+            return;
+        }
+
+        throw new ForbiddenException();
     }
 
     /// <inheritdoc />
