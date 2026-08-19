@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<Absences.IAbsenceService, Absences.AbsenceService>();
         services.AddScoped<Analytics.IAnalyticsService, Analytics.AnalyticsService>();
         services.AddScoped<Allocation.IAllocationResetService, Allocation.AllocationResetService>();
+        services.AddScoped<MasterHistory.IMasterHistoryService, MasterHistory.MasterHistoryService>();
 
         // Shared holder for the last attendance-sync result shown on the admin screen.
         services.AddSingleton<AttendanceSyncStatus>();

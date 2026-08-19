@@ -36,6 +36,15 @@ public sealed class ManpowerDbContext : DbContext, IApplicationDbContext
     public DbSet<EmployeeAbsence> EmployeeAbsences => Set<EmployeeAbsence>();
 
     /// <inheritdoc />
+    public DbSet<MasterSnapshot> MasterSnapshots => Set<MasterSnapshot>();
+
+    /// <inheritdoc />
+    public DbSet<MasterSnapshotEmployee> MasterSnapshotEmployees => Set<MasterSnapshotEmployee>();
+
+    /// <inheritdoc />
+    public DbSet<MasterSnapshotDepartment> MasterSnapshotDepartments => Set<MasterSnapshotDepartment>();
+
+    /// <inheritdoc />
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
 
     /// <inheritdoc />

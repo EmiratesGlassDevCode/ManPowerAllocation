@@ -120,6 +120,7 @@ public sealed class MasterDataImportService : IMasterDataImportService
         }, cancellationToken);
 
         await MarkMasterUploadedAsync(cancellationToken);
+        await CaptureMasterSnapshotAsync("Roster import", cancellationToken);
 
         return new ImportResult
         {
@@ -313,6 +314,7 @@ public sealed class MasterDataImportService : IMasterDataImportService
         }, cancellationToken);
 
         await MarkMasterUploadedAsync(cancellationToken);
+        await CaptureMasterSnapshotAsync("Apply edits", cancellationToken);
 
         return new ImportResult
         {
@@ -330,6 +332,51 @@ public sealed class MasterDataImportService : IMasterDataImportService
             settings.LastMasterUploadUtc = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Captures an immutable snapshot of the master data (each employee's home department + shift, and
+    /// the department targets) for the history log, so any month's master can be reviewed/exported later.
+    /// </summary>
+    private async Task CaptureMasterSnapshotAsync(string source, CancellationToken cancellationToken)
+    {
+        var lines = await (
+            from e in _dbContext.Employees.AsNoTracking()
+            join d in _dbContext.Departments.AsNoTracking() on e.HomeDepartmentId equals d.Id into homeJoin
+            from home in homeJoin.DefaultIfEmpty()
+            select new
+            {
+                e.Id, e.Name, e.BadgeNumber, e.Division, e.Shift, e.IsSupply,
+                HomeName = home != null ? home.Name : string.Empty
+            })
+            .ToListAsync(cancellationToken);
+
+        var departments = await _dbContext.Departments.AsNoTracking()
+            .Select(d => new { d.Name, d.Division, d.RequiredDay, d.RequiredNight, d.IsPool })
+            .ToListAsync(cancellationToken);
+
+        var snapshot = new MasterSnapshot
+        {
+            CapturedAtUtc = DateTime.UtcNow,
+            CapturedByObjectId = _currentUser.IsAuthenticated ? _currentUser.UserId : null,
+            CapturedByName = _currentUser.DisplayName,
+            Source = source,
+            EmployeeCount = lines.Count,
+            DepartmentCount = departments.Count,
+            Employees = lines.Select(l => new MasterSnapshotEmployee
+            {
+                EmployeeId = l.Id, Name = l.Name, BadgeNumber = l.BadgeNumber, Division = l.Division,
+                HomeDepartmentName = l.HomeName, Shift = l.Shift, IsSupply = l.IsSupply
+            }).ToList(),
+            Departments = departments.Select(d => new MasterSnapshotDepartment
+            {
+                DepartmentName = d.Name, Division = d.Division, RequiredDay = d.RequiredDay,
+                RequiredNight = d.RequiredNight, IsPool = d.IsPool
+            }).ToList()
+        };
+
+        _dbContext.MasterSnapshots.Add(snapshot);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />

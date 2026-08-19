@@ -46,6 +46,23 @@ public static class AdminEndpoints
         MapDepartmentHeadEndpoints(admin);
         MapAbsenceCategoryEndpoints(admin);
         MapShiftResetEndpoints(admin);
+        MapMasterHistoryEndpoints(admin);
+    }
+
+    /// <summary>Maps the master-history list + export endpoints. Require Admin.</summary>
+    private static void MapMasterHistoryEndpoints(RouteGroupBuilder admin)
+    {
+        var history = admin.MapGroup("/master-history");
+
+        history.MapGet("/", async (Application.MasterHistory.IMasterHistoryService service, CancellationToken ct) =>
+            Results.Ok(await service.ListAsync(ct)));
+
+        history.MapGet("/{id:long}/export", async (long id, string? format,
+            Application.MasterHistory.IMasterHistoryExportService service, CancellationToken ct) =>
+        {
+            var file = await service.ExportAsync(id, format, ct);
+            return Results.File(file.Content, file.ContentType, file.FileName);
+        });
     }
 
     /// <summary>Maps the shift-loan auto-reset endpoints (status, enable/disable, reset now). Require Admin.</summary>

@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddScoped<IExcelImportParser, ClosedXmlImportParser>();
         services.AddScoped<ManpowerAllocation.Application.Exports.IReportExportService, ClosedXmlReportExportService>();
         services.AddScoped<ManpowerAllocation.Application.Analytics.IAnalyticsExportService, AnalyticsExportService>();
+        services.AddScoped<ManpowerAllocation.Application.MasterHistory.IMasterHistoryExportService, MasterHistoryExportService>();
         services.AddSingleton<IBreakGlassSecretStore, FileBreakGlassSecretStore>();
         services.AddScoped<IBreakGlassService, BreakGlassService>();
         services.AddScoped<DatabaseInitializer>();

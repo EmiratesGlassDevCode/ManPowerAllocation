@@ -28,6 +28,15 @@ public interface IApplicationDbContext
     /// <summary>Recorded absence reasons per employee.</summary>
     DbSet<EmployeeAbsence> EmployeeAbsences { get; }
 
+    /// <summary>Captured master-data snapshots (one per master upload).</summary>
+    DbSet<MasterSnapshot> MasterSnapshots { get; }
+
+    /// <summary>Per-employee home-allocation lines of captured master snapshots.</summary>
+    DbSet<MasterSnapshotEmployee> MasterSnapshotEmployees { get; }
+
+    /// <summary>Per-department requirement lines of captured master snapshots.</summary>
+    DbSet<MasterSnapshotDepartment> MasterSnapshotDepartments { get; }
+
     /// <summary>The immutable audit trail.</summary>
     DbSet<AuditLogEntry> AuditLogEntries { get; }
 

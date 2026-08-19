@@ -1,0 +1,77 @@
+@page "/admin/master-history"
+@using ManpowerAllocation.Application.MasterHistory
+@using ManpowerAllocation.Web.Common
+@using ManpowerAllocation.Web.Security
+@attribute [Authorize(Policy = AuthorizationPolicies.RequireAdmin)]
+@inject IMasterHistoryService HistoryService
+@inject DisplayTimeZone Time
+
+<PageTitle>Master History — Manpower Allocation</PageTitle>
+
+<h1>Master Data History</h1>
+<p class="hint">
+    A version is captured automatically every time a master sheet is uploaded (roster import or
+    apply-edits) — each employee's home department and shift, plus the department targets at that
+    moment. Download any version as Excel or PDF for reference.
+</p>
+
+@if (!_loaded)
+{
+    <p><em>Loading…</em></p>
+}
+else if (_items.Count == 0)
+{
+    <div class="data-card"><div style="padding:16px"><em>No master versions captured yet. Upload a master sheet to create the first one.</em></div></div>
+}
+else
+{
+    <div class="data-card">
+        <div class="grid-scroll" style="padding:0">
+            <table class="grid">
+                <thead>
+                    <tr><th>Captured</th><th>By</th><th>Source</th><th>Employees</th><th>Departments</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in _items)
+                    {
+                        <tr>
+                            <td class="strong">@Time.Format(s.CapturedAtUtc, "dd MMM yyyy HH:mm")</td>
+                            <td>@(s.CapturedByName ?? "—")</td>
+                            <td>@s.Source</td>
+                            <td>@s.EmployeeCount</td>
+                            <td>@s.DepartmentCount</td>
+                            <td style="white-space:nowrap">
+                                <a class="export-link" href="api/admin/master-history/@s.Id/export?format=xlsx" target="_blank" rel="noopener">Excel</a>
+                                <a class="export-link" href="api/admin/master-history/@s.Id/export?format=pdf" target="_blank" rel="noopener">PDF</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_err)) { <p class="message error">@_err</p> }
+
+@code {
+    private bool _loaded;
+    private IReadOnlyList<MasterSnapshotSummaryDto> _items = Array.Empty<MasterSnapshotSummaryDto>();
+    private string? _err;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _items = await HistoryService.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            _err = ex.Message;
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+}
