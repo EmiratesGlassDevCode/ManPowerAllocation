@@ -55,7 +55,8 @@ public sealed record AbsenceListItemDto(
     ShiftType Shift,
     AttendanceStatus Status,
     bool IsSupply,
-    AbsenceReasonView? Reason);
+    AbsenceReasonView? Reason,
+    string DepartmentHead);
 
 /// <summary>Request to set (create or replace) the current absence reason for an employee.</summary>
 public sealed class SetAbsenceReasonRequest

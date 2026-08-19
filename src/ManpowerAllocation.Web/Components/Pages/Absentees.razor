@@ -28,6 +28,24 @@
     <button type="button" class="pill @(_division == Division.Brg ? "active" : "")" @onclick="() => FilterAsync(Division.Brg)">BRG</button>
 </div>
 
+<div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom:12px">
+    <label style="display:flex; flex-direction:column; gap:4px">Date
+        <input type="date" @bind="_asOf" @bind:after="LoadAsync" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+    </label>
+    <label style="display:flex; flex-direction:column; gap:4px">Shift
+        <select @bind="_shiftKey" @bind:after="LoadAsync">
+            <option value="all">All shifts</option>
+            <option value="Day">Day</option>
+            <option value="Night">Night</option>
+        </select>
+    </label>
+    @if (!_isToday)
+    {
+        <span class="badge b-vac" style="align-self:center">Historical snapshot · read-only</span>
+        <button type="button" class="export-link" @onclick="GoToday">Back to today</button>
+    }
+</div>
+
 @{
     var rows = Displayed();
 }
@@ -66,6 +84,7 @@ else
                 <option value="badge">Employee ID</option>
                 <option value="status">Status</option>
                 <option value="reason">Reason</option>
+                <option value="head">Department head</option>
                 <option value="return">Return date</option>
                 <option value="updated">Recently updated</option>
             </select>
@@ -84,7 +103,7 @@ else
             <table class="grid">
                 <thead>
                     <tr>
-                        <th>Employee</th><th>Department</th><th>Shift</th><th>Status</th><th>Reason</th><th></th>
+                        <th>Employee</th><th>Department</th><th>Dept. head</th><th>Shift</th><th>Status</th><th>Reason</th><th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -100,11 +119,12 @@ else
                                 @if (item.IsSupply) { <span class="badge b-vac" style="margin-left:6px">Supply</span> }
                             </td>
                             <td>@TextCase.Title(item.DepartmentName)</td>
+                            <td>@(item.DepartmentHead == "Unassigned" ? (MarkupString)"<span class=\"muted\">Unassigned</span>" : (MarkupString)System.Net.WebUtility.HtmlEncode(item.DepartmentHead))</td>
                             <td>@item.Shift</td>
                             <td>@StatusLabel(item.Status)</td>
                             <td>@ReasonMarkup(item.Reason)</td>
                             <td style="white-space:nowrap">
-                                @if (CanEditDept(item.DepartmentId))
+                                @if (_isToday && CanEditDept(item.DepartmentId))
                                 {
                                     <FluentButton Appearance="Appearance.Lightweight" @onclick="() => BeginEdit(item)">
                                         @(item.Reason is null ? "Set reason" : "Edit")
@@ -120,7 +140,7 @@ else
                         @if (_editingEmployeeId == item.EmployeeId)
                         {
                             <tr class="edit-row">
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:8px 4px">
                                         <label style="display:flex; flex-direction:column; gap:4px">Reason
                                             <select @bind="_editCategoryId" style="min-width:220px">
@@ -180,6 +200,10 @@ else
     private string _statusFilter = "all";
     private string _sortKey = "dept";
     private bool _sortDesc;
+    private DateTime _asOf = DateTime.Today;
+    private string _shiftKey = "all";
+
+    private bool _isToday => _asOf.Date == DateTime.Today;
 
     private IReadOnlyList<AbsenceListItemDto> _items = Array.Empty<AbsenceListItemDto>();
     private IReadOnlyList<AbsenceCategoryDto> _categories = Array.Empty<AbsenceCategoryDto>();
@@ -230,7 +254,15 @@ else
     {
         try
         {
-            _items = await AbsenceService.GetAbsenteesAsync(_division);
+            var shift = _shiftKey switch
+            {
+                "Day" => (ShiftType?)ShiftType.Day,
+                "Night" => ShiftType.Night,
+                _ => null
+            };
+            var asOf = DateOnly.FromDateTime(_asOf);
+            _items = await AbsenceService.GetAbsenteesAsync(_division, asOf, shift);
+            if (!_isToday) { CancelEdit(); }
         }
         catch (Exception ex)
         {
@@ -240,6 +272,12 @@ else
         {
             _loaded = true;
         }
+    }
+
+    private async Task GoToday()
+    {
+        _asOf = DateTime.Today;
+        await LoadAsync();
     }
 
     private async Task FilterAsync(Division? division)
@@ -391,6 +429,7 @@ else
             "name" => i => i.Name,
             "badge" => i => i.BadgeNumber ?? string.Empty,
             "status" => i => (int)i.Status,
+            "head" => i => i.DepartmentHead,
             "reason" => i => i.Reason is null ? 99 : (int)i.Reason.Kind,
             "return" => i => i.Reason?.ToDate?.DayNumber ?? int.MaxValue,
             "updated" => i => i.Reason?.SetAtUtc ?? DateTime.MinValue,

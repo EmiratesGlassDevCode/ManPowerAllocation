@@ -35,9 +35,17 @@ public sealed class AbsenceService : IAbsenceService
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<AbsenceListItemDto>> GetAbsenteesAsync(Division? division, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<AbsenceListItemDto>> GetAbsenteesAsync(
+        Division? division, DateOnly? asOf = null, ShiftType? shift = null, CancellationToken cancellationToken = default)
     {
         var today = DateOnly.FromDateTime(_factoryClock.LocalNow);
+        var (headByDeptId, headByDeptName) = await LoadDepartmentHeadsAsync(cancellationToken);
+
+        // A past date is served read-only from the captured snapshot for that date/shift.
+        if (asOf is { } date && date < today)
+        {
+            return await GetHistoricalAsync(division, date, shift, headByDeptName, cancellationToken);
+        }
 
         // Active reasons (either kind): today within [FromDate, ToDate]; a null ToDate is open-ended.
         var active = await _dbContext.EmployeeAbsences
@@ -48,15 +56,12 @@ public sealed class AbsenceService : IAbsenceService
                 a.FromDate, a.ToDate, a.Comment, a.CreatedByName, a.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
-        // Most recent active reason per employee (there is normally only one).
         var reasonByEmployee = active
             .GroupBy(a => a.EmployeeId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(a => a.CreatedAtUtc).First());
 
         var reasonEmployeeIds = reasonByEmployee.Keys.ToList();
 
-        // Show everyone currently marked Absent or On vacation (i.e. not present), plus anyone on an
-        // active (e.g. Informed) reason even if the sync has not yet flipped their status.
         var employeesQuery = _dbContext.Employees
             .AsNoTracking()
             .Where(e => e.Status == AttendanceStatus.Absent
@@ -68,18 +73,17 @@ public sealed class AbsenceService : IAbsenceService
             employeesQuery = employeesQuery.Where(e => e.Division == d);
         }
 
+        if (shift is { } sh)
+        {
+            employeesQuery = employeesQuery.Where(e => e.Shift == sh);
+        }
+
         var employees = await employeesQuery
             .Select(e => new
             {
-                e.Id,
-                e.Name,
-                e.BadgeNumber,
-                e.DepartmentId,
+                e.Id, e.Name, e.BadgeNumber, e.DepartmentId,
                 DepartmentName = e.Department!.Name,
-                e.Division,
-                e.Shift,
-                e.Status,
-                e.IsSupply
+                e.Division, e.Shift, e.Status, e.IsSupply
             })
             .ToListAsync(cancellationToken);
 
@@ -91,8 +95,79 @@ public sealed class AbsenceService : IAbsenceService
                 e.Id, e.Name, e.BadgeNumber, e.DepartmentId, e.DepartmentName, e.Division, e.Shift, e.Status, e.IsSupply,
                 reasonByEmployee.TryGetValue(e.Id, out var r)
                     ? new AbsenceReasonView(r.RecordId, r.CategoryId, r.CategoryName, r.Kind, r.FromDate, r.ToDate, r.Comment, r.SetByName, r.CreatedAtUtc)
-                    : null))
+                    : null,
+                headByDeptId.TryGetValue(e.DepartmentId, out var head) ? head : "Unassigned"))
             .ToList();
+    }
+
+    /// <summary>Serves the absentees as captured in the snapshot for a past date/shift (read-only).</summary>
+    private async Task<IReadOnlyList<AbsenceListItemDto>> GetHistoricalAsync(
+        Division? division, DateOnly date, ShiftType? shift, IReadOnlyDictionary<string, string> headByDeptName, CancellationToken cancellationToken)
+    {
+        var dayStart = date.ToDateTime(TimeOnly.MinValue);
+        var dayEnd = dayStart.AddDays(1);
+
+        var lines = await (
+            from se in _dbContext.AllocationSnapshotEmployees.AsNoTracking()
+            join s in _dbContext.AllocationSnapshots.AsNoTracking() on se.SnapshotId equals s.Id
+            where s.OperationalDate >= dayStart && s.OperationalDate < dayEnd
+                && (shift == null || s.Shift == shift)
+                && (se.Status == AttendanceStatus.Absent || se.Status == AttendanceStatus.OnVacation)
+                && (division == null || se.Division == division)
+            select new { se.EmployeeId, se.Name, se.BadgeNumber, se.Division, se.DepartmentName, se.Shift, se.Status, se.IsSupply })
+            .ToListAsync(cancellationToken);
+
+        if (lines.Count == 0)
+        {
+            return Array.Empty<AbsenceListItemDto>();
+        }
+
+        var ids = lines.Select(l => l.EmployeeId).Distinct().ToList();
+        var reasons = await _dbContext.EmployeeAbsences
+            .AsNoTracking()
+            .Where(a => ids.Contains(a.EmployeeId) && a.FromDate <= date && (a.ToDate == null || date <= a.ToDate))
+            .Select(a => new ActiveReason(
+                a.Id, a.EmployeeId, a.CategoryId, a.Category!.Name, a.Kind,
+                a.FromDate, a.ToDate, a.Comment, a.CreatedByName, a.CreatedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        var reasonByEmployee = reasons
+            .GroupBy(a => a.EmployeeId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(a => a.CreatedAtUtc).First());
+
+        return lines
+            .OrderBy(l => l.Division).ThenBy(l => l.DepartmentName).ThenBy(l => l.Shift).ThenBy(l => l.Name)
+            .Select(l => new AbsenceListItemDto(
+                l.EmployeeId, l.Name, l.BadgeNumber, 0, l.DepartmentName, l.Division, l.Shift, l.Status, l.IsSupply,
+                reasonByEmployee.TryGetValue(l.EmployeeId, out var r)
+                    ? new AbsenceReasonView(r.RecordId, r.CategoryId, r.CategoryName, r.Kind, r.FromDate, r.ToDate, r.Comment, r.SetByName, r.CreatedAtUtc)
+                    : null,
+                headByDeptName.TryGetValue(l.DepartmentName.ToLowerInvariant(), out var head) ? head : "Unassigned"))
+            .ToList();
+    }
+
+    /// <summary>Builds department-head display names keyed by both department id and (lower-cased) name.</summary>
+    private async Task<(Dictionary<int, string> ById, Dictionary<string, string> ByName)> LoadDepartmentHeadsAsync(CancellationToken cancellationToken)
+    {
+        var rows = await (
+            from m in _dbContext.DepartmentManagers.AsNoTracking()
+            join dep in _dbContext.Departments.AsNoTracking() on m.DepartmentId equals dep.Id
+            join ra in _dbContext.RoleAssignments.AsNoTracking() on m.EntraObjectId equals ra.EntraObjectId into raj
+            from ra in raj.DefaultIfEmpty()
+            select new { m.DepartmentId, DepartmentName = dep.Name, Name = ra != null ? ra.DisplayName : null, m.EntraObjectId })
+            .ToListAsync(cancellationToken);
+
+        static string Join(IEnumerable<string> names) => string.Join(", ", names.Distinct());
+
+        var byId = rows
+            .GroupBy(r => r.DepartmentId)
+            .ToDictionary(g => g.Key, g => Join(g.Select(x => string.IsNullOrWhiteSpace(x.Name) ? x.EntraObjectId : x.Name!)));
+
+        var byName = rows
+            .GroupBy(r => r.DepartmentName.ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => Join(g.Select(x => string.IsNullOrWhiteSpace(x.Name) ? x.EntraObjectId : x.Name!)));
+
+        return (byId, byName);
     }
 
     /// <inheritdoc />

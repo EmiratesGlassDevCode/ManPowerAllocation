@@ -17,8 +17,8 @@ public static class AbsenceEndpoints
     {
         var absences = group.MapGroup("/absences").RequireAuthorization(AuthorizationPolicies.RequireViewer);
 
-        absences.MapGet("/", async (Division? division, IAbsenceService service, CancellationToken ct) =>
-            Results.Ok(await service.GetAbsenteesAsync(division, ct)));
+        absences.MapGet("/", async (Division? division, DateOnly? asOf, ShiftType? shift, IAbsenceService service, CancellationToken ct) =>
+            Results.Ok(await service.GetAbsenteesAsync(division, asOf, shift, cancellationToken: ct)));
 
         absences.MapGet("/categories", async (IAbsenceCategoryService service, CancellationToken ct) =>
             Results.Ok(await service.ListAsync(includeInactive: false, ct)));

@@ -16,8 +16,10 @@ public interface IAbsenceService
     /// single division. Each row carries the active reason, if one has been recorded.
     /// </summary>
     /// <param name="division">Optional division filter; null returns all divisions.</param>
+    /// <param name="asOf">Optional operational date to view; a past date returns the captured snapshot (read-only). Null/today = live.</param>
+    /// <param name="shift">Optional shift filter (Day/Night); null returns both.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
-    Task<IReadOnlyList<AbsenceListItemDto>> GetAbsenteesAsync(Division? division, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AbsenceListItemDto>> GetAbsenteesAsync(Division? division, DateOnly? asOf = null, ShiftType? shift = null, CancellationToken cancellationToken = default);
 
     /// <summary>Sets (creates or replaces) the current absence reason for an employee. Scope-checked.</summary>
     Task SetReasonAsync(SetAbsenceReasonRequest request, CancellationToken cancellationToken = default);
