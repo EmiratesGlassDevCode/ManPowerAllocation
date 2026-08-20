@@ -104,12 +104,22 @@ public sealed class ClosedXmlReportExportService : IReportExportService
             .ThenBy(e => e.Name)
             .ToListAsync(cancellationToken);
 
+        // The full list of valid department names (including empty departments), used to build the
+        // in-cell dropdown so an offline editor can only pick an existing department, never type a new one.
+        var departmentNames = await _dbContext.Departments
+            .AsNoTracking()
+            .Select(d => d.Name)
+            .Distinct()
+            .OrderBy(n => n)
+            .ToListAsync(cancellationToken);
+
         using var wb = new XLWorkbook();
         var ws = wb.AddWorksheet("Attendance");
         // "Ref" (the employee id) is the stable key the non-destructive edit-apply upload uses to
         // match an edited row back to the exact employee. Leave it intact when editing offline.
-        var row = WriteBrandedHeader(ws, "Attendance",
+        var firstDataRow = WriteBrandedHeader(ws, "Attendance",
             "Ref", "Name", "ID", "Division", "Department", "Shift", "Available", "Outsource", "Notes");
+        var row = firstDataRow;
 
         foreach (var e in employees)
         {
@@ -123,6 +133,35 @@ public sealed class ClosedXmlReportExportService : IReportExportService
             ws.Cell(row, 8).Value = e.IsSupply ? "YES" : string.Empty;
             ws.Cell(row, 9).Value = e.Notes ?? string.Empty;
             row++;
+        }
+
+        // Lock the controlled-vocabulary columns to a dropdown so an edited sheet can never introduce
+        // a new Division / Department / Shift value (which the import would otherwise reject or skip).
+        // Department resolution keys on (Division, Name), so Division is guarded alongside Department.
+        var lastDataRow = row - 1;
+        if (lastDataRow >= firstDataRow)
+        {
+            SetDropdown(ws.Range(firstDataRow, 4, lastDataRow, 4), "\"EGL,Functional Support,BRG\"",
+                "Division", "Pick a division from the list.");
+
+            if (departmentNames.Count > 0)
+            {
+                // Department names go on a hidden sheet: the inline-list form is capped at 255
+                // characters and cannot hold a long or comma-bearing list, so a range reference is used.
+                var lists = wb.AddWorksheet("Lists");
+                for (var i = 0; i < departmentNames.Count; i++)
+                {
+                    lists.Cell(i + 1, 1).Value = departmentNames[i];
+                }
+                lists.Hide();
+
+                var deptRange = lists.Range(1, 1, departmentNames.Count, 1);
+                SetDropdown(ws.Range(firstDataRow, 5, lastDataRow, 5), deptRange,
+                    "Department", "Pick a department from the list.");
+            }
+
+            SetDropdown(ws.Range(firstDataRow, 6, lastDataRow, 6), "\"DAY,NIGHT\"",
+                "Shift", "Pick DAY or NIGHT.");
         }
 
         ws.Columns().AdjustToContents(1, 60); // bound the scan: sizing from the first rows keeps large exports fast
@@ -603,6 +642,37 @@ public sealed class ClosedXmlReportExportService : IReportExportService
     /// Writes an Emirates Glass branded band (company name + report title + generation stamp)
     /// followed by the bold, navy column-header row, and returns the first data row index.
     /// </summary>
+    /// <summary>
+    /// Applies a "Stop"-style list data-validation (in-cell dropdown) to a range from a short inline
+    /// list such as <c>"DAY,NIGHT"</c>. A rejected entry cannot be typed into the cell.
+    /// </summary>
+    private static void SetDropdown(IXLRange range, string inlineList, string title, string message)
+    {
+        var dv = range.CreateDataValidation();
+        dv.List(inlineList, inCellDropdown: true);
+        ConfigureDropdown(dv, title, message);
+    }
+
+    /// <summary>
+    /// Applies a "Stop"-style list data-validation (in-cell dropdown) to a range, sourcing the allowed
+    /// values from another range (used for the department list, which can exceed the inline 255-char cap).
+    /// </summary>
+    private static void SetDropdown(IXLRange range, IXLRange source, string title, string message)
+    {
+        var dv = range.CreateDataValidation();
+        dv.List(source, inCellDropdown: true);
+        ConfigureDropdown(dv, title, message);
+    }
+
+    /// <summary>Shared validation settings: blanks allowed, hard stop on an off-list value.</summary>
+    private static void ConfigureDropdown(IXLDataValidation dv, string title, string message)
+    {
+        dv.IgnoreBlanks = true;
+        dv.ErrorStyle = XLErrorStyle.Stop;
+        dv.ErrorTitle = title;
+        dv.ErrorMessage = message;
+    }
+
     private int WriteBrandedHeader(IXLWorksheet ws, string reportTitle, params string[] headers)
     {
         var span = Math.Max(headers.Length, 1);

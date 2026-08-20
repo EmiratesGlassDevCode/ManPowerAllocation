@@ -48,6 +48,12 @@ public sealed class ClosedXmlImportParser : IExcelImportParser
         foreach (var sheet in wb.Worksheets)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // "Lists" is the hidden helper sheet the export writes to back the dropdowns; it holds
+            // reference values, not employee rows, so it must never be parsed as data.
+            if (string.Equals(sheet.Name, "Lists", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
             rows.AddRange(ExtractEditedEmployees(sheet));
         }
 
