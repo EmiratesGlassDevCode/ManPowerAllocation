@@ -258,11 +258,9 @@ else
 
 @if (_deleteDeptTarget is not null)
 {
-    @{
-        var delMembers = _employees.Where(e => e.DepartmentId == _deleteDeptTarget.DepartmentId).ToList();
-        var delOwn = delMembers.Count(e => !e.IsSupply);
-        var delSupply = delMembers.Count(e => e.IsSupply);
-    }
+    var delMembers = _employees.Where(e => e.DepartmentId == _deleteDeptTarget.DepartmentId).ToList();
+    var delOwn = delMembers.Count(e => !e.IsSupply);
+    var delSupply = delMembers.Count(e => e.IsSupply);
     <div class="modal-bg" @onclick="() => _deleteDeptTarget = null">
         <div class="modal" @onclick:stopPropagation="true">
             <h3>Delete department?</h3>
