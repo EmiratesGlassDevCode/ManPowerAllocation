@@ -98,9 +98,9 @@ public sealed class DepartmentService : IDepartmentService
             RequiredNight = request.RequiredNight,
             Sequence = request.Sequence,
             IsActive = true,
-            // Departments named EXCESS / OUTSOURCE are shared pools (bench). Flag on create so a
-            // newly-added Outsource pool works immediately without waiting for the startup pass.
-            IsPool = name is "EXCESS" or "OUTSOURCE",
+            // Departments named EXCESS / OUTSOURCE / SUPPLY are shared pools (bench). Flag on create so a
+            // newly-added pool works immediately without waiting for the startup pass.
+            IsPool = name is "EXCESS" or "OUTSOURCE" or "SUPPLY",
             ShiftScheduleId = await ResolveScheduleIdAsync(request.ShiftScheduleId, cancellationToken)
         };
 

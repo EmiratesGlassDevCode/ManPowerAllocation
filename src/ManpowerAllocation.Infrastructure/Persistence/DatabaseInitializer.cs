@@ -152,7 +152,7 @@ public sealed class DatabaseInitializer
         // the expression interpreter, and `array.Contains(member)` binds to the ReadOnlySpan<T>
         // overload of Contains — which throws a TypeLoadException at runtime (ReadOnlySpan is a ref
         // struct and cannot be a generic argument). A List binds to Enumerable.Contains and is safe.
-        var poolNames = new List<string> { "EXCESS", "OUTSOURCE" };
+        var poolNames = new List<string> { "EXCESS", "OUTSOURCE", "SUPPLY" };
         var poolsToFlag = await _dbContext.Departments
             .Where(d => !d.IsPool && poolNames.Contains(d.Name))
             .ToListAsync(cancellationToken);
