@@ -44,6 +44,21 @@ public sealed class DepartmentService : IDepartmentService
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<DepartmentDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        // All departments across every division, ordered for grouped display. Used by the loan
+        // dropdown when an employee sits in a shared pool and may be sent back to any division.
+        return await _dbContext.Departments
+            .AsNoTracking()
+            .OrderBy(d => d.Division)
+            .ThenBy(d => d.Sequence)
+            .ThenBy(d => d.Name)
+            .Select(d => new DepartmentDto(
+                d.Id, d.Division, d.Name, d.RequiredDay, d.RequiredNight, d.Sequence, d.IsActive, d.ShiftScheduleId, d.IsPool))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<DepartmentDto>> GetPoolsAsync(CancellationToken cancellationToken = default)
     {
         return await _dbContext.Departments
@@ -174,11 +189,76 @@ public sealed class DepartmentService : IDepartmentService
             throw new BusinessRuleException("Cannot delete a department that still has employees allocated to it.");
         }
 
+        // A department that is nobody's *current* home may still be someone's *home* department (they
+        // are loaned elsewhere right now). The HomeDepartmentId foreign key would otherwise fail the
+        // delete with an opaque database error, so surface a clear message and point to force-delete.
+        var isHomeToSomeone = await _dbContext.Employees.AnyAsync(e => e.HomeDepartmentId == departmentId, cancellationToken);
+        if (isHomeToSomeone)
+        {
+            throw new BusinessRuleException(
+                "This department is the home department of one or more employees who are currently loaned elsewhere. Use 'Delete anyway' to remove it and re-home them.");
+        }
+
         var before = ToDto(department);
         _dbContext.Departments.Remove(department);
 
         _auditWriter.Add(AuditAction.Delete, nameof(Department), departmentId.ToString(), before, null);
         await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> ForceDeleteAsync(int departmentId, CancellationToken cancellationToken = default)
+    {
+        Require(UserRole.Admin);
+
+        var removed = 0;
+        await _dbContext.ExecuteInTransactionAsync(async ct =>
+        {
+            removed = 0;
+
+            var department = await _dbContext.Departments
+                .FirstOrDefaultAsync(d => d.Id == departmentId, ct)
+                ?? throw new NotFoundException(nameof(Department), departmentId);
+
+            // Everyone currently allocated here. Protect real staff: refuse if any are own (non-supply)
+            // employees — they must be moved out first, never silently deleted.
+            var allocated = await _dbContext.Employees
+                .Where(e => e.DepartmentId == departmentId)
+                .ToListAsync(ct);
+
+            var ownStaff = allocated.Count(e => !e.IsSupply);
+            if (ownStaff > 0)
+            {
+                throw new BusinessRuleException(
+                    $"This department has {ownStaff} own (non-supply) employee(s) allocated. Move them to another department first, then delete.");
+            }
+
+            // The allocated members are all supply/outsource — remove them with the department.
+            if (allocated.Count > 0)
+            {
+                _dbContext.Employees.RemoveRange(allocated);
+                removed = allocated.Count;
+            }
+
+            // Re-home anyone whose home was this department but who is currently loaned elsewhere, so
+            // the restricted HomeDepartmentId foreign key does not block the delete and no one is orphaned.
+            var homedElsewhere = await _dbContext.Employees
+                .Where(e => e.HomeDepartmentId == departmentId && e.DepartmentId != departmentId)
+                .ToListAsync(ct);
+            foreach (var employee in homedElsewhere)
+            {
+                employee.HomeDepartmentId = employee.DepartmentId;
+            }
+
+            var before = ToDto(department);
+            _dbContext.Departments.Remove(department);
+
+            _auditWriter.Add(AuditAction.Delete, nameof(Department), departmentId.ToString(), before,
+                new { Forced = true, SupplyRemoved = removed, ReHomed = homedElsewhere.Count });
+            await _dbContext.SaveChangesAsync(ct);
+        }, cancellationToken);
+
+        return removed;
     }
 
     /// <inheritdoc />

@@ -159,9 +159,25 @@ else
                                                 <FluentButton Appearance="Appearance.Lightweight" @onclick="() => ChangeShiftAsync(emp.Id, emp.Shift == ShiftType.Day ? ShiftType.Night : ShiftType.Day)">↔ Shift</FluentButton>
                                                 <select class="move-select" @onchange="e => MoveAsync(emp.Id, e.Value?.ToString())">
                                                     <option value="0">Loan to…</option>
-                                                    @foreach (var d in _departments.Where(d => !d.IsPool && d.Id != emp.DepartmentId))
+                                                    @if (_pools.Any(p => p.Id == emp.DepartmentId))
                                                     {
-                                                        <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                                                        @* In a shared pool (Excess / Outsource): can be sent back to any division's department. *@
+                                                        @foreach (var grp in _allDepartments.Where(d => !d.IsPool && d.Id != emp.DepartmentId).GroupBy(d => d.Division))
+                                                        {
+                                                            <optgroup label="@DivisionLabel(grp.Key)">
+                                                                @foreach (var d in grp)
+                                                                {
+                                                                    <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                                                                }
+                                                            </optgroup>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        @foreach (var d in _departments.Where(d => !d.IsPool && d.Id != emp.DepartmentId))
+                                                        {
+                                                            <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                                                        }
                                                     }
                                                     @if (_pools.Any(p => p.Id != emp.DepartmentId))
                                                     {
@@ -242,16 +258,46 @@ else
 
 @if (_deleteDeptTarget is not null)
 {
+    @{
+        var delMembers = _employees.Where(e => e.DepartmentId == _deleteDeptTarget.DepartmentId).ToList();
+        var delOwn = delMembers.Count(e => !e.IsSupply);
+        var delSupply = delMembers.Count(e => e.IsSupply);
+    }
     <div class="modal-bg" @onclick="() => _deleteDeptTarget = null">
         <div class="modal" @onclick:stopPropagation="true">
             <h3>Delete department?</h3>
             <div class="modal-scroll">
-                <p>Delete <strong>@TextCase.Title(_deleteDeptTarget.Name)</strong>? A department can only be
-                   removed once it has no employees allocated to it. This is written to the audit trail.</p>
+                @if (delOwn > 0)
+                {
+                    <p>Delete <strong>@TextCase.Title(_deleteDeptTarget.Name)</strong>? This department has
+                       <strong>@delOwn</strong> own employee(s) allocated. Move them to another department
+                       first — own staff are never deleted.</p>
+                }
+                else if (delSupply > 0)
+                {
+                    <p>⚠ <strong>@TextCase.Title(_deleteDeptTarget.Name)</strong> holds <strong>@delSupply</strong>
+                       outsource/supply member(s). Deleting removes the department <strong>and those @delSupply
+                       member(s)</strong>. This cannot be undone and is written to the audit trail.</p>
+                }
+                else
+                {
+                    <p>Delete <strong>@TextCase.Title(_deleteDeptTarget.Name)</strong>? This is written to the audit trail.</p>
+                }
             </div>
             <div class="modal-foot">
                 <FluentButton Appearance="Appearance.Neutral" @onclick="() => _deleteDeptTarget = null">Cancel</FluentButton>
-                <FluentButton Appearance="Appearance.Accent" @onclick="ConfirmDeleteDeptAsync" Disabled="@_busy">Delete</FluentButton>
+                @if (delOwn > 0)
+                {
+                    <FluentButton Appearance="Appearance.Accent" Disabled="true">Delete</FluentButton>
+                }
+                else if (delSupply > 0)
+                {
+                    <FluentButton Appearance="Appearance.Accent" @onclick="ConfirmDeleteDeptAsync" Disabled="@_busy">Delete department + members</FluentButton>
+                }
+                else
+                {
+                    <FluentButton Appearance="Appearance.Accent" @onclick="ConfirmDeleteDeptAsync" Disabled="@_busy">Delete</FluentButton>
+                }
             </div>
         </div>
     </div>
@@ -306,6 +352,7 @@ else
     private DivisionDashboard? _dashboard;
     private List<DepartmentDto> _departments = new();
     private List<DepartmentDto> _pools = new();
+    private List<DepartmentDto> _allDepartments = new();
     private List<EmployeeDto> _employees = new();
     private Dictionary<int, List<EmployeeDto>> _byDept = new();
     private List<string> _outsourceByDept = new();
@@ -415,6 +462,7 @@ else
         _dashboard = await DashboardService.GetDivisionDashboardAsync(_division.Value, _shift);
         _departments = (await DepartmentService.GetByDivisionAsync(_division.Value)).ToList();
         _pools = (await DepartmentService.GetPoolsAsync()).ToList();
+        _allDepartments = (await DepartmentService.GetAllAsync()).ToList();
         _employees = (await EmployeeService.GetByDivisionAsync(_division.Value)).ToList();
         _schedules = await ScheduleService.ListAsync();
 
@@ -713,7 +761,10 @@ else
         var id = _deleteDeptTarget.DepartmentId;
         try
         {
-            await DepartmentService.DeleteAsync(id);
+            // Force-delete handles every safe case uniformly: a truly empty department, one that only
+            // holds outsource/supply members, and one still referenced as someone's home department
+            // (they are re-homed). It refuses server-side if any own staff are allocated.
+            await DepartmentService.ForceDeleteAsync(id);
             _deleteDeptTarget = null;
             await LoadAsync();
         }
@@ -733,6 +784,15 @@ else
 
     /// <summary>A User/Admin may edit any department; a department head only their assigned ones.</summary>
     private bool CanEditDept(int departmentId) => _canEdit || _managedDeptIds.Contains(departmentId);
+
+    /// <summary>Short division label for the pool loan-target optgroups.</summary>
+    private static string DivisionLabel(Division division) => division switch
+    {
+        Division.Egl => "EGL",
+        Division.FunctionalSupport => "Functional Support",
+        Division.Brg => "BRG",
+        _ => division.ToString()
+    };
 
     /// <summary>Editing a department’s requirements: Admin anywhere, or a head within their scope.</summary>
     private bool CanManageDept(int departmentId) => _canAdmin || _managedDeptIds.Contains(departmentId);

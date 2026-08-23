@@ -14,6 +14,13 @@ public interface IDepartmentService
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<IReadOnlyList<DepartmentDto>> GetPoolsAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Returns every department across all divisions, ordered by division, sequence then name.
+    /// Used by the loan dropdown when an employee sits in a shared pool and may be sent to any division.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<IReadOnlyList<DepartmentDto>> GetAllAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Creates a new department, rejecting a duplicate (division, name) pair.</summary>
     /// <param name="request">The department to create.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
@@ -31,10 +38,21 @@ public interface IDepartmentService
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<DepartmentDto> SetActiveAsync(int departmentId, bool isActive, CancellationToken cancellationToken = default);
 
-    /// <summary>Deletes a department that has no employees allocated to it.</summary>
+    /// <summary>Deletes a department that has no employees allocated to it and is no employee's home.</summary>
     /// <param name="departmentId">The department to delete.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task DeleteAsync(int departmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Force-deletes a department that only holds outsource/supply members: it removes the department
+    /// and those supply members, and re-homes anyone whose home was this department but is currently
+    /// loaned elsewhere. It refuses if any own (non-supply) employee is allocated, so real staff are
+    /// never deleted — move them out first. Intended for cleaning up mistakenly created pool/supply
+    /// departments. Returns how many supply members were removed.
+    /// </summary>
+    /// <param name="departmentId">The department to force-delete.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<int> ForceDeleteAsync(int departmentId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns every department across all divisions that has no employees allocated to it,
