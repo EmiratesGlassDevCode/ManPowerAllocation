@@ -232,6 +232,36 @@ public sealed class EmployeeService : IEmployeeService
         return ToDto(employee, target.Name);
     }
 
+    /// <inheritdoc />
+    public async Task<EmployeeDto> ReassignAsync(int employeeId, ReassignEmployeeRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var employee = await LoadWithDepartmentAsync(employeeId, cancellationToken);
+        var source = employee.Department!;
+        var target = await _dbContext.Departments
+            .FirstOrDefaultAsync(d => d.Id == request.TargetDepartmentId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Department), request.TargetDepartmentId);
+
+        // A permanent reassignment is a single-employee master edit, so it is authorised by edit
+        // rights on the employee's current department (User/Admin anywhere, or the head of that
+        // department). It may cross divisions.
+        await RequireDepartmentEditAsync(employee.DepartmentId, cancellationToken);
+
+        var before = ToDto(employee, source.Name);
+
+        // Set both the current and the home department so the shift-reset keeps the employee here.
+        employee.DepartmentId = target.Id;
+        employee.HomeDepartmentId = target.Id;
+        employee.Department = target;
+        employee.Division = target.Division;
+
+        _auditWriter.Add(AuditAction.Update, nameof(Employee), employee.Id.ToString(), before, ToDto(employee, target.Name));
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return ToDto(employee, target.Name);
+    }
+
     /// <summary>
     /// Authorises one side of a loan: a User/Admin may use any department; a department head may use
     /// their own departments and any shared pool (Excess/Outsource); anyone else is refused.

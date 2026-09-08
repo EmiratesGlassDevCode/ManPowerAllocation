@@ -190,12 +190,18 @@ else
             <h3>Edit @TextCase.Title(_editTarget.Name)</h3>
             <FluentTextField @bind-Value="_eName" Label="Name" Style="width:100%" />
             <FluentTextField @bind-Value="_eBadge" Label="Badge / employee ID" Placeholder="The ID must match the biometric feed" Style="width:100%" />
-            <label class="native-select-label">Department (@DivisionLabel(_editTarget.Division))
+            <label class="native-select-label">Department (permanent — sets home)
                 <select @bind="_eDeptId">
-                    @* User/Admin: any department in the division. Head: only their own (plus the current one, shown read-only-ish). *@
-                    @foreach (var d in _departments.Where(d => d.Division == _editTarget.Division && (_canEdit || _managedDeptIds.Contains(d.Id) || d.Id == _editTarget.DepartmentId)))
+                    @* Permanent reassignment. User/Admin: any department in any division. Head: their own
+                       departments (plus the current one). Grouped by division. *@
+                    @foreach (var group in _departments.Where(d => _canEdit || _managedDeptIds.Contains(d.Id) || d.Id == _editTarget.DepartmentId).GroupBy(d => d.Division))
                     {
-                        <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                        <optgroup label="@DivisionLabel(group.Key)">
+                            @foreach (var d in group)
+                            {
+                                <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                            }
+                        </optgroup>
                     }
                 </select>
             </label>
@@ -470,7 +476,9 @@ else
             }
             if (_eDeptId != _editTarget.DepartmentId)
             {
-                await EmployeeService.MoveAsync(id, new MoveEmployeeRequest { TargetDepartmentId = _eDeptId });
+                // Permanent reassignment (sets the home department) — not a temporary loan — so the
+                // change sticks across shift resets. This is the "small master edit" from the Employees menu.
+                await EmployeeService.ReassignAsync(id, new ReassignEmployeeRequest { TargetDepartmentId = _eDeptId });
             }
 
             _editTarget = null;

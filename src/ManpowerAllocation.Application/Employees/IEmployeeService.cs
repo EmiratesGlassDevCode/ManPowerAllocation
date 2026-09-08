@@ -48,6 +48,16 @@ public interface IEmployeeService
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     Task<EmployeeDto> MoveAsync(int employeeId, MoveEmployeeRequest request, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Permanently reassigns an employee to another department (a single-employee master edit): sets
+    /// the home department, current department and division, so the change survives the shift reset.
+    /// May cross divisions. Requires edit rights on the employee's current department.
+    /// </summary>
+    /// <param name="employeeId">The employee to reassign.</param>
+    /// <param name="request">The new permanent department.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<EmployeeDto> ReassignAsync(int employeeId, ReassignEmployeeRequest request, CancellationToken cancellationToken = default);
+
     /// <summary>Deletes an employee.</summary>
     /// <param name="employeeId">The employee to delete.</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>

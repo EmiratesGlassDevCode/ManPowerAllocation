@@ -73,3 +73,14 @@ public sealed record MoveEmployeeRequest
     /// <summary>The target department id. Must be in the same division as the employee.</summary>
     public int TargetDepartmentId { get; init; }
 }
+
+/// <summary>
+/// Request to permanently reassign an employee to another department — a single-employee master
+/// edit. Unlike a loan, this sets the employee's home department (and current department/division),
+/// so a shift reset keeps them there. May cross divisions.
+/// </summary>
+public sealed record ReassignEmployeeRequest
+{
+    /// <summary>The new permanent (home) department id.</summary>
+    public int TargetDepartmentId { get; init; }
+}
