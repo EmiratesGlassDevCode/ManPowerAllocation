@@ -141,11 +141,11 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
                 Tally(target, ref present, ref absent, ref onVacation);
             }
 
-            if (changed > 0)
-            {
-                WriteSummaryAudit(triggeredBy, present, absent, onVacation, changed);
-                await SaveWithConcurrencyRetryAsync(cancellationToken);
-            }
+            // Record every successful run in the audit trail — one summary entry per run — so there is
+            // a persistent history of the scheduled (default 10-minute) syncs, not only the runs that
+            // changed a status. Employee status changes (when any) are saved in the same transaction.
+            WriteSummaryAudit(triggeredBy, present, absent, onVacation, changed);
+            await SaveWithConcurrencyRetryAsync(cancellationToken);
 
             return Record(new AttendanceSyncResult
             {
