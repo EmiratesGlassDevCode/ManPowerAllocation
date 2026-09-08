@@ -37,6 +37,9 @@ internal static class PdfDailyReport
     /// <summary>A division rollup for the fill chart.</summary>
     internal sealed record DivisionRow(string Division, int Required, int Present);
 
+    /// <summary>A department's on/off (active) state at capture time.</summary>
+    internal sealed record DeptStatusRow(string Division, string Name, bool IsActive);
+
     /// <summary>An absent (or on-vacation) employee and the reason recorded for the report date.</summary>
     internal sealed record AbsenteeRow(
         string Name, string? Badge, string Division, string Department,
@@ -58,7 +61,8 @@ internal static class PdfDailyReport
         int ShortageDepartments,
         IReadOnlyList<DivisionRow> Divisions,
         IReadOnlyList<DeptRow> Departments,
-        IReadOnlyList<AbsenteeRow> Absentees);
+        IReadOnlyList<AbsenteeRow> Absentees,
+        IReadOnlyList<DeptStatusRow> DepartmentStatuses);
 
     public static byte[] Render(byte[] logo, Model m)
     {
@@ -358,6 +362,68 @@ internal static class PdfDailyReport
                 y += rowH;
             }
         }
+
+        // ── Department status (ON / OFF) — chip layout ────────────────────────
+        void EnsureSpace(double need)
+        {
+            if (y > h - Margin - need)
+            {
+                gfx.Dispose();
+                page = doc.AddPage();
+                page.Size = PageSize.A4;
+                gfx = XGraphics.FromPdfPage(page);
+                y = Margin;
+            }
+        }
+
+        void DrawStatusGroup(string title, IReadOnlyList<DeptStatusRow> items, XColor accent, XColor chipBg)
+        {
+            EnsureSpace(46);
+            gfx.DrawEllipse(new XSolidBrush(accent), Margin, y + 3, 9, 9);
+            gfx.DrawString($"{title}  ({items.Count})", Bold(9), new XSolidBrush(Navy),
+                new XRect(Margin + 16, y, contentW - 16, 14), XStringFormats.TopLeft);
+            y += 18;
+
+            if (items.Count == 0)
+            {
+                gfx.DrawString("None.", Regular(8.5), new XSolidBrush(Muted),
+                    new XRect(Margin + 16, y, contentW - 16, 12), XStringFormats.TopLeft);
+                y += 22;
+                return;
+            }
+
+            const double chipH = 18, padX = 10, gapX = 6, gapY = 6, dot = 6;
+            var x = Margin;
+            foreach (var d in items)
+            {
+                var tw = gfx.MeasureString(d.Name, Regular(8.5)).Width;
+                var cw = tw + padX * 2 + dot + 4;
+                if (x + cw > Margin + contentW)
+                {
+                    x = Margin;
+                    y += chipH + gapY;
+                    EnsureSpace(chipH + 6);
+                }
+                gfx.DrawRoundedRectangle(new XSolidBrush(chipBg), x, y, cw, chipH, 9, 9);
+                gfx.DrawEllipse(new XSolidBrush(accent), x + padX - 3, y + chipH / 2 - dot / 2, dot, dot);
+                gfx.DrawString(d.Name, Regular(8.5), new XSolidBrush(Ink),
+                    new XRect(x + padX + dot, y, cw - padX - dot, chipH), XStringFormats.CenterLeft);
+                x += cw + gapX;
+            }
+            y += chipH + 16;
+        }
+
+        y += 18;
+        EnsureSpace(90);
+        var onDepts = m.DepartmentStatuses.Where(d => d.IsActive).ToList();
+        var offDepts = m.DepartmentStatuses.Where(d => !d.IsActive).ToList();
+        gfx.DrawString("DEPARTMENT STATUS", Bold(11), new XSolidBrush(Navy),
+            new XRect(Margin, y, contentW, 14), XStringFormats.TopLeft);
+        gfx.DrawString($"{onDepts.Count} on · {offDepts.Count} off", Regular(8.5), new XSolidBrush(Muted),
+            new XRect(Margin, y, contentW, 14), XStringFormats.TopRight);
+        y += 24;
+        DrawStatusGroup("SWITCHED ON", onDepts, Ok, XColor.FromArgb(0xE7, 0xF4, 0xEA));
+        DrawStatusGroup("SWITCHED OFF", offDepts, Danger, XColor.FromArgb(0xFB, 0xEA, 0xE8));
 
         // Dispose the live page graphics before the footer pass — PDFsharp permits only one
         // XGraphics per page and the footer loop opens a fresh one for every page.

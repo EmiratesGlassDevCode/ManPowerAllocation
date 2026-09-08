@@ -283,11 +283,17 @@ public sealed class ClosedXmlReportExportService : IReportExportService
 
         var absentees = await BuildAbsenteeRowsAsync(snapshot, cancellationToken);
 
+        var deptStatuses = snapshot.Departments
+            .OrderBy(d => d.Division)
+            .ThenBy(d => d.DepartmentName)
+            .Select(d => new PdfDailyReport.DeptStatusRow(DivisionLabel(d.Division), d.DepartmentName, d.IsActive))
+            .ToList();
+
         var model = new PdfDailyReport.Model(
             snapshot.OperationalDate, snapshot.Shift.ToString(), snapshot.CapturedAtUtc,
             snapshot.Required, snapshot.OnRoll, snapshot.Present, snapshot.Absent, snapshot.OnVacation,
             snapshot.SupplyPresent, snapshot.TotalPresent, snapshot.Variance, snapshot.ShortageDepartmentCount,
-            divisions, deptRows, absentees);
+            divisions, deptRows, absentees, deptStatuses);
 
         var pdf = PdfDailyReport.Render(LoadLogo(), model);
         return new ExportFile($"daily_report_{snapshot.OperationalDate:yyyyMMdd}_{snapshot.Shift}.pdf", "application/pdf", pdf);
