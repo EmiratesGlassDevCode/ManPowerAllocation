@@ -13,7 +13,8 @@ public sealed record EmployeeDto(
     ShiftType Shift,
     AttendanceStatus Status,
     bool IsSupply,
-    string? Notes);
+    string? Notes,
+    string? PresenceOverrideReason);
 
 /// <summary>Request to create an employee directly in the application.</summary>
 public sealed record CreateEmployeeRequest
@@ -58,6 +59,12 @@ public sealed record ChangeStatusRequest
 {
     /// <summary>The new attendance status.</summary>
     public AttendanceStatus Status { get; init; }
+
+    /// <summary>
+    /// Optional reason, used when the status is set to Present to correct a missed punch. Defaults to
+    /// "Missed punch". Recorded on the employee and protects the manual status from the next sync.
+    /// </summary>
+    public string? Reason { get; init; }
 }
 
 /// <summary>Request to change an employee's shift.</summary>

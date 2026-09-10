@@ -45,6 +45,17 @@ public sealed class Employee
     public AttendanceStatus Status { get; set; } = AttendanceStatus.Present;
 
     /// <summary>
+    /// When a user manually marks the employee Present to correct a missed punch, this holds the
+    /// factory-local instant until which that manual status is protected from the attendance sync.
+    /// While it is in the future the sync will not revert the employee to Absent. Null when there is
+    /// no active override; cleared automatically when it expires or when a real punch is seen.
+    /// </summary>
+    public DateTime? PresenceOverrideUntil { get; set; }
+
+    /// <summary>The reason recorded for a manual presence override (defaults to "Missed punch").</summary>
+    public string? PresenceOverrideReason { get; set; }
+
+    /// <summary>
     /// True when this is an outsourced / agency worker. Supply workers do not count
     /// towards own headcount but a present supply worker does fill a required slot.
     /// </summary>

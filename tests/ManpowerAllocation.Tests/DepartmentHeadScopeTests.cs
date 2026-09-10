@@ -29,7 +29,7 @@ public sealed class DepartmentHeadScopeTests
     {
         using var db = TestSupport.NewContext();
         await SeedAsync(db);
-        var svc = new EmployeeService(db, new NullAuditWriter(), Head("head-1"));
+        var svc = new EmployeeService(db, new NullAuditWriter(), Head("head-1"), new FakeFactoryClock());
 
         var result = await svc.ChangeStatusAsync(101, new ChangeStatusRequest { Status = AttendanceStatus.OnVacation });
 
@@ -41,7 +41,7 @@ public sealed class DepartmentHeadScopeTests
     {
         using var db = TestSupport.NewContext();
         await SeedAsync(db);
-        var svc = new EmployeeService(db, new NullAuditWriter(), Head("head-1"));
+        var svc = new EmployeeService(db, new NullAuditWriter(), Head("head-1"), new FakeFactoryClock());
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
             svc.ChangeStatusAsync(202, new ChangeStatusRequest { Status = AttendanceStatus.Absent }));
@@ -66,7 +66,7 @@ public sealed class DepartmentHeadScopeTests
     {
         using var db = TestSupport.NewContext();
         await SeedAsync(db);
-        var empSvc = new EmployeeService(db, new NullAuditWriter(), Simple(UserRole.User));
+        var empSvc = new EmployeeService(db, new NullAuditWriter(), Simple(UserRole.User), new FakeFactoryClock());
         var deptSvc = new DepartmentService(db, new NullAuditWriter(), Simple(UserRole.User));
 
         // A User may change status in any department...

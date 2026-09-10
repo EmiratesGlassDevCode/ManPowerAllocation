@@ -17,16 +17,22 @@ public sealed class EmployeeService : IEmployeeService
     private readonly IApplicationDbContext _dbContext;
     private readonly IAuditWriter _auditWriter;
     private readonly ICurrentUser _currentUser;
+    private readonly IFactoryClock _factoryClock;
+
+    /// <summary>How long a manual "Missed punch" presence override is protected from the sync.</summary>
+    private static readonly TimeSpan PresenceOverrideWindow = TimeSpan.FromHours(16);
 
     /// <summary>Initialises the service.</summary>
     /// <param name="dbContext">The application persistence context.</param>
     /// <param name="auditWriter">Writer used to record every change in the audit trail.</param>
     /// <param name="currentUser">The current principal, used for server-side authorization.</param>
-    public EmployeeService(IApplicationDbContext dbContext, IAuditWriter auditWriter, ICurrentUser currentUser)
+    /// <param name="factoryClock">Factory-local clock, used to time-box a manual presence override.</param>
+    public EmployeeService(IApplicationDbContext dbContext, IAuditWriter auditWriter, ICurrentUser currentUser, IFactoryClock factoryClock)
     {
         _dbContext = dbContext;
         _auditWriter = auditWriter;
         _currentUser = currentUser;
+        _factoryClock = factoryClock;
     }
 
     /// <summary>
@@ -66,7 +72,7 @@ public sealed class EmployeeService : IEmployeeService
             .OrderBy(e => e.Name)
             .Select(e => new EmployeeDto(
                 e.Id, e.Name, e.BadgeNumber, e.Division, e.DepartmentId,
-                e.Department!.Name, e.Shift, e.Status, e.IsSupply, e.Notes))
+                e.Department!.Name, e.Shift, e.Status, e.IsSupply, e.Notes, e.PresenceOverrideReason))
             .ToListAsync(cancellationToken);
     }
 
@@ -80,7 +86,7 @@ public sealed class EmployeeService : IEmployeeService
             .ThenBy(e => e.Name)
             .Select(e => new EmployeeDto(
                 e.Id, e.Name, e.BadgeNumber, e.Division, e.DepartmentId,
-                e.Department!.Name, e.Shift, e.Status, e.IsSupply, e.Notes))
+                e.Department!.Name, e.Shift, e.Status, e.IsSupply, e.Notes, e.PresenceOverrideReason))
             .ToListAsync(cancellationToken);
     }
 
@@ -102,7 +108,7 @@ public sealed class EmployeeService : IEmployeeService
             .Take(100)
             .Select(e => new EmployeeDto(
                 e.Id, e.Name, e.BadgeNumber, e.Division, e.DepartmentId,
-                e.Department!.Name, e.Shift, e.Status, e.IsSupply, e.Notes))
+                e.Department!.Name, e.Shift, e.Status, e.IsSupply, e.Notes, e.PresenceOverrideReason))
             .ToListAsync(cancellationToken);
     }
 
@@ -170,6 +176,19 @@ public sealed class EmployeeService : IEmployeeService
         var before = ToDto(employee, employee.Department!.Name);
 
         employee.Status = request.Status;
+
+        // A manual Present is a missed-punch correction: protect it from the attendance sync for the
+        // rest of the shift and record the reason. Any other status clears an existing override.
+        if (request.Status == AttendanceStatus.Present)
+        {
+            employee.PresenceOverrideUntil = _factoryClock.LocalNow.Add(PresenceOverrideWindow);
+            employee.PresenceOverrideReason = string.IsNullOrWhiteSpace(request.Reason) ? "Missed punch" : request.Reason!.Trim();
+        }
+        else
+        {
+            employee.PresenceOverrideUntil = null;
+            employee.PresenceOverrideReason = null;
+        }
 
         _auditWriter.Add(AuditAction.Update, nameof(Employee), employee.Id.ToString(), before, ToDto(employee, employee.Department!.Name));
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -333,5 +352,6 @@ public sealed class EmployeeService : IEmployeeService
         e.Shift,
         e.Status,
         e.IsSupply,
-        e.Notes);
+        e.Notes,
+        e.PresenceOverrideReason);
 }

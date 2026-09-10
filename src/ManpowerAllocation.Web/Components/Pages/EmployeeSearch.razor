@@ -106,7 +106,13 @@ else
                         <td>@DivisionLabel(e.Division)</td>
                         <td>@TextCase.Title(e.DepartmentName)</td>
                         <td><span class="badge @(e.Shift == ShiftType.Day ? "b-day" : "b-night")">@e.Shift</span></td>
-                        <td><span class="badge @StatusBadgeClass(e)">@TextCase.Status(e.Status)</span></td>
+                        <td>
+                            <span class="badge @StatusBadgeClass(e)">@TextCase.Status(e.Status)</span>
+                            @if (e.Status == AttendanceStatus.Present && !string.IsNullOrWhiteSpace(e.PresenceOverrideReason))
+                            {
+                                <span class="emp-id" style="opacity:.7;font-size:.8em;margin-left:4px" title="Manual presence — not from a biometric punch">· @e.PresenceOverrideReason</span>
+                            }
+                        </td>
                         <td class="emp-notes">@(string.IsNullOrWhiteSpace(e.Notes) ? "—" : e.Notes)</td>
                         @if (CanManageAny)
                         {
@@ -220,6 +226,10 @@ else
                     </select>
                 </label>
             </div>
+            @if (_eStatus == AttendanceStatus.Present)
+            {
+                <FluentTextField @bind-Value="_eReason" Label="Present reason (kept over the sync — e.g. missed punch)" Style="width:100%" />
+            }
             <FluentTextField @bind-Value="_eNotes" Label="Notes / designation" Style="width:100%" />
             @if (!string.IsNullOrEmpty(_editError))
             {
@@ -309,6 +319,7 @@ else
     private ShiftType _eShift;
     private AttendanceStatus _eStatus;
     private string _eNotes = string.Empty;
+    private string _eReason = "Missed punch";
     private string? _editError;
 
     // Delete.
@@ -446,6 +457,7 @@ else
         _eShift = e.Shift;
         _eStatus = e.Status;
         _eNotes = e.Notes ?? string.Empty;
+        _eReason = string.IsNullOrWhiteSpace(e.PresenceOverrideReason) ? "Missed punch" : e.PresenceOverrideReason;
     }
 
     private async Task SaveEditAsync()
@@ -472,7 +484,13 @@ else
             }
             if (_eStatus != _editTarget.Status)
             {
-                await EmployeeService.ChangeStatusAsync(id, new ChangeStatusRequest { Status = _eStatus });
+                await EmployeeService.ChangeStatusAsync(id, new ChangeStatusRequest
+                {
+                    Status = _eStatus,
+                    // A manual Present is a missed-punch correction; the reason is kept and protects the
+                    // status from the next attendance sync.
+                    Reason = _eStatus == AttendanceStatus.Present ? _eReason : null
+                });
             }
             if (_eDeptId != _editTarget.DepartmentId)
             {

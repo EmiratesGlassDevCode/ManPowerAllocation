@@ -27,7 +27,7 @@ public sealed class EmployeeLoanTests
     }
 
     private static EmployeeService NewService(Infrastructure.Persistence.ManpowerDbContext db) =>
-        new(db, new NullAuditWriter(), new FakeUser(UserRole.User));
+        new(db, new NullAuditWriter(), new FakeUser(UserRole.User), new FakeFactoryClock());
 
     [Fact]
     public async Task Loan_across_divisions_without_a_pool_is_rejected()

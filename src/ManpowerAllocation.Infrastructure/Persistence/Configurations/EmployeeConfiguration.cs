@@ -21,6 +21,7 @@ public sealed class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(e => e.Status).IsRequired();
         builder.Property(e => e.IsSupply).IsRequired();
         builder.Property(e => e.Notes).HasMaxLength(500);
+        builder.Property(e => e.PresenceOverrideReason).HasMaxLength(200);
         builder.Property(e => e.RowVersion).IsRowVersion();
 
         // Home department: a second, optional relationship to Department (no navigation, no cascade),

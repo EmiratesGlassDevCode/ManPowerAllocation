@@ -126,11 +126,29 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
                 var times = punchesByBadge.TryGetValue(badge, out var list) ? list : Enumerable.Empty<DateTime>();
                 var checkedIn = ShiftWindowResolver.IsPresent(times, dayStart, grace, employee.Shift, localNow);
 
-                var target = checkedIn
-                    ? AttendanceStatus.Present
-                    : employee.Status == AttendanceStatus.OnVacation
-                        ? AttendanceStatus.OnVacation
-                        : AttendanceStatus.Absent;
+                AttendanceStatus target;
+                if (checkedIn)
+                {
+                    target = AttendanceStatus.Present;
+                    // A real punch supersedes any manual missed-punch override.
+                    ClearPresenceOverride(employee);
+                }
+                else if (employee.Status == AttendanceStatus.OnVacation)
+                {
+                    target = AttendanceStatus.OnVacation;
+                }
+                else if (employee.Status == AttendanceStatus.Present
+                         && employee.PresenceOverrideUntil is { } until && localNow < until)
+                {
+                    // Manual "Missed punch" correction still valid this shift — do not revert to Absent.
+                    target = AttendanceStatus.Present;
+                }
+                else
+                {
+                    target = AttendanceStatus.Absent;
+                    // Expired or no override: clear any stale marker so it cannot mask a later shift.
+                    ClearPresenceOverride(employee);
+                }
 
                 if (target != employee.Status)
                 {
@@ -199,6 +217,16 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>Clears a manual presence override (missed-punch hold) once it is spent or superseded.</summary>
+    private static void ClearPresenceOverride(Employee employee)
+    {
+        if (employee.PresenceOverrideUntil is not null || employee.PresenceOverrideReason is not null)
+        {
+            employee.PresenceOverrideUntil = null;
+            employee.PresenceOverrideReason = null;
         }
     }
 
