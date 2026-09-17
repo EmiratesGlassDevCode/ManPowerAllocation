@@ -68,10 +68,9 @@ else
     <div class="kpi-row" style="margin-bottom:16px">
         <div class="kpi-tile"><div class="kpi-value">@_items.Count</div><div class="kpi-label">Total away</div></div>
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-danger)">@CountStatus(AttendanceStatus.Absent)</div><div class="kpi-label">Absent</div></div>
-        <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-gold)">@CountStatus(AttendanceStatus.OnVacation)</div><div class="kpi-label">On vacation</div></div>
+        <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-gold)">@CountVacation()</div><div class="kpi-label">Vacation</div></div>
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-ok)">@CountKind(AbsenceKind.Informed)</div><div class="kpi-label">Informed</div></div>
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-danger)">@CountKind(AbsenceKind.NotInformed)</div><div class="kpi-label">Not informed</div></div>
-        <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-brand)">@CountKind(AbsenceKind.Vacation)</div><div class="kpi-label">Vacation</div></div>
         <div class="kpi-tile"><div class="kpi-value">@(_items.Count(i => i.Reason is null))</div><div class="kpi-label">Uncategorized</div></div>
         <div class="kpi-tile"><div class="kpi-value">@(_items.Select(i => i.DepartmentId).Distinct().Count())</div><div class="kpi-label">Departments affected</div></div>
         <div class="kpi-tile"><div class="kpi-value" style="color:var(--mpa-teal)">@ReturningSoon()</div><div class="kpi-label">Returning ≤ tomorrow</div></div>
@@ -81,10 +80,9 @@ else
         <div class="pill-row">
             <button type="button" class="pill @(_statusFilter == "all" ? "active" : "")" @onclick='() => _statusFilter = "all"'>All</button>
             <button type="button" class="pill @(_statusFilter == "absent" ? "active" : "")" @onclick='() => _statusFilter = "absent"'>Absent</button>
-            <button type="button" class="pill @(_statusFilter == "vacation" ? "active" : "")" @onclick='() => _statusFilter = "vacation"'>On vacation</button>
+            <button type="button" class="pill @(_statusFilter == "vacation" ? "active" : "")" @onclick='() => _statusFilter = "vacation"'>Vacation</button>
             <button type="button" class="pill @(_statusFilter == "informed" ? "active" : "")" @onclick='() => _statusFilter = "informed"'>Informed</button>
             <button type="button" class="pill @(_statusFilter == "notinformed" ? "active" : "")" @onclick='() => _statusFilter = "notinformed"'>Not informed</button>
-            <button type="button" class="pill @(_statusFilter == "vacationkind" ? "active" : "")" @onclick='() => _statusFilter = "vacationkind"'>Vacation</button>
             <button type="button" class="pill @(_statusFilter == "uncat" ? "active" : "")" @onclick='() => _statusFilter = "uncat"'>Uncategorized</button>
         </div>
         <label style="display:flex; align-items:center; gap:6px">Sort
@@ -439,6 +437,11 @@ else
 
     private int CountKind(AbsenceKind kind) => _items.Count(i => i.Reason is not null && i.Reason.Kind == kind);
 
+    /// <summary>Anyone on vacation, by attendance status or by a Vacation-kind reason (one figure).</summary>
+    private int CountVacation() =>
+        _items.Count(i => i.Status == AttendanceStatus.OnVacation
+                          || (i.Reason is not null && i.Reason.Kind == AbsenceKind.Vacation));
+
     /// <summary>Count of Informed leaves whose return (To) date is today or tomorrow.</summary>
     private int ReturningSoon()
     {
@@ -454,10 +457,10 @@ else
         q = _statusFilter switch
         {
             "absent" => q.Where(i => i.Status == AttendanceStatus.Absent),
-            "vacation" => q.Where(i => i.Status == AttendanceStatus.OnVacation),
+            "vacation" => q.Where(i => i.Status == AttendanceStatus.OnVacation
+                                       || (i.Reason is not null && i.Reason.Kind == AbsenceKind.Vacation)),
             "informed" => q.Where(i => i.Reason is not null && i.Reason.Kind == AbsenceKind.Informed),
             "notinformed" => q.Where(i => i.Reason is not null && i.Reason.Kind == AbsenceKind.NotInformed),
-            "vacationkind" => q.Where(i => i.Reason is not null && i.Reason.Kind == AbsenceKind.Vacation),
             "uncat" => q.Where(i => i.Reason is null),
             _ => q
         };

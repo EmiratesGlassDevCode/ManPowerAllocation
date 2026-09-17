@@ -1,11 +1,14 @@
 @page "/search"
 @using ManpowerAllocation.Application.Employees
 @using ManpowerAllocation.Application.Departments
+@using ManpowerAllocation.Application.Absences
 @using ManpowerAllocation.Web.Security
 @attribute [Authorize(Policy = AuthorizationPolicies.RequireViewer)]
 @inject IEmployeeService EmployeeService
 @inject IDepartmentService DepartmentService
 @inject ManpowerAllocation.Application.DepartmentHeads.IDepartmentHeadService HeadService
+@inject IAbsenceService AbsenceService
+@inject IAbsenceCategoryService CategoryService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Employees — Manpower Allocation</PageTitle>
@@ -230,6 +233,26 @@ else
             {
                 <FluentTextField @bind-Value="_eReason" Label="Present reason (kept over the sync — e.g. missed punch)" Style="width:100%" />
             }
+            @if (_eStatus == AttendanceStatus.OnVacation)
+            {
+                <label class="native-select-label">Vacation type
+                    <select @bind="_eVacCategoryId">
+                        <option value="0">— choose —</option>
+                        @foreach (var c in _vacationCategories)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                </label>
+                <div class="form-row">
+                    <label class="native-select-label">From
+                        <input type="date" @bind="_eVacFrom" />
+                    </label>
+                    <label class="native-select-label">To
+                        <input type="date" @bind="_eVacTo" />
+                    </label>
+                </div>
+            }
             <FluentTextField @bind-Value="_eNotes" Label="Notes / designation" Style="width:100%" />
             @if (!string.IsNullOrEmpty(_editError))
             {
@@ -320,6 +343,10 @@ else
     private AttendanceStatus _eStatus;
     private string _eNotes = string.Empty;
     private string _eReason = "Missed punch";
+    private int _eVacCategoryId;
+    private DateOnly _eVacFrom = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly _eVacTo = DateOnly.FromDateTime(DateTime.Now);
+    private IReadOnlyList<AbsenceCategoryDto> _vacationCategories = Array.Empty<AbsenceCategoryDto>();
     private string? _editError;
 
     // Delete.
@@ -350,6 +377,15 @@ else
         {
             _departments.AddRange(await DepartmentService.GetByDivisionAsync(division));
         }
+
+        // Vacation sub-categories, for the From/To vacation marking in the Edit panel.
+        try
+        {
+            _vacationCategories = (await CategoryService.ListAsync(includeInactive: false))
+                .Where(c => c.Kind == AbsenceKind.Vacation)
+                .ToList();
+        }
+        catch { /* categories are a convenience here; the Absentees page remains the primary editor */ }
 
         await ReloadAsync();
     }
@@ -458,6 +494,9 @@ else
         _eStatus = e.Status;
         _eNotes = e.Notes ?? string.Empty;
         _eReason = string.IsNullOrWhiteSpace(e.PresenceOverrideReason) ? "Missed punch" : e.PresenceOverrideReason;
+        _eVacCategoryId = 0;
+        _eVacFrom = DateOnly.FromDateTime(DateTime.Now);
+        _eVacTo = DateOnly.FromDateTime(DateTime.Now);
     }
 
     private async Task SaveEditAsync()
@@ -465,6 +504,14 @@ else
         if (_editTarget is null) { return; }
         _editError = null;
         if (string.IsNullOrWhiteSpace(_eName)) { _editError = "Employee name is required."; return; }
+        if (_eStatus == AttendanceStatus.OnVacation && _eVacCategoryId == 0)
+        {
+            _editError = "Choose a vacation type."; return;
+        }
+        if (_eStatus == AttendanceStatus.OnVacation && _eVacTo < _eVacFrom)
+        {
+            _editError = "The 'To' date cannot be before the 'From' date."; return;
+        }
 
         _busy = true;
         try
@@ -497,6 +544,24 @@ else
                 // Permanent reassignment (sets the home department) — not a temporary loan — so the
                 // change sticks across shift resets. This is the "small master edit" from the Employees menu.
                 await EmployeeService.ReassignAsync(id, new ReassignEmployeeRequest { TargetDepartmentId = _eDeptId });
+            }
+
+            // Vacation marking: record the From/To period against the chosen vacation type so it shows on
+            // the Absentees page and expires automatically. Leaving vacation clears the active reason.
+            if (_eStatus == AttendanceStatus.OnVacation)
+            {
+                await AbsenceService.SetReasonAsync(new SetAbsenceReasonRequest
+                {
+                    EmployeeId = id,
+                    CategoryId = _eVacCategoryId,
+                    FromDate = _eVacFrom,
+                    ToDate = _eVacTo,
+                    Comment = null
+                });
+            }
+            else if (_editTarget.Status == AttendanceStatus.OnVacation)
+            {
+                await AbsenceService.ClearReasonAsync(id);
             }
 
             _editTarget = null;

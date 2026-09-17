@@ -9,8 +9,8 @@
 
 <h1>Audit Trail</h1>
 <p class="hint">
-    Every create, update and delete with before → after values. Break-glass sessions are
-    highlighted.
+    Every create, update and delete with before → after values, for the last 30 days.
+    Break-glass sessions are highlighted.
 </p>
 
 <div class="audit-toolbar">
@@ -20,7 +20,7 @@
     </span>
     @if (_entries is not null)
     {
-        <span class="audit-count">Showing @_entries.Count of @_total most recent entries</span>
+        <span class="audit-count">Showing @_entries.Count entries from the last 30 days</span>
     }
 </div>
 
@@ -91,7 +91,8 @@ else
     private async Task LoadAsync()
     {
         _open.Clear();
-        _entries = await AuditReadService.GetRecentAsync(200, _breakGlassOnly);
+        // Show a rolling 30-day window of the audit trail.
+        _entries = await AuditReadService.GetRecentAsync(5000, _breakGlassOnly, 30);
         if (!_breakGlassOnly)
         {
             _total = _entries.Count;

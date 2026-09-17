@@ -25,8 +25,8 @@ public static class AdminEndpoints
         admin.MapGet("/break-glass/status", async (IBreakGlassService service, CancellationToken ct) =>
             Results.Ok(await service.GetStatusAsync(ct)));
 
-        admin.MapGet("/audit", async (int? take, bool? breakGlassOnly, IAuditReadService service, CancellationToken ct) =>
-            Results.Ok(await service.GetRecentAsync(take ?? 100, breakGlassOnly ?? false, ct)));
+        admin.MapGet("/audit", async (int? take, bool? breakGlassOnly, int? days, IAuditReadService service, CancellationToken ct) =>
+            Results.Ok(await service.GetRecentAsync(take ?? 5000, breakGlassOnly ?? false, days ?? 30, ct)));
 
         admin.MapPost("/attendance/sync", async (IAttendanceSyncService service, CancellationToken ct) =>
             Results.Ok(await service.SyncAsync("manual-api", ct)));

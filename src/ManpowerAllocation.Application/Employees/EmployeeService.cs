@@ -252,6 +252,69 @@ public sealed class EmployeeService : IEmployeeService
     }
 
     /// <inheritdoc />
+    public async Task<int> MoveManyAsync(IReadOnlyCollection<int> employeeIds, int targetDepartmentId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(employeeIds);
+        if (employeeIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var target = await _dbContext.Departments
+            .FirstOrDefaultAsync(d => d.Id == targetDepartmentId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Department), targetDepartmentId);
+
+        // The caller must be allowed to loan into the target (User/Admin, or a head of the target/pool).
+        await RequireLoanSideAsync(target, cancellationToken);
+
+        var ids = employeeIds.Distinct().ToList();
+        var employees = await _dbContext.Employees
+            .Include(e => e.Department)
+            .Where(e => ids.Contains(e.Id))
+            .ToListAsync(cancellationToken);
+
+        var moved = 0;
+        foreach (var employee in employees)
+        {
+            var source = employee.Department!;
+            if (source.Id == target.Id)
+            {
+                continue; // already there
+            }
+
+            // Skip (never abort the batch) anything the caller may not loan or that would cross a
+            // division without a shared pool on either side.
+            try
+            {
+                await RequireLoanSideAsync(source, cancellationToken);
+            }
+            catch (ForbiddenException)
+            {
+                continue;
+            }
+
+            if (target.Division != employee.Division && !source.IsPool && !target.IsPool)
+            {
+                continue;
+            }
+
+            var before = ToDto(employee, source.Name);
+            employee.DepartmentId = target.Id;
+            employee.Department = target;
+            employee.Division = target.Division;
+            _auditWriter.Add(AuditAction.Update, nameof(Employee), employee.Id.ToString(), before, ToDto(employee, target.Name));
+            moved++;
+        }
+
+        if (moved > 0)
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return moved;
+    }
+
+    /// <inheritdoc />
     public async Task<EmployeeDto> ReassignAsync(int employeeId, ReassignEmployeeRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

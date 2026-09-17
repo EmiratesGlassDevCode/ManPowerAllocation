@@ -49,6 +49,17 @@ public interface IEmployeeService
     Task<EmployeeDto> MoveAsync(int employeeId, MoveEmployeeRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Loans several employees to the same target department in one action (used for bulk-moving
+    /// selected supply/outsource workers). Each move applies the same loan rules and is audited;
+    /// an employee that fails a rule (permission or cross-division without a pool) is skipped rather
+    /// than aborting the batch. Returns the number actually moved.
+    /// </summary>
+    /// <param name="employeeIds">The employees to loan.</param>
+    /// <param name="targetDepartmentId">The destination department.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation.</param>
+    Task<int> MoveManyAsync(IReadOnlyCollection<int> employeeIds, int targetDepartmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Permanently reassigns an employee to another department (a single-employee master edit): sets
     /// the home department, current department and division, so the change survives the shift reset.
     /// May cross divisions. Requires edit rights on the employee's current department.

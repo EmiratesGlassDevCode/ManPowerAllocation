@@ -9,6 +9,7 @@ public interface IAuditReadService
     /// </summary>
     /// <param name="take">The maximum number of entries to return (capped internally).</param>
     /// <param name="breakGlassOnly">When true, returns only break-glass-flagged entries.</param>
+    /// <param name="withinDays">When set, returns only entries recorded within this many days (e.g. 30).</param>
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
-    Task<IReadOnlyList<AuditLogDto>> GetRecentAsync(int take, bool breakGlassOnly, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AuditLogDto>> GetRecentAsync(int take, bool breakGlassOnly, int? withinDays = null, CancellationToken cancellationToken = default);
 }

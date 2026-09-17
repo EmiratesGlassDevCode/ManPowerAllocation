@@ -8,7 +8,7 @@ namespace ManpowerAllocation.Application.Auditing;
 /// <summary>Default <see cref="IAuditReadService"/>. Admin-only, read-only projection of the audit trail.</summary>
 public sealed class AuditReadService : IAuditReadService
 {
-    private const int MaxTake = 500;
+    private const int MaxTake = 5000;
 
     private readonly IApplicationDbContext _dbContext;
     private readonly ICurrentUser _currentUser;
@@ -23,7 +23,7 @@ public sealed class AuditReadService : IAuditReadService
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<AuditLogDto>> GetRecentAsync(int take, bool breakGlassOnly, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<AuditLogDto>> GetRecentAsync(int take, bool breakGlassOnly, int? withinDays = null, CancellationToken cancellationToken = default)
     {
         if (!_currentUser.HasAtLeast(UserRole.Admin))
         {
@@ -36,6 +36,13 @@ public sealed class AuditReadService : IAuditReadService
         if (breakGlassOnly)
         {
             query = query.Where(a => a.IsBreakGlassSession);
+        }
+
+        // Keep a rolling display window (e.g. the last 30 days) when requested, newest first.
+        if (withinDays is { } days && days > 0)
+        {
+            var since = DateTime.UtcNow.AddDays(-days);
+            query = query.Where(a => a.TimestampUtc >= since);
         }
 
         return await query

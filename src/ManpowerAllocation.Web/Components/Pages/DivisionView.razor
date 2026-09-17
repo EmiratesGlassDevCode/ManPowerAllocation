@@ -80,6 +80,37 @@ else
             }
         </div>
 
+        @if (_selected.Count > 0)
+        {
+            <div class="data-card" style="margin:10px 0; padding:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; border:1px solid var(--mpa-brand)">
+                <strong>@_selected.Count selected</strong>
+                <span>Move outsource to:</span>
+                <select @bind="_bulkTargetId" style="min-width:220px">
+                    <option value="0">— choose department —</option>
+                    @foreach (var group in _allDepartments.Where(d => !d.IsPool).GroupBy(d => d.Division))
+                    {
+                        <optgroup label="@DivisionLabel(group.Key)">
+                            @foreach (var d in group)
+                            {
+                                <option value="@d.Id">@TextCase.Title(d.Name)</option>
+                            }
+                        </optgroup>
+                    }
+                    @if (_pools.Any())
+                    {
+                        <optgroup label="Pools">
+                            @foreach (var p in _pools)
+                            {
+                                <option value="@p.Id">@TextCase.Title(p.Name)</option>
+                            }
+                        </optgroup>
+                    }
+                </select>
+                <FluentButton Appearance="Appearance.Accent" @onclick="MoveSelectedAsync" Disabled="@(_busy || _bulkTargetId == 0)">Move @_selected.Count</FluentButton>
+                <FluentButton Appearance="Appearance.Neutral" @onclick="ClearSelection" Disabled="@_busy">Clear</FluentButton>
+            </div>
+        }
+
         <div class="dept-grid">
             @foreach (var dept in VisibleDepartments())
             {
@@ -136,6 +167,12 @@ else
                                 @foreach (var emp in members)
                                 {
                                     <li class="emp-row">
+                                        @if (emp.IsSupply && CanEditDept(dept.DepartmentId))
+                                        {
+                                            <input type="checkbox" title="Select for bulk move"
+                                                   checked="@_selected.Contains(emp.Id)"
+                                                   @onchange="e => ToggleSelected(emp.Id, e.Value)" />
+                                        }
                                         <span class="emp-av @(emp.IsSupply ? "supply" : "status-" + emp.Status.ToString().ToLowerInvariant())">@Avatar.Initials(emp.Name)</span>
                                         <span class="emp-name">@TextCase.Title(emp.Name) @(emp.IsSupply ? "(OS)" : string.Empty)@if (!string.IsNullOrWhiteSpace(emp.BadgeNumber))
                                             {<span class="emp-id" style="opacity:.6;font-weight:400;margin-left:4px">· @emp.BadgeNumber</span>}</span>
@@ -351,6 +388,41 @@ else
     private List<DepartmentDto> _departments = new();
     private List<DepartmentDto> _pools = new();
     private List<DepartmentDto> _allDepartments = new();
+
+    // Bulk selection of outsource/supply workers for a one-shot loan to a chosen department.
+    private readonly HashSet<int> _selected = new();
+    private int _bulkTargetId;
+
+    private void ToggleSelected(int employeeId, object? isChecked)
+    {
+        if (isChecked is true || (isChecked?.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false))
+        {
+            _selected.Add(employeeId);
+        }
+        else
+        {
+            _selected.Remove(employeeId);
+        }
+    }
+
+    private void ClearSelection()
+    {
+        _selected.Clear();
+        _bulkTargetId = 0;
+    }
+
+    private async Task MoveSelectedAsync()
+    {
+        if (_bulkTargetId == 0 || _selected.Count == 0)
+        {
+            return;
+        }
+
+        var ids = _selected.ToList();
+        var target = _bulkTargetId;
+        await RunActionAsync(() => EmployeeService.MoveManyAsync(ids, target));
+        ClearSelection();
+    }
     private List<EmployeeDto> _employees = new();
     private Dictionary<int, List<EmployeeDto>> _byDept = new();
     private List<string> _outsourceByDept = new();
