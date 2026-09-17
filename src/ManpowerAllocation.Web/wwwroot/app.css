@@ -700,6 +700,32 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
 @media (max-width: 620px) {
   .topbar-name { display: none; }
 }
+
+/* Phone-only: the Employees list (table.cards-sm) becomes stacked cards instead of a
+   sideways-scrolling table. Scoped to .cards-sm and <=600px, so desktop and every other
+   table are completely unchanged. */
+@media (max-width: 600px) {
+  /* Beat the `.grid-scroll .grid { min-width:640px }` rule so the table can shrink and stack. */
+  .grid-scroll table.cards-sm { min-width: 0; width: 100%; }
+  table.cards-sm thead { display: none; }
+  table.cards-sm tbody, table.cards-sm tr, table.cards-sm td { display: block; width: 100%; }
+  table.cards-sm tr {
+    border: 1px solid var(--mpa-stroke-2); border-radius: var(--mpa-r-md);
+    margin-bottom: 10px; padding: 8px 12px; background: var(--mpa-surface);
+  }
+  table.cards-sm td {
+    border: none; padding: 5px 0; display: flex; align-items: center;
+    justify-content: space-between; gap: 12px; text-align: right;
+  }
+  table.cards-sm td::before {
+    content: attr(data-label); font-weight: 600; color: var(--mpa-fg-2);
+    text-align: left; margin-right: auto;
+  }
+  table.cards-sm td.data-name { justify-content: flex-start; font-weight: 700; }
+  table.cards-sm td.data-name::before { content: ""; margin: 0; }
+  table.cards-sm td.row-actions { justify-content: flex-start; }
+}
+
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
 /* ── Tabular numerals everywhere a number sits in a column or changes on refresh ─── */

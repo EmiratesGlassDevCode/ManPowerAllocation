@@ -87,7 +87,7 @@ else if (rows.Count == 0)
 else
 {
     <div class="grid-scroll">
-        <table class="grid">
+        <table class="grid cards-sm">
             <thead>
                 <tr>
                     <th>Name</th><th>ID</th><th>Division</th><th>Department</th><th>Shift</th><th>Status</th><th>Notes</th>
@@ -101,25 +101,25 @@ else
                 @foreach (var e in rows)
                 {
                     <tr>
-                        <td class="data-name">
+                        <td class="data-name" data-label="Employee">
                             <span class="emp-av @(e.IsSupply ? "supply" : "status-" + e.Status.ToString().ToLowerInvariant())">@Avatar.Initials(e.Name)</span>
                             <span>@TextCase.Title(e.Name) @(e.IsSupply ? "(OS)" : string.Empty)</span>
                         </td>
-                        <td class="@(string.IsNullOrWhiteSpace(e.BadgeNumber) ? "sv-red" : "")">@(string.IsNullOrWhiteSpace(e.BadgeNumber) ? "— none —" : e.BadgeNumber)</td>
-                        <td>@DivisionLabel(e.Division)</td>
-                        <td>@TextCase.Title(e.DepartmentName)</td>
-                        <td><span class="badge @(e.Shift == ShiftType.Day ? "b-day" : "b-night")">@e.Shift</span></td>
-                        <td>
+                        <td data-label="ID" class="@(string.IsNullOrWhiteSpace(e.BadgeNumber) ? "sv-red" : "")">@(string.IsNullOrWhiteSpace(e.BadgeNumber) ? "— none —" : e.BadgeNumber)</td>
+                        <td data-label="Division">@DivisionLabel(e.Division)</td>
+                        <td data-label="Department">@TextCase.Title(e.DepartmentName)</td>
+                        <td data-label="Shift"><span class="badge @(e.Shift == ShiftType.Day ? "b-day" : "b-night")">@e.Shift</span></td>
+                        <td data-label="Status">
                             <span class="badge @StatusBadgeClass(e)">@TextCase.Status(e.Status)</span>
                             @if (e.Status == AttendanceStatus.Present && !string.IsNullOrWhiteSpace(e.PresenceOverrideReason))
                             {
                                 <span class="emp-id" style="opacity:.7;font-size:.8em;margin-left:4px" title="Manual presence — not from a biometric punch">· @e.PresenceOverrideReason</span>
                             }
                         </td>
-                        <td class="emp-notes">@(string.IsNullOrWhiteSpace(e.Notes) ? "—" : e.Notes)</td>
+                        <td class="emp-notes" data-label="Notes">@(string.IsNullOrWhiteSpace(e.Notes) ? "—" : e.Notes)</td>
                         @if (CanManageAny)
                         {
-                            <td class="row-actions">
+                            <td class="row-actions" data-label="Actions">
                                 @if (CanEditEmp(e))
                                 {
                                     <button type="button" class="mini-btn" @onclick="() => OpenEdit(e)">Edit</button>
