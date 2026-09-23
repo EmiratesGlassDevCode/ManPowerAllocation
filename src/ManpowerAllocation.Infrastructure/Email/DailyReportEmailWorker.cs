@@ -92,58 +92,83 @@ public sealed class DailyReportEmailWorker : BackgroundService
         var localNow = ToLocal(utcNow);
         var today = localNow.Date;
 
-        // Wait until the configured send time and only send once per operational day.
-        if (localNow.TimeOfDay < settings.SendAtLocal)
-        {
-            return;
-        }
+        // Two sends per operational day: the DAY report after the configured send time, and the
+        // NIGHT report after that time + 12 hours. Each is guarded by its own last-sent date so it
+        // goes out exactly once. Each report was captured 15 minutes before its send time.
+        var daySend = ReportSchedule.DaySend(settings.SendAtLocal);
+        var nightSend = ReportSchedule.NightSend(settings.SendAtLocal);
 
-        if (settings.LastSentOperationalDate.HasValue && settings.LastSentOperationalDate.Value.Date >= today)
+        var dayDue = localNow.TimeOfDay >= daySend
+            && !(settings.LastSentOperationalDate.HasValue && settings.LastSentOperationalDate.Value.Date >= today);
+        var nightDue = localNow.TimeOfDay >= nightSend
+            && !(settings.LastSentNightDate.HasValue && settings.LastSentNightDate.Value.Date >= today);
+
+        if (!dayDue && !nightDue)
         {
             return;
         }
 
         var history = scope.ServiceProvider.GetRequiredService<IAllocationHistoryService>();
         var snapshots = await history.ListAsync(today, today, cancellationToken);
-        var daySnapshot = snapshots.FirstOrDefault(s => s.Shift == ShiftType.Day);
 
-        if (daySnapshot is null)
+        if (dayDue)
         {
-            // The day snapshot is captured at the 10:00 cut-off; if it is not present yet, retry
-            // on the next tick rather than sending an empty report.
-            _logger.LogInformation("Daily report email: no day snapshot captured yet for {Date:yyyy-MM-dd}; will retry.", today);
-            return;
+            var daySnapshot = snapshots.FirstOrDefault(s => s.Shift == ShiftType.Day);
+            if (await TrySendAsync(scope, settings, daySnapshot, ShiftType.Day, today, cancellationToken))
+            {
+                settings.LastSentOperationalDate = today;
+                settings.UpdatedAtUtc = utcNow;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                _status.MarkSuccess(utcNow, today);
+            }
+        }
+
+        if (nightDue)
+        {
+            var nightSnapshot = snapshots.FirstOrDefault(s => s.Shift == ShiftType.Night);
+            if (await TrySendAsync(scope, settings, nightSnapshot, ShiftType.Night, today, cancellationToken))
+            {
+                settings.LastSentNightDate = today;
+                settings.UpdatedAtUtc = utcNow;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                _status.MarkSuccess(utcNow, today);
+            }
+        }
+    }
+
+    /// <summary>Builds and sends one shift's report. Returns false (to retry next tick) when its snapshot is not captured yet.</summary>
+    private async Task<bool> TrySendAsync(IServiceScope scope, EmailSettings settings, SnapshotSummaryDto? snapshot, ShiftType shift, DateTime today, CancellationToken cancellationToken)
+    {
+        if (snapshot is null)
+        {
+            _logger.LogInformation("Daily report email: no {Shift} snapshot captured yet for {Date:yyyy-MM-dd}; will retry.", shift, today);
+            return false;
         }
 
         var attachments = new List<EmailAttachment>();
         if (settings.AttachPdf)
         {
             var exports = scope.ServiceProvider.GetRequiredService<IReportExportService>();
-            var pdf = await exports.BuildDailyReportPdfAsync(daySnapshot.Id, cancellationToken);
+            var pdf = await exports.BuildDailyReportPdfAsync(snapshot.Id, cancellationToken);
             attachments.Add(new EmailAttachment(pdf.FileName, pdf.ContentType, pdf.Content));
         }
 
-        var email = BuildEmail(daySnapshot, attachments);
-
+        var email = BuildEmail(snapshot, shift, attachments);
         var sender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
         await sender.SendAsync(email, cancellationToken);
 
-        // Record success only after the send returns; the per-date guard prevents duplicates.
-        settings.LastSentOperationalDate = today;
-        settings.UpdatedAtUtc = utcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        _status.MarkSuccess(utcNow, today);
-        _logger.LogInformation("Emailed the day report for {Date:yyyy-MM-dd} to the configured recipients.", today);
+        _logger.LogInformation("Emailed the {Shift} report for {Date:yyyy-MM-dd} to the configured recipients.", shift, today);
+        return true;
     }
 
-    private static OutgoingEmail BuildEmail(SnapshotSummaryDto snapshot, IReadOnlyList<EmailAttachment> attachments)
+    private static OutgoingEmail BuildEmail(SnapshotSummaryDto snapshot, ShiftType shift, IReadOnlyList<EmailAttachment> attachments)
     {
         var date = snapshot.OperationalDate.ToString("dddd, dd MMMM yyyy");
-        var subject = $"Manpower Allocation — Day report {snapshot.OperationalDate:yyyy-MM-dd}";
+        var shiftName = shift == ShiftType.Night ? "Night" : "Day";
+        var subject = $"Manpower Allocation — {shiftName} report {snapshot.OperationalDate:yyyy-MM-dd}";
 
         var body =
-            $"Daily manpower allocation report for {date} (day shift).\r\n\r\n" +
+            $"Daily manpower allocation report for {date} ({shiftName.ToLowerInvariant()} shift).\r\n\r\n" +
             $"On roll:      {snapshot.OnRoll}\r\n" +
             $"Present:      {snapshot.Present}\r\n" +
             $"Absent:       {snapshot.Absent}\r\n" +

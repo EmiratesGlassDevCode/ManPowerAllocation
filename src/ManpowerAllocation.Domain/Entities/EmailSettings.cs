@@ -72,8 +72,11 @@ public sealed class EmailSettings
     /// <summary>Whether to attach the daily report PDF.</summary>
     public bool AttachPdf { get; set; } = true;
 
-    /// <summary>The operational date the report was last successfully emailed (idempotency guard).</summary>
+    /// <summary>The operational date the DAY report was last successfully emailed (idempotency guard).</summary>
     public DateTime? LastSentOperationalDate { get; set; }
+
+    /// <summary>The operational date the NIGHT report was last successfully emailed (idempotency guard).</summary>
+    public DateTime? LastSentNightDate { get; set; }
 
     /// <summary>When the settings were last changed (UTC).</summary>
     public DateTime UpdatedAtUtc { get; set; }

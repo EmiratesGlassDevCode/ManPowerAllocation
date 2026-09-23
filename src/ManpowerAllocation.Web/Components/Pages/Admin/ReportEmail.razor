@@ -29,8 +29,9 @@ else
                 Send the daily report email automatically
             </label>
             <div class="form-inline">
-                <label>Send at (local)
+                <label>Day send at (local)
                     <input type="time" @bind="_sendAt" />
+                    <span class="hint" style="display:block">Night report is sent 12 hours later. Each report is generated 15 minutes before it is sent. Must be before 12:00.</span>
                 </label>
                 <label class="check">
                     <input type="checkbox" @bind="_model.AttachPdf" />

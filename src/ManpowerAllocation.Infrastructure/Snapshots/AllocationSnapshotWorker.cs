@@ -1,7 +1,9 @@
 using ManpowerAllocation.Application.Abstractions;
 using ManpowerAllocation.Application.Snapshots;
+using ManpowerAllocation.Domain.Entities;
 using ManpowerAllocation.Domain.Enums;
 using ManpowerAllocation.Infrastructure.Attendance;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -20,8 +22,6 @@ namespace ManpowerAllocation.Infrastructure.Snapshots;
 public sealed class AllocationSnapshotWorker : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(1);
-    private static readonly TimeSpan DayCutoff = new(10, 0, 0);
-    private static readonly TimeSpan NightCutoff = new(22, 0, 0);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly AttendanceOptions _options;
@@ -73,26 +73,35 @@ public sealed class AllocationSnapshotWorker : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
         var snapshots = scope.ServiceProvider.GetRequiredService<IAllocationSnapshotService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
 
         var utcNow = clock.UtcNow;
         var localNow = ToLocal(utcNow);
         var today = localNow.Date;
         var yesterday = today.AddDays(-1);
 
+        // The report generation (cut-off) times follow the configured mail time: each report is
+        // captured 15 minutes before it is sent, and the night send is the day send + 12 hours.
+        // Falls back to 10:00 / 22:00 when no send time is configured.
+        var settings = await dbContext.EmailSettings.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == EmailSettings.SingletonId, cancellationToken);
+        var dayCutoff = ReportSchedule.DayCutoff(settings?.SendAtLocal);
+        var nightCutoff = ReportSchedule.NightCutoff(settings?.SendAtLocal);
+
         // Back-fill yesterday's cut-offs first: if the app was down across a cut-off into the next
         // day, those snapshots would otherwise be lost forever. Both cut-offs have definitely passed
         // for yesterday, so capture them if missing (a late capture is far better than a hole).
-        await CaptureIfMissing(snapshots, yesterday, ShiftType.Day, "auto-10:00-late", utcNow, cancellationToken);
-        await CaptureIfMissing(snapshots, yesterday, ShiftType.Night, "auto-22:00-late", utcNow, cancellationToken);
+        await CaptureIfMissing(snapshots, yesterday, ShiftType.Day, "auto-day-late", utcNow, cancellationToken);
+        await CaptureIfMissing(snapshots, yesterday, ShiftType.Night, "auto-night-late", utcNow, cancellationToken);
 
-        if (localNow.TimeOfDay >= DayCutoff)
+        if (localNow.TimeOfDay >= dayCutoff)
         {
-            await CaptureIfMissing(snapshots, today, ShiftType.Day, "auto-10:00", utcNow, cancellationToken);
+            await CaptureIfMissing(snapshots, today, ShiftType.Day, "auto-day", utcNow, cancellationToken);
         }
 
-        if (localNow.TimeOfDay >= NightCutoff)
+        if (localNow.TimeOfDay >= nightCutoff)
         {
-            await CaptureIfMissing(snapshots, today, ShiftType.Night, "auto-22:00", utcNow, cancellationToken);
+            await CaptureIfMissing(snapshots, today, ShiftType.Night, "auto-night", utcNow, cancellationToken);
         }
 
         // The poll completed without throwing — record liveness so the health endpoint and UI can

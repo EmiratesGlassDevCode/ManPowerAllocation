@@ -173,6 +173,14 @@ public sealed class EmailSettingsService : IEmailSettingsService
             throw new BusinessRuleException("The send time must be a time of day.");
         }
 
+        // The night report is derived as this time + 12 hours, and each report is generated 15 minutes
+        // before it is sent. To keep the night send (and its generation) on the same calendar day, the
+        // configured day send time must be before noon.
+        if (request.SendAtLocal >= TimeSpan.FromHours(12))
+        {
+            throw new BusinessRuleException("The daily send time must be before 12:00 (noon), because the night report is sent 12 hours later on the same day.");
+        }
+
         switch (request.Mode)
         {
             case SmtpMode.Basic:
