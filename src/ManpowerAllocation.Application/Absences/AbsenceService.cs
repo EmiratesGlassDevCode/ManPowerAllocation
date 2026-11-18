@@ -83,8 +83,7 @@ public sealed class AbsenceService : IAbsenceService
             {
                 e.Id, e.Name, e.BadgeNumber, e.DepartmentId,
                 DepartmentName = e.Department!.Name,
-                e.Division, e.Shift, e.Status, e.IsSupply,
-                DepartmentActive = e.Department!.IsActive
+                e.Division, e.Shift, e.Status, e.IsSupply
             })
             .ToListAsync(cancellationToken);
 
@@ -97,8 +96,7 @@ public sealed class AbsenceService : IAbsenceService
                 reasonByEmployee.TryGetValue(e.Id, out var r)
                     ? new AbsenceReasonView(r.RecordId, r.CategoryId, r.CategoryName, r.Kind, r.FromDate, r.ToDate, r.Comment, r.SetByName, r.CreatedAtUtc)
                     : null,
-                headByDeptId.TryGetValue(e.DepartmentId, out var head) ? head : "Unassigned",
-                e.DepartmentActive))
+                headByDeptId.TryGetValue(e.DepartmentId, out var head) ? head : "Unassigned"))
             .ToList();
     }
 
@@ -112,14 +110,11 @@ public sealed class AbsenceService : IAbsenceService
         var lines = await (
             from se in _dbContext.AllocationSnapshotEmployees.AsNoTracking()
             join s in _dbContext.AllocationSnapshots.AsNoTracking() on se.SnapshotId equals s.Id
-            join sd in _dbContext.AllocationSnapshotDepartments.AsNoTracking()
-                on new { se.SnapshotId, se.DepartmentName } equals new { sd.SnapshotId, sd.DepartmentName } into sdj
-            from sd in sdj.DefaultIfEmpty()
             where s.OperationalDate >= dayStart && s.OperationalDate < dayEnd
                 && (shift == null || s.Shift == shift)
                 && (se.Status == AttendanceStatus.Absent || se.Status == AttendanceStatus.OnVacation)
                 && (division == null || se.Division == division)
-            select new { se.EmployeeId, se.Name, se.BadgeNumber, se.Division, se.DepartmentName, se.Shift, se.Status, se.IsSupply, DepartmentActive = sd == null || sd.IsActive })
+            select new { se.EmployeeId, se.Name, se.BadgeNumber, se.Division, se.DepartmentName, se.Shift, se.Status, se.IsSupply })
             .ToListAsync(cancellationToken);
 
         if (lines.Count == 0)
@@ -147,8 +142,7 @@ public sealed class AbsenceService : IAbsenceService
                 reasonByEmployee.TryGetValue(l.EmployeeId, out var r)
                     ? new AbsenceReasonView(r.RecordId, r.CategoryId, r.CategoryName, r.Kind, r.FromDate, r.ToDate, r.Comment, r.SetByName, r.CreatedAtUtc)
                     : null,
-                headByDeptName.TryGetValue(l.DepartmentName.ToLowerInvariant(), out var head) ? head : "Unassigned",
-                l.DepartmentActive))
+                headByDeptName.TryGetValue(l.DepartmentName.ToLowerInvariant(), out var head) ? head : "Unassigned"))
             .ToList();
     }
 
