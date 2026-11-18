@@ -66,6 +66,7 @@ public sealed class AbsenceService : IAbsenceService
             .AsNoTracking()
             .Where(e => e.Status == AttendanceStatus.Absent
                 || e.Status == AttendanceStatus.OnVacation
+                || e.Status == AttendanceStatus.DepartmentOff
                 || reasonEmployeeIds.Contains(e.Id));
 
         if (division is { } d)
@@ -112,7 +113,7 @@ public sealed class AbsenceService : IAbsenceService
             join s in _dbContext.AllocationSnapshots.AsNoTracking() on se.SnapshotId equals s.Id
             where s.OperationalDate >= dayStart && s.OperationalDate < dayEnd
                 && (shift == null || s.Shift == shift)
-                && (se.Status == AttendanceStatus.Absent || se.Status == AttendanceStatus.OnVacation)
+                && (se.Status == AttendanceStatus.Absent || se.Status == AttendanceStatus.OnVacation || se.Status == AttendanceStatus.DepartmentOff)
                 && (division == null || se.Division == division)
             select new { se.EmployeeId, se.Name, se.BadgeNumber, se.Division, se.DepartmentName, se.Shift, se.Status, se.IsSupply })
             .ToListAsync(cancellationToken);

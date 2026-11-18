@@ -63,7 +63,7 @@ public static class StaffingCalculator
         var onRoll = own.Count;
         var present = own.Count(e => e.Status == AttendanceStatus.Present);
         var absent = own.Count(e => e.Status == AttendanceStatus.Absent);
-        var onVacation = own.Count(e => e.Status == AttendanceStatus.OnVacation);
+        var onVacation = own.Count(e => e.Status is AttendanceStatus.OnVacation or AttendanceStatus.DepartmentOff);
         var supplyPresent = inShift.Count(e => e.IsSupply && e.Status == AttendanceStatus.Present);
 
         var required = RequiredFor(department, shift);

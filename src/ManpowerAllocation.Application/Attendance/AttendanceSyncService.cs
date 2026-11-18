@@ -137,6 +137,12 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
                 {
                     target = AttendanceStatus.OnVacation;
                 }
+                else if (employee.Status == AttendanceStatus.DepartmentOff)
+                {
+                    // Manually-set "Department Off" is preserved by the sync (like vacation); a real
+                    // punch above already supersedes it (the person turned up), flipping them to Present.
+                    target = AttendanceStatus.DepartmentOff;
+                }
                 else if (employee.Status == AttendanceStatus.Present
                          && employee.PresenceOverrideUntil is { } until && localNow < until)
                 {
@@ -237,6 +243,7 @@ public sealed class AttendanceSyncService : IAttendanceSyncService
         {
             case AttendanceStatus.Present: present++; break;
             case AttendanceStatus.OnVacation: onVacation++; break;
+            case AttendanceStatus.DepartmentOff: onVacation++; break;
             default: absent++; break;
         }
     }

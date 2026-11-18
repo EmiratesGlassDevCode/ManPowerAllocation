@@ -201,7 +201,7 @@ else
             var employees = (await EmployeeService.GetByDivisionAsync(division)).Where(MatchesShift).ToList();
             _absent.AddRange(employees.Where(e => !e.IsSupply && e.Status == AttendanceStatus.Absent)
                 .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(e.DepartmentName)}"));
-            _vacation.AddRange(employees.Where(e => !e.IsSupply && e.Status == AttendanceStatus.OnVacation)
+            _vacation.AddRange(employees.Where(e => !e.IsSupply && (e.Status == AttendanceStatus.OnVacation || e.Status == AttendanceStatus.DepartmentOff))
                 .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(e.DepartmentName)}"));
             _outsource.AddRange(employees.Where(e => e.IsSupply && e.Status == AttendanceStatus.Present)
                 .Select(e => $"{TextCase.Title(e.Name)} · {TextCase.Title(e.DepartmentName)}"));

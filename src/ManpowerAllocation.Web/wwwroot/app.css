@@ -371,6 +371,7 @@ h1, h2, h3, h4 { text-transform: uppercase; letter-spacing: .02em; }
 .b-off { background: var(--mpa-surface-alt); color: var(--mpa-fg-3); border-color: var(--mpa-stroke-2); }
 .b-vac { background: var(--mpa-warn-bg); color: var(--mpa-warn); border-color: var(--mpa-warn-bd); }
 .b-supply { background: var(--mpa-supply-bg); color: var(--mpa-supply); border-color: var(--mpa-supply-bd); }
+.b-deptoff { background: var(--mpa-surface); color: var(--mpa-fg-2); border-color: var(--mpa-stroke-1); }
 .b-day { background: var(--mpa-warn-bg); color: var(--mpa-gold); border-color: var(--mpa-warn-bd); }
 .b-night { background: var(--mpa-surface-tint); color: #3B4A8C; border-color: #B4D6FA; }
 .b-admin { background: var(--mpa-danger-bg); color: var(--mpa-danger); border-color: var(--mpa-danger-bd); }

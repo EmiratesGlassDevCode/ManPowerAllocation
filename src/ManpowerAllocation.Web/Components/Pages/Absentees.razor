@@ -426,20 +426,17 @@ else
         AttendanceStatus.Present => "Present",
         AttendanceStatus.Absent => "Absent",
         AttendanceStatus.OnVacation => "On vacation",
+        AttendanceStatus.DepartmentOff => "Department Off",
         _ => status.ToString()
     };
 
     private int CountKind(AbsenceKind kind) => _items.Count(i => i.Reason is not null && i.Reason.Kind == kind);
 
     /// <summary>
-    /// The "Department Off" vacation category, set from the Employees tab (status On vacation + this
-    /// type). Matched by category name so it can be surfaced as its own tile and filter.
+    /// "Department Off" is its own attendance status, set from the Employees tab. It gets its own
+    /// tile and filter, carved out of the away list alongside Absent and On vacation.
     /// </summary>
-    private const string DepartmentOffCategory = "Department Off";
-
-    private static bool IsDeptOff(AbsenceListItemDto i) =>
-        i.Reason is not null
-        && string.Equals(i.Reason.CategoryName?.Trim(), DepartmentOffCategory, StringComparison.OrdinalIgnoreCase);
+    private static bool IsDeptOff(AbsenceListItemDto i) => i.Status == AttendanceStatus.DepartmentOff;
 
     /// <summary>
     /// The Status tiles form a mutually-exclusive partition that always sums to Total away:

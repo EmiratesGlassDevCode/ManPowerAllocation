@@ -14,5 +14,8 @@ public enum AttendanceStatus
     Absent = 2,
 
     /// <summary>On vacation / leave ("VAC" in the prototype).</summary>
-    OnVacation = 3
+    OnVacation = 3,
+
+    /// <summary>Off because their department is not operating; set manually from the Employees tab.</summary>
+    DepartmentOff = 4
 }

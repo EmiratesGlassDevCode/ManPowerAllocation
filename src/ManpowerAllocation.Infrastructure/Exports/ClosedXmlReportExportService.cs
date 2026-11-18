@@ -440,7 +440,7 @@ public sealed class ClosedXmlReportExportService : IReportExportService
     private async Task<List<PdfDailyReport.AbsenteeRow>> BuildAbsenteeRowsAsync(AllocationSnapshot snapshot, CancellationToken cancellationToken)
     {
         var absentEmployees = snapshot.Employees
-            .Where(e => e.Status is AttendanceStatus.Absent or AttendanceStatus.OnVacation)
+            .Where(e => e.Status is AttendanceStatus.Absent or AttendanceStatus.OnVacation or AttendanceStatus.DepartmentOff)
             .ToList();
 
         if (absentEmployees.Count == 0)
@@ -478,7 +478,12 @@ public sealed class ClosedXmlReportExportService : IReportExportService
             .ThenBy(e => e.Name)
             .Select(e =>
             {
-                var statusLabel = e.Status == AttendanceStatus.OnVacation ? "On vacation" : "Absent";
+                var statusLabel = e.Status switch
+                {
+                    AttendanceStatus.OnVacation => "On vacation",
+                    AttendanceStatus.DepartmentOff => "Department Off",
+                    _ => "Absent"
+                };
                 if (reasonByEmployee.TryGetValue(e.EmployeeId, out var r))
                 {
                     var kind = Application.Absences.AbsenceKindText.Label(r.Kind);
@@ -499,7 +504,7 @@ public sealed class ClosedXmlReportExportService : IReportExportService
                 }
 
                 // No recorded reason: for a vacation this is self-explanatory; otherwise it's unexplained.
-                var fallbackKind = e.Status == AttendanceStatus.OnVacation ? "—" : "Not recorded";
+                var fallbackKind = e.Status is AttendanceStatus.OnVacation or AttendanceStatus.DepartmentOff ? "—" : "Not recorded";
                 return new PdfDailyReport.AbsenteeRow(
                     e.Name, e.BadgeNumber, DivisionLabel(e.Division), e.DepartmentName, statusLabel, fallbackKind, "—", "—");
             })
@@ -738,6 +743,7 @@ public sealed class ClosedXmlReportExportService : IReportExportService
         AttendanceStatus.Present => "YES",
         AttendanceStatus.Absent => "NO",
         AttendanceStatus.OnVacation => "VAC",
+        AttendanceStatus.DepartmentOff => "OFF",
         _ => status.ToString()
     };
 }

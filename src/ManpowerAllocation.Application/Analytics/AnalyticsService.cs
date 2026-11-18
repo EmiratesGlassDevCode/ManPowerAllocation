@@ -340,6 +340,7 @@ public sealed class AnalyticsService : IAnalyticsService
         AttendanceStatus.Present => "Present",
         AttendanceStatus.Absent => "Absent",
         AttendanceStatus.OnVacation => "On vacation",
+        AttendanceStatus.DepartmentOff => "Department Off",
         _ => status.ToString()
     };
 

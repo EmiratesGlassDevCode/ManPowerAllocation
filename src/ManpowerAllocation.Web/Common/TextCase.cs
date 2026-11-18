@@ -49,6 +49,7 @@ public static class TextCase
         ManpowerAllocation.Domain.Enums.AttendanceStatus.Present => "Present",
         ManpowerAllocation.Domain.Enums.AttendanceStatus.Absent => "Absent",
         ManpowerAllocation.Domain.Enums.AttendanceStatus.OnVacation => "On vacation",
+        ManpowerAllocation.Domain.Enums.AttendanceStatus.DepartmentOff => "Department Off",
         _ => status.ToString()
     };
 }

@@ -63,7 +63,7 @@ public sealed class ReconciliationService : IReconciliationService
         var rosterSupply = employees.Count(e => e.IsSupply);
         var rosterPresent = employees.Count(e => e.Status == AttendanceStatus.Present);
         var rosterAbsent = employees.Count(e => e.Status == AttendanceStatus.Absent);
-        var rosterOnVacation = employees.Count(e => e.Status == AttendanceStatus.OnVacation);
+        var rosterOnVacation = employees.Count(e => e.Status is AttendanceStatus.OnVacation or AttendanceStatus.DepartmentOff);
 
         if (!_presenceProvider.IsConfigured)
         {

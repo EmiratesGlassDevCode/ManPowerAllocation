@@ -53,6 +53,7 @@
             <option value="@AttendanceStatus.Present">Present</option>
             <option value="@AttendanceStatus.Absent">Absent</option>
             <option value="@AttendanceStatus.OnVacation">On vacation</option>
+            <option value="@AttendanceStatus.DepartmentOff">Department Off</option>
             <option value="supply">Outsource only</option>
             <option value="nobadge">No badge</option>
         </select>
@@ -174,6 +175,7 @@ else
                         <option value="@AttendanceStatus.Present">Present</option>
                         <option value="@AttendanceStatus.Absent">Absent</option>
                         <option value="@AttendanceStatus.OnVacation">On vacation</option>
+                        <option value="@AttendanceStatus.DepartmentOff">Department Off</option>
                     </select>
                 </label>
             </div>
@@ -226,6 +228,7 @@ else
                         <option value="@AttendanceStatus.Present">Present</option>
                         <option value="@AttendanceStatus.Absent">Absent</option>
                         <option value="@AttendanceStatus.OnVacation">On vacation</option>
+                        <option value="@AttendanceStatus.DepartmentOff">Department Off</option>
                     </select>
                 </label>
             </div>
@@ -595,6 +598,7 @@ else
     {
         AttendanceStatus.Absent => "b-short",
         AttendanceStatus.OnVacation => "b-vac",
+        AttendanceStatus.DepartmentOff => "b-deptoff",
         _ => "b-optimal"
     };
 
