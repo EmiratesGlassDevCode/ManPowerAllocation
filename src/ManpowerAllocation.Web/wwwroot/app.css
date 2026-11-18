@@ -749,3 +749,4 @@ button.secondary:hover { background: var(--mpa-surface-alt); }
 .export-link { height: 34px; padding: 0 14px; display: inline-flex; align-items: center; border: 1px solid var(--mpa-stroke-1); background: var(--mpa-surface); color: var(--mpa-fg-2); border-radius: 8px; font: 600 13px/1 var(--mpa-font); text-decoration: none; }
 .export-link:hover { border-color: var(--mpa-brand); color: var(--mpa-brand); }
 .abs-vacation { background: var(--mpa-brand-tint); color: var(--mpa-brand); border-color: var(--mpa-brand-tint-bd); }
+.abs-dept-off { background: var(--mpa-surface); color: var(--mpa-fg-2); border-color: var(--mpa-stroke-1); }

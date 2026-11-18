@@ -127,7 +127,16 @@ else
                             <td>@(item.DepartmentHead == "Unassigned" ? (MarkupString)"<span class=\"muted\">Unassigned</span>" : (MarkupString)System.Net.WebUtility.HtmlEncode(item.DepartmentHead))</td>
                             <td>@item.Shift</td>
                             <td>@StatusLabel(item.Status)</td>
-                            <td>@ReasonMarkup(item.Reason)</td>
+                            <td>
+                                @if (item.Reason is null && !item.DepartmentActive)
+                                {
+                                    <span class="badge abs-dept-off">Department OFF</span>
+                                }
+                                else
+                                {
+                                    @ReasonMarkup(item.Reason)
+                                }
+                            </td>
                             <td style="white-space:nowrap">
                                 @if (_isToday && CanEditDept(item.DepartmentId))
                                 {
